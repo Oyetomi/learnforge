@@ -23,6 +23,8 @@ export interface ExecutionResult {
 export type SupportedLanguage =
   | 'go'
   | 'golang'
+  | 'rust'
+  | 'rs'
   | 'python'
   | 'py'
   | 'javascript'

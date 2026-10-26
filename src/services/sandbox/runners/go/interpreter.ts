@@ -108,6 +108,21 @@ export class GoTranspiler {
     code = code.replace(/var\s+([A-Za-z0-9_]+)\s+sync\.Mutex/g, 'const $1 = new GoMutex()');
     code = code.replace(/var\s+([A-Za-z0-9_]+)\s+sync\.RWMutex/g, 'const $1 = new GoRWMutex()');
 
+    // Atomic operations (sync/atomic)
+    code = code.replace(/atomic\.Add(?:Int32|Int64|Uint32|Uint64)\s*\(\s*&?([A-Za-z0-9_]+)\s*,\s*([^)]+)\)/g, '$1 += ($2)');
+    code = code.replace(/atomic\.Load(?:Int32|Int64|Uint32|Uint64)\s*\(\s*&?([A-Za-z0-9_]+)\s*\)/g, '$1');
+    code = code.replace(/atomic\.Store(?:Int32|Int64|Uint32|Uint64)\s*\(\s*&?([A-Za-z0-9_]+)\s*,\s*([^)]+)\)/g, '$1 = ($2)');
+
+    // Primitive var declarations
+    code = code.replace(/var\s+([A-Za-z0-9_]+)\s+(?:int|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64|float32|float64|byte|rune)\s*=\s*([^;\n]+)/g, 'let $1 = $2');
+    code = code.replace(/var\s+([A-Za-z0-9_]+)\s+(?:int|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64|float32|float64|byte|rune)\b/g, 'let $1 = 0');
+    code = code.replace(/var\s+([A-Za-z0-9_]+)\s+string\s*=\s*([^;\n]+)/g, 'let $1 = $2');
+    code = code.replace(/var\s+([A-Za-z0-9_]+)\s+string\b/g, 'let $1 = ""');
+    code = code.replace(/var\s+([A-Za-z0-9_]+)\s+bool\s*=\s*([^;\n]+)/g, 'let $1 = $2');
+    code = code.replace(/var\s+([A-Za-z0-9_]+)\s+bool\b/g, 'let $1 = false');
+    code = code.replace(/var\s+([A-Za-z0-9_]+)\s+\[\][A-Za-z0-9_.*]+\b/g, 'let $1 = []');
+    code = code.replace(/var\s+([A-Za-z0-9_]+)\s+map\[[^\]]+\][A-Za-z0-9_.*]+\b/g, 'let $1 = {}');
+
     // WaitGroup & Mutex methods
     code = code.replace(/([A-Za-z0-9_]+)\.Add\(([^)]+)\)/g, '$1.add($2)');
     code = code.replace(/([A-Za-z0-9_]+)\.Done\(\)/g, '$1.done()');
@@ -139,17 +154,44 @@ export class GoTranspiler {
     // 10. Transform select statements
     code = this.transformSelect(code);
 
-    // 11. Transform function declarations (stripping types, channel arrows in params, etc.)
-    code = this.transformFunctionsWithDefer(code);
+    // 11. Transform goroutines before top-level function transform so closures capture their own defers
+    // go func(...) { ... }(...)
+    code = code.replace(/\bgo\s+func\s*\((.*?)\)\s*\{([\s\S]*?)\}\s*\((.*?)\)/g, (_m: string, params: string, body: string, args: string) => {
+      let inner = body;
+      const defers: string[] = [];
+      inner = inner.replace(/^\s*defer\s+([^;\n]+)/gm, (_dm: string, expr: string) => {
+        defers.push(expr.trim());
+        return '';
+      });
+      if (defers.length > 0) {
+        const deferCalls = defers
+          .map((d) => `await ${d.replace(/\.Done\(\)/, '.done()').replace(/\.Unlock\(\)/, '.unlock()')};`)
+          .reverse()
+          .join(' ');
+        inner = `try { ${inner} } finally { ${deferCalls} }`;
+      }
+      return `__scheduler.go(async () => { (async (${params}) => { ${inner} })(${args}); })`;
+    });
 
-    // 12. Transform channel range: for item := range ch { ... }
+    // go fnName(arg1, arg2)
+    code = code.replace(/\bgo\s+([A-Za-z0-9_]+)\s*\((.*?)\)/g, (_m: string, fnName: string, args: string) => {
+      if (fnName === '__scheduler') return _m;
+      const cleanArgs = args.replace(/&([A-Za-z0-9_]+)/g, '$1');
+      return `__scheduler.go(async () => { await ${fnName}(${cleanArgs}); })`;
+    });
+
+    // 12. Transform function declarations (stripping types, channel arrows in params, etc.)
+    const { code: fnCode, asyncFns } = this.transformFunctionsWithDefer(code);
+    code = fnCode;
+
+    // 13. Transform channel range: for item := range ch { ... }
     code = code.replace(/for\s+([A-Za-z0-9_]+)\s*:=\s*range\s+([A-Za-z0-9_]+)\s*\{/g, 'for await (const $1 of $2.iterate()) {');
     // Transform for i, item := range slice { ... }
     code = code.replace(/for\s+([A-Za-z0-9_]+)\s*,\s*([A-Za-z0-9_]+)\s*:=\s*range\s+([A-Za-z0-9_]+)\s*\{/g, 'for (const [$1, $2] of $3.entries()) {');
     // Transform C-style for loop: for i := 0; i < n; i++ {
     code = code.replace(/for\s+([A-Za-z0-9_]+)\s*:=\s*([^;]+);\s*([^;]+);\s*([^{]+)\s*\{/g, 'for (let $1 = $2; $3; $4) {');
 
-    // 13. Transform Channel receive:
+    // 14. Transform Channel receive:
     // val, ok := <-ch
     code = code.replace(/([A-Za-z0-9_]+)\s*,\s*([A-Za-z0-9_]+)\s*:=\s*<-\s*([A-Za-z0-9_]+)/g, 'const { value: $1, ok: $2 } = await $3.receive()');
     // val := <-ch
@@ -159,17 +201,17 @@ export class GoTranspiler {
     // standalone <-ch
     code = code.replace(/(?:^|\n)\s*<-\s*([A-Za-z0-9_]+)/g, 'await $1.receive()');
 
-    // 14. Transform Channel send: ch <- val
+    // 15. Transform Channel send: ch <- val
     // (Only lines where ch <- val appears as a statement)
     code = code.replace(/^(\s*)([A-Za-z0-9_]+)\s*<-\s*([^;\n]+)/gm, '$1await $2.send($3)');
 
-    // 15. Transform short variable assignment:
+    // 16. Transform short variable assignment:
     // Multiple assignment: a, b := fn() -> let [a, b] = fn()
     code = code.replace(/([A-Za-z0-9_]+)\s*,\s*([A-Za-z0-9_]+)\s*:=\s*/g, 'let [$1, $2] = ');
     // Single assignment: foo := bar -> let foo = bar
     code = code.replace(/([A-Za-z0-9_]+)\s*:=\s*/g, 'let $1 = ');
 
-    // 16. Transform Go if statements: if condition { -> if (condition) {
+    // 17. Transform Go if statements: if condition { -> if (condition) {
     code = code.replace(/^(\s*)if\s+([^{]+)\s*\{/gm, (_m, indent, cond) => {
       const trimmedCond = cond.trim();
       if (trimmedCond.startsWith('(') && trimmedCond.endsWith(')')) {
@@ -178,18 +220,12 @@ export class GoTranspiler {
       return `${indent}if (${trimmedCond}) {`;
     });
 
-    // 17. Transform goroutines
-    // go func(...) { ... }(...)
-    code = code.replace(/\bgo\s+func\s*\((.*?)\)\s*\{([\s\S]*?)\}\s*\((.*?)\)/g, (_m, params, body, args) => {
-      return `__scheduler.go(async () => { (async (${params}) => { ${body} })(${args}); })`;
-    });
-
-    // go fnName(arg1, arg2)
-    code = code.replace(/\bgo\s+([A-Za-z0-9_]+)\s*\((.*?)\)/g, (_m, fnName, args) => {
-      if (fnName === '__scheduler') return _m;
-      const cleanArgs = args.replace(/&([A-Za-z0-9_]+)/g, '$1');
-      return `__scheduler.go(async () => { await ${fnName}(${cleanArgs}); })`;
-    });
+    // 18. Prepend await to calls of detected async functions
+    for (const fn of asyncFns) {
+      if (fn === 'main') continue;
+      const callRegex = new RegExp(`(?<!\\bawait\\s+|\\bgo\\s+|function\\s+|async\\s+function\\s+|\\.)\\b${fn}\\s*\\(`, 'g');
+      code = code.replace(callRegex, `await ${fn}(`);
+    }
 
     // Strip address-of operator & on pointers
     code = code.replace(/&([A-Za-z0-9_]+)/g, '$1');
@@ -262,9 +298,10 @@ export class GoTranspiler {
   /**
    * Transforms Go functions with precise brace tracking to insert defer cleanup only at function exit.
    */
-  private transformFunctionsWithDefer(code: string): string {
+  private transformFunctionsWithDefer(code: string): { code: string; asyncFns: Set<string> } {
     const lines = code.split('\n');
     const result: string[] = [];
+    const asyncFns = new Set<string>();
 
     let inFunction = false;
     let braceDepth = 0;
@@ -285,14 +322,14 @@ export class GoTranspiler {
         inFunction = true;
         braceDepth = 1;
 
-        // Check whether function needs async (main, Test*, or uses channels/defers)
+        // Check whether function needs async (main, Test*, or uses concurrency/defers)
         const isMainOrTest = name === 'main' || name.startsWith('Test');
         // Look ahead in subsequent lines up to closing brace to see if it uses concurrency/defer
         let lookAheadUsesConcurrency = false;
         let depth = 1;
         for (let j = i + 1; j < lines.length; j++) {
           const l = lines[j];
-          if (/(\bdefer\s+|\bgo\s+|<-|\bchan\b|\bselect\b|\.Wait\(\)|\.Lock\(\)|\.RLock\(\)|time\.Sleep)/.test(l)) {
+          if (/(\bdefer\s+|\bgo\s+|<-|\bchan\b|\bselect\b|\.Wait\(\)|\.wait\(\)|\.Lock\(\)|\.RLock\(\)|time\.Sleep|__scheduler)/.test(l)) {
             lookAheadUsesConcurrency = true;
           }
           depth += (l.match(/\{/g) || []).length - (l.match(/\}/g) || []).length;
@@ -300,6 +337,9 @@ export class GoTranspiler {
         }
 
         isAsyncFunc = isMainOrTest || lookAheadUsesConcurrency;
+        if (isAsyncFunc) {
+          asyncFns.add(name);
+        }
 
         if (receiver) {
           const recMatch = receiver.trim().match(/([A-Za-z0-9_]+)\s+\*?([A-Za-z0-9_]+)/);
@@ -352,7 +392,7 @@ export class GoTranspiler {
       result.push(line);
     }
 
-    return result.join('\n');
+    return { code: result.join('\n'), asyncFns };
   }
 
   /**

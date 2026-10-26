@@ -375,3 +375,64 @@ export function parsePythonTestOutput(stdout: string, stderr: string): TestResul
 
   return results;
 }
+
+/**
+ * Parses cargo test / rustc test runner output into structured TestResults
+ * Matches lines like:
+ * test tests::test_calculate_length ... ok
+ * test tests::test_another ... FAILED
+ */
+export function parseRustTestOutput(stdout: string, stderr: string): TestResult[] {
+  const combined = `${stdout}\n${stderr}`;
+  const results: TestResult[] = [];
+  const lines = combined.split('\n');
+
+  const testLineRegex = /^\s*test\s+([A-Za-z0-9_:]+)\s+\.\.\.\s+(ok|FAILED|ignored)/;
+  const failureHeaderRegex = /----\s+([A-Za-z0-9_:]+)\s+stdout\s+----/;
+
+  const failureMessages = new Map<string, string[]>();
+  let currentFailureName: string | null = null;
+  let capturingFailure = false;
+
+  for (const line of lines) {
+    const fHeader = line.match(failureHeaderRegex);
+    if (fHeader) {
+      currentFailureName = fHeader[1];
+      capturingFailure = true;
+      failureMessages.set(currentFailureName, []);
+      continue;
+    }
+
+    if (capturingFailure && currentFailureName) {
+      if (line.startsWith('failures:') || line.startsWith('test result:')) {
+        capturingFailure = false;
+        currentFailureName = null;
+      } else {
+        failureMessages.get(currentFailureName)?.push(line);
+      }
+    }
+  }
+
+  for (const line of lines) {
+    const match = line.match(testLineRegex);
+    if (match) {
+      const [, testName, status] = match;
+      if (status === 'ok') {
+        results.push({
+          name: testName,
+          passed: true,
+        });
+      } else if (status === 'FAILED') {
+        const details = failureMessages.get(testName)?.join('\n').trim();
+        results.push({
+          name: testName,
+          passed: false,
+          error: details || 'Assertion failed',
+        });
+      }
+    }
+  }
+
+  return results;
+}
+

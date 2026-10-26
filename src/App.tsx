@@ -394,7 +394,7 @@ export default function App() {
 
   // Run Code in Browser Sandbox
   const handleRunCode = async () => {
-    if (isRunningCode || language === 'rust') return;
+    if (isRunningCode) return;
     const runId = ++executionId.current;
     setIsRunningCode(true);
     try {
@@ -458,6 +458,41 @@ export default function App() {
 
   const nextMilestone = milestones.slice(milestoneIndex + 1).find((m) => m.status !== 'completed');
 
+  const handleNextMilestone = () => {
+    if (!currentSession || !activeMilestone) return;
+    const all = db.getMilestones(currentSession.id);
+    const currentIndex = all.findIndex((m) => m.id === activeMilestone.id);
+    if (currentIndex >= 0 && currentIndex < all.length - 1) {
+      const nextM = all[currentIndex + 1];
+      if (nextM.status === 'pending') {
+        db.updateMilestoneStatus(nextM.id, 'active');
+      }
+      const updated = db.getMilestones(currentSession.id);
+      setMilestones(updated);
+      handleSelectMilestone(nextM);
+
+      // Create an FSRS spaced repetition card for this completed concept
+      try {
+        db.createCard({
+          topic: `${currentSession.title}: ${activeMilestone.title}`,
+          prompt: `In ${currentSession.title}, what is the critical invariant for: ${activeMilestone.title}?\n\n${activeMilestone.prompt}`,
+          target_code: editorCode || activeMilestone.solution_code || activeMilestone.starter_code,
+        });
+        setDueCards(db.getDueCardsList());
+      } catch (err) {
+        console.warn('Could not save FSRS card:', err);
+      }
+
+      // Welcome message from Coach into the next milestone
+      const coachMsg = db.addMessage({
+        session_id: currentSession.id,
+        role: 'assistant',
+        content: `### Excellent work on ${activeMilestone.title}!\n\nAll tests passed and your solution has been recorded. This concept is now in your FSRS spaced repetition review queue.\n\nWe're now advancing to **${nextM.title}**.\n\nTake a look at the starter code on the right. What invariants or concurrency patterns do you think we need here?`,
+      });
+      setMessages((prev) => [...prev, coachMsg]);
+    }
+  };
+
   return (
     <div className="app-shell">
       <Header
@@ -469,6 +504,7 @@ export default function App() {
         onExportNotes={handleExportNotes}
         onToggleSidebar={() => setIsSidebarOpen((v) => !v)}
         isSidebarOpen={isSidebarOpen}
+        trackTitle={currentSession?.title}
       />
       <div className="app-body">
         {isSidebarOpen && (
@@ -496,16 +532,13 @@ export default function App() {
             <button
               role="tab"
               id="lesson-view-tab"
-              aria-selected={mobilePane === 'lesson' && learningTab === 'challenge'}
+              aria-selected={mobilePane === 'lesson'}
               aria-controls="lesson-workspace"
-              tabIndex={mobilePane === 'lesson' && learningTab === 'challenge' ? 0 : -1}
-              onClick={() => {
-                setMobilePane('lesson');
-                setLearningTab('challenge');
-              }}
+              tabIndex={mobilePane === 'lesson' ? 0 : -1}
+              onClick={() => setMobilePane('lesson')}
             >
               <BookOpen size={15} />
-              Challenge
+              Lesson & Coach
             </button>
             <button
               role="tab"
@@ -516,21 +549,7 @@ export default function App() {
               onClick={() => setMobilePane('editor')}
             >
               <Code2 size={15} />
-              Code
-            </button>
-            <button
-              role="tab"
-              id="coach-view-tab"
-              aria-selected={mobilePane === 'lesson' && learningTab === 'coach'}
-              aria-controls="lesson-workspace"
-              tabIndex={mobilePane === 'lesson' && learningTab === 'coach' ? 0 : -1}
-              onClick={() => {
-                setMobilePane('lesson');
-                setLearningTab('coach');
-              }}
-            >
-              <Sparkles size={15} />
-              Coach
+              Code Workspace
             </button>
           </div>
           <div className="workspace-panes">
@@ -555,9 +574,7 @@ export default function App() {
                 }}
                 onQuickAction={handleQuickAction}
                 onOpenEditor={() => setMobilePane('editor')}
-                onNextMilestone={
-                  nextMilestone ? () => handleSelectMilestone(nextMilestone) : undefined
-                }
+                onNextMilestone={nextMilestone ? handleNextMilestone : undefined}
               />
             </div>
             <div
@@ -580,6 +597,7 @@ export default function App() {
                   onClearConsole={() => setExecutionResult(null)}
                   draftStatus={draftStatus}
                   milestoneId={activeMilestone?.id}
+                  onNextMilestone={nextMilestone ? handleNextMilestone : undefined}
                 />
               </Suspense>
             </div>

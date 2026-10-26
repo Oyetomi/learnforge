@@ -1,14 +1,11 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { ChatMessage, Milestone } from '../../types';
 import { MarkdownView } from './MarkdownView';
 import { Composer } from './Composer';
-import { Sparkles, ArrowUpRight, BookOpen, Check, Play, MessageSquare } from 'lucide-react';
-import { handleTabNavigation } from '../layout/keyboard';
+import { Sparkles, ArrowRight, Check, ChevronDown, ChevronUp, Lightbulb } from 'lucide-react';
 import { cleanMilestoneTitle } from '../milestones/MilestoneSidebar';
 
 interface ChatPaneProps {
-  activeTab: 'challenge' | 'coach';
-  onChangeTab: (tab: 'challenge' | 'coach') => void;
   messages: ChatMessage[];
   isStreaming: boolean;
   streamingContent?: string;
@@ -19,13 +16,14 @@ interface ChatPaneProps {
   onStopStreaming: () => void;
   onApplyCodeToEditor?: (code: string) => void;
   onQuickAction?: (action: 'hint' | 'explain' | 'review') => void;
-  onOpenEditor: () => void;
+  onOpenEditor?: () => void;
   onNextMilestone?: () => void;
+  // Kept for backward compatibility with mobile tab bar
+  activeTab?: 'challenge' | 'coach';
+  onChangeTab?: (tab: 'challenge' | 'coach') => void;
 }
 
 export const ChatPane: React.FC<ChatPaneProps> = ({
-  activeTab: tab,
-  onChangeTab: setTab,
   messages,
   isStreaming,
   streamingContent,
@@ -41,190 +39,151 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const nearBottom = useRef(true);
+  const [isPromptExpanded, setIsPromptExpanded] = useState(true);
+
+  // Auto-scroll on new messages or streaming tokens
   useEffect(() => {
-    setTab('challenge');
-  }, [activeMilestone?.id]);
-  useEffect(() => {
-    if (nearBottom.current && scrollRef.current)
+    if (nearBottom.current && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages, streamingContent, tab]);
+    }
+  }, [messages, streamingContent]);
+
   const send = (message: string) => {
-    setTab('coach');
     nearBottom.current = true;
     onSendMessage(message);
   };
+
   const quickAction = (action: 'hint' | 'explain' | 'review') => {
-    setTab('coach');
     nearBottom.current = true;
     onQuickAction?.(action);
   };
+
   const complete = activeMilestone?.status === 'completed';
+
   return (
-    <section className="lesson-pane workspace-panel" aria-label="Challenge and AI coach">
+    <section className="lesson-pane workspace-panel flex flex-col h-full bg-[#141414] select-text" aria-label="Socratic Coach & Challenge">
+      {/* Scrollable Conversation & Lesson Document */}
       <div
-        className="panel-tabs"
-        role="tablist"
-        aria-label="Learning content"
-        onKeyDown={handleTabNavigation}
+        className="chat-content flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4"
+        ref={scrollRef}
+        onScroll={() => {
+          const el = scrollRef.current;
+          if (el) nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+        }}
       >
-        <button
-          role="tab"
-          id="challenge-tab"
-          aria-selected={tab === 'challenge'}
-          tabIndex={tab === 'challenge' ? 0 : -1}
-          aria-controls="challenge-content"
-          onClick={() => setTab('challenge')}
-        >
-          <BookOpen size={15} />
-          Challenge
-        </button>
-        <button
-          role="tab"
-          id="coach-tab"
-          aria-selected={tab === 'coach'}
-          tabIndex={tab === 'coach' ? 0 : -1}
-          aria-controls="coach-content"
-          onClick={() => setTab('coach')}
-        >
-          <Sparkles size={15} />
-          AI coach{isStreaming && <span className="active-dot" />}
-        </button>
-      </div>
-      {tab === 'challenge' ? (
-        <div
-          key={activeMilestone?.id}
-          role="tabpanel"
-          id="challenge-content"
-          aria-labelledby="challenge-tab"
-          className="challenge-content"
-        >
-          <div className="challenge-eyebrow">
-            <span>
-              MILESTONE {String(milestoneIndex + 1).padStart(2, '0')}{' '}
-              <span className="milestone-total">/ {String(milestoneCount).padStart(2, '0')}</span>
-            </span>
-            <span className={`status-pill ${complete ? 'complete' : ''}`}>
-              {complete ? <Check size={12} /> : <span className="tiny-dot" />}
-              {complete ? 'Completed' : 'In progress'}
-            </span>
+        {/* Pinned Milestone Brief Card (Unified with Socratic Stream) */}
+        {activeMilestone && (
+          <div className="milestone-brief-card bg-[#1c1c1c] border border-[#2e2e2e] rounded-xl p-4 sm:p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between text-xs text-[#8d8d8d]">
+              <div className="flex items-center gap-2">
+                <span className="font-mono uppercase tracking-wider font-semibold text-[#a0a0a0]">
+                  Milestone {String(milestoneIndex + 1).padStart(2, '0')} / {String(milestoneCount).padStart(2, '0')}
+                </span>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                  complete
+                    ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/50'
+                    : 'bg-[#262626] text-[#c0c0c0] border border-[#383838]'
+                }`}>
+                  {complete ? <Check size={11} className="text-emerald-400" /> : <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
+                  {complete ? 'Completed' : 'Active challenge'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPromptExpanded(!isPromptExpanded)}
+                className="text-[#8d8d8d] hover:text-[#e6e6e6] p-1 rounded transition-colors"
+                aria-label={isPromptExpanded ? 'Collapse challenge brief' : 'Expand challenge brief'}
+              >
+                {isPromptExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+              </button>
+            </div>
+
+            <h2 className="font-serif text-xl sm:text-2xl font-normal text-[#f0f0f0] tracking-tight m-0">
+              {cleanMilestoneTitle(activeMilestone.title)}
+            </h2>
+
+            {isPromptExpanded && (
+              <div className="challenge-prompt text-sm text-[#cccccc] leading-relaxed pt-1 border-t border-[#2a2a2a]">
+                <MarkdownView content={activeMilestone.prompt} />
+              </div>
+            )}
+
+            {/* If completed, show Next Milestone action directly */}
+            {complete && onNextMilestone && (
+              <div className="pt-2 flex items-center justify-between bg-emerald-950/20 border border-emerald-900/40 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-xs text-emerald-300">
+                  <Check size={15} className="text-emerald-400 shrink-0" />
+                  <span>All tests passed for this milestone!</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onNextMilestone}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs transition-colors"
+                >
+                  Next Milestone <ArrowRight size={13} />
+                </button>
+              </div>
+            )}
           </div>
-          <h1>
-            {activeMilestone
-              ? cleanMilestoneTitle(activeMilestone.title)
-              : 'Choose a learning track'}
-          </h1>
-          <div className="challenge-prompt">
-            <MarkdownView
-              content={activeMilestone?.prompt || 'Select a learning track to get started.'}
-            />
-          </div>
-          <details className="challenge-help">
-            <summary>How to work on this challenge</summary>
-            <p>
-              Read the starter code, make your changes, then select <strong>Run code</strong>. Check
-              the output and tests to see what to try next. Your edits are saved on this device.
-            </p>
-          </details>
-          {complete && (
-            <div className="completion-callout">
-              <Check size={18} />
-              <div>
-                <strong>Milestone complete.</strong>
-                <p>
-                  {onNextMilestone
-                    ? 'Your next challenge is ready.'
-                    : 'You’ve completed this track. Revisit any challenge to practice.'}
-                </p>
-                {onNextMilestone && (
-                  <button onClick={onNextMilestone}>
-                    Next milestone <ArrowUpRight size={14} />
-                  </button>
+        )}
+
+        {/* Conversation Stream */}
+        {messages
+          .filter((m) => m.role !== 'system')
+          .map((msg) => (
+            <article
+              key={msg.id}
+              className={`chat-message ${
+                msg.role === 'user' ? 'from-user my-2 w-full border-l-[3px] border-[#434343] bg-[#1a1a1a] py-2 pl-3.5 pr-4 rounded-r-lg' : 'from-coach py-2'
+              }`}
+            >
+              <div className="message-sender flex items-center gap-2 text-xs text-[#8d8d8d] mb-1.5 font-mono">
+                {msg.role === 'user' ? (
+                  <>
+                    <span className="font-semibold text-[#b0b0b0]">YOU</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-4 h-4 rounded-full bg-[#2a2a2a] flex items-center justify-center text-amber-300">
+                      <Sparkles size={10} />
+                    </span>
+                    <span className="font-semibold text-[#a0a0a0]">SOCRATIC COACH</span>
+                  </>
                 )}
               </div>
-            </div>
-          )}
-          <button className="open-editor-button" onClick={onOpenEditor}>
-            <Play size={14} />
-            Open code workspace
-            <ArrowUpRight size={15} />
-          </button>
-          <div className="challenge-coach-link">
-            <span>Have a question?</span>
-            <button onClick={() => setTab('coach')}>
-              Ask your coach <ArrowUpRight size={14} />
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div
-          role="tabpanel"
-          id="coach-content"
-          aria-labelledby="coach-tab"
-          className="chat-content"
-          ref={scrollRef}
-          onScroll={() => {
-            const el = scrollRef.current;
-            if (el) nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-          }}
-        >
-          {!messages.length && (
-            <div className="chat-empty">
-              <MessageSquare size={25} />
-              <h3>Let’s work through it.</h3>
-              <p>Ask about the challenge, a concept, or the code in your editor.</p>
-            </div>
-          )}
-          {messages
-            .filter((m) => m.role !== 'system')
-            .map((msg) => (
-              <article
-                key={msg.id}
-                className={`chat-message ${msg.role === 'user' ? 'from-user' : 'from-coach'}`}
-              >
-                <div className="message-sender">
-                  {msg.role === 'user' ? (
-                    <>
-                      <span className="message-avatar">Y</span>You
-                    </>
-                  ) : (
-                    <>
-                      <span className="message-avatar coach">
-                        <Sparkles size={12} />
-                      </span>
-                      LearnForge coach
-                    </>
-                  )}
-                </div>
+              <div className="text-sm text-[#e0e0e0] leading-relaxed">
                 <MarkdownView content={msg.content} onApplyCode={onApplyCodeToEditor} />
-              </article>
-            ))}
-          {isStreaming && (
-            <article className="chat-message from-coach" aria-live="polite" aria-busy="true">
-              <div className="message-sender">
-                <span className="message-avatar coach">
-                  <Sparkles size={12} />
-                </span>
-                LearnForge coach
               </div>
-              {streamingContent ? (
-                <MarkdownView content={streamingContent} onApplyCode={onApplyCodeToEditor} />
-              ) : (
-                <span className="thinking-indicator">
-                  Thinking it through<span>•••</span>
-                </span>
-              )}
             </article>
-          )}
-        </div>
-      )}
-      {tab === 'coach' && (
+          ))}
+
+        {/* Live streaming assistant content */}
+        {isStreaming && streamingContent && (
+          <article className="chat-message from-coach py-2 animate-fadeIn">
+            <div className="message-sender flex items-center gap-2 text-xs text-[#8d8d8d] mb-1.5 font-mono">
+              <span className="w-4 h-4 rounded-full bg-[#2a2a2a] flex items-center justify-center text-amber-300">
+                <Sparkles size={10} />
+              </span>
+              <span className="font-semibold text-[#a0a0a0]">SOCRATIC COACH</span>
+              <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse ml-1" />
+            </div>
+            <div className="text-sm text-[#e0e0e0] leading-relaxed">
+              <MarkdownView content={streamingContent} onApplyCode={onApplyCodeToEditor} />
+            </div>
+          </article>
+        )}
+      </div>
+
+      {/* Persistent Bottom Composer & Quick Actions (Never-Locked) */}
+      <div className="border-t border-[#262626] bg-[#171717] p-3 space-y-2 shrink-0">
         <Composer
-          onSendMessage={send}
           isStreaming={isStreaming}
+          onSendMessage={send}
           onStopStreaming={onStopStreaming}
           onQuickAction={quickAction}
+          activeMilestoneTitle={activeMilestone ? cleanMilestoneTitle(activeMilestone.title) : undefined}
         />
-      )}
+      </div>
     </section>
   );
 };

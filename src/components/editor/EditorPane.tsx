@@ -30,6 +30,7 @@ interface EditorPaneProps {
   onClearConsole: () => void;
   draftStatus: 'saved' | 'saving' | 'memory';
   milestoneId?: string;
+  onNextMilestone?: () => void;
 }
 
 const fileNames: Record<SupportedLanguage, string> = {
@@ -58,6 +59,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   onClearConsole,
   draftStatus,
   milestoneId,
+  onNextMilestone,
 }) => {
   const [reducedMotion, setReducedMotion] = useState(
     () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -84,7 +86,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       resetFocus.current = false;
     }
   }, [confirmReset, resetUndo]);
-  const runtimeAvailable = language !== 'rust';
+  const runtimeAvailable = true;
   const testsCount = executionResult?.testResults?.length || 0;
   const passedTests = executionResult?.testResults?.filter((t) => t.passed).length || 0;
   const failed =
@@ -380,6 +382,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                 isRunning={isRunning}
                 canRun={runtimeAvailable}
                 hasRun={executionResult !== null}
+                onNextMilestone={onNextMilestone}
               />
             )}
           </div>
