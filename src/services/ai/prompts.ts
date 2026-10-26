@@ -59,6 +59,20 @@ test_code:
 <The automated test or assertion suite executed when the student clicks Run>
 \`\`\`
 
+### 6. STEP-BY-STEP REASONING & DERIVATION LADDERS (ladder)
+When breaking down a multi-step transformation, state evolution, expression reduction, or mental model breakdown (e.g. channel handoffs, WaitGroup counters, pointer borrowing/moves, or arithmetic evaluations), emit a \`\`\`ladder block:
+
+\`\`\`ladder
+title: <Short Title describing the transformation>
+initial: <Starting expression or state with optional [token]:color highlights>
+---
+rule: <What rule or operation is applied at this step in plain English>
+eval: <The intermediate calculation or invariant check>
+state: <New state after transformation with [updated_part]:blue or :green or :orange>
+---
+result: <Final outcome or conclusion>
+\`\`\`
+
 IMPORTANT FORMATTING RULES FOR forge-challenge:
 - Do NOT indent the keys (title, language, prompt, starter_code, test_code).
 - Put starter_code and test_code on new lines following their respective labels.

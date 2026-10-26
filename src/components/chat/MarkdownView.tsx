@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { Copy, Check, Terminal } from 'lucide-react';
+import { DerivationLadder, parseLadderMarkdown } from './DerivationLadder';
 
 interface MarkdownViewProps {
   content: string;
@@ -51,6 +52,13 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({ content, onApplyCode
             const match = /language-(\w+)/.exec(className || '');
             const lang = match ? match[1] : '';
             const codeString = String(children).replace(/\n$/, '');
+
+            if (!inline && (lang === 'ladder' || lang === 'steps')) {
+              const ladderData = parseLadderMarkdown(codeString);
+              if (ladderData) {
+                return <DerivationLadder {...ladderData} />;
+              }
+            }
 
             if (!inline && lang) {
               const blockId = codeString;
