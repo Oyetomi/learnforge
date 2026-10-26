@@ -12,6 +12,7 @@ interface HeaderProps {
   onToggleSidebar: () => void;
   isSidebarOpen: boolean;
   trackTitle?: string;
+  onOpenNewTopic?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -24,9 +25,18 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSidebar,
   isSidebarOpen,
   trackTitle,
+  onOpenNewTopic,
 }) => {
   const currentTrack = tracks.find((t) => t.id === currentTrackId);
   const displayTitle = trackTitle || currentTrack?.title || 'LearnForge';
+
+  const handleDropdownChange = (val: string) => {
+    if (val === '__new__') {
+      onOpenNewTopic?.();
+      return;
+    }
+    onSelectTrack(val);
+  };
 
   return (
     <header className="app-header h-15 bg-[#141414] border-b border-[#2e2e2e] flex items-center justify-between px-4 select-none shrink-0 z-10">
@@ -60,23 +70,40 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Right: Track Switcher & Actions */}
-      <div className="flex items-center gap-2.5 shrink-0">
-        {/* Track Selector Dropdown */}
+      <div className="flex items-center gap-2 shrink-0">
+        {/* Track Selector Dropdown with Create Option */}
         <div className="relative flex items-center">
           <select
             aria-label="Select learning track"
             value={currentTrackId}
-            onChange={(e) => onSelectTrack(e.target.value)}
+            onChange={(e) => handleDropdownChange(e.target.value)}
             className="appearance-none bg-[#1c1c1c] hover:bg-[#252525] border border-[#383838] text-xs text-[#cccccc] font-medium py-1.5 pl-3 pr-7 rounded-lg cursor-pointer transition-colors focus:border-amber-400"
           >
-            {tracks.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.title}
-              </option>
-            ))}
+            <optgroup label="Active Tracks">
+              {tracks.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.title}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Explore Custom Topic">
+              <option value="__new__">+ New Custom Track…</option>
+            </optgroup>
           </select>
           <ChevronDown size={13} className="absolute right-2 text-[#8d8d8d] pointer-events-none" />
         </div>
+
+        {/* + New Topic Quick Button */}
+        {onOpenNewTopic && (
+          <button
+            type="button"
+            onClick={onOpenNewTopic}
+            className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-medium transition-colors cursor-pointer"
+            title="Create a new custom learning track on any topic"
+          >
+            <span>+ Topic</span>
+          </button>
+        )}
 
         {/* Daily Review Button with Badge */}
         <button

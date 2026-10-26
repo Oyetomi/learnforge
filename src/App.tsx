@@ -8,6 +8,7 @@ const EditorPane = lazy(() =>
   import('./components/editor/EditorPane').then((module) => ({ default: module.EditorPane }))
 );
 import { DailyReviewModal } from './components/fsrs/DailyReviewModal';
+import { NewTopicModal } from './components/curriculum/NewTopicModal';
 import {
   LearningSession,
   ChatMessage,
@@ -28,17 +29,24 @@ import {
 
 export default function App() {
   // --- Curriculum Tracks State ---
-  const [tracks] = useState<CourseTrack[]>(STARTER_TRACKS);
+  const [tracks, setTracks] = useState<CourseTrack[]>(() => {
+    try {
+      const stored = localStorage.getItem('learnforge:custom-tracks');
+      if (stored) {
+        const custom: CourseTrack[] = JSON.parse(stored);
+        return [...STARTER_TRACKS, ...custom];
+      }
+    } catch {}
+    return STARTER_TRACKS;
+  });
   const [currentTrackId, setCurrentTrackId] = useState<string>(() => {
     try {
-      return (
-        getTrackById(localStorage.getItem('learnforge:active-track') || '')?.id ||
-        STARTER_TRACKS[0].id
-      );
-    } catch {
-      return STARTER_TRACKS[0].id;
-    }
+      const saved = localStorage.getItem('learnforge:active-track');
+      if (saved) return saved;
+    } catch {}
+    return STARTER_TRACKS[0].id;
   });
+  const [isNewTopicModalOpen, setIsNewTopicModalOpen] = useState(false);
 
   // --- Session & Milestones State ---
   const [currentSession, setCurrentSession] = useState<LearningSession | null>(null);
@@ -174,7 +182,7 @@ export default function App() {
 
   // Initialize or load session on track change
   useEffect(() => {
-    const track = getTrackById(currentTrackId) || tracks[0];
+    const track = tracks.find((t) => t.id === currentTrackId) || getTrackById(currentTrackId) || tracks[0];
     const sessions = db.getSessions();
     let session = sessions.find((s) => s.title === track.title);
 
@@ -230,11 +238,27 @@ export default function App() {
       const greeting: ChatMessage = db.addMessage({
         session_id: session.id,
         role: 'assistant',
-        content: `### Let’s work on ${track.title}\n\n${track.description}\n\nYour current challenge is **${active?.title || 'Milestone 1'}**. Open the Challenge tab for the brief, or ask me a question about the code.`,
+        content: `### Welcome to ${track.title}!\n\n${track.description}\n\nYour active challenge is pinned above in your lesson brief. Read through the requirements and the starter code in the editor, and ask me any questions whenever you're ready!`,
       });
       setMessages([greeting]);
     }
-  }, [currentTrackId]);
+  }, [currentTrackId, tracks]);
+
+  // Handle new custom track created dynamically by AI
+  const handleTrackCreated = (newTrack: CourseTrack) => {
+    setTracks((prev) => {
+      const updated = [...prev, newTrack];
+      try {
+        const customOnly = updated.filter(
+          (t) => !STARTER_TRACKS.some((st) => st.id === t.id)
+        );
+        localStorage.setItem('learnforge:custom-tracks', JSON.stringify(customOnly));
+      } catch {}
+      return updated;
+    });
+
+    handleSelectTrack(newTrack.id);
+  };
 
   // Handle Track Selection
   const handleSelectTrack = (trackId: string) => {
@@ -505,6 +529,7 @@ export default function App() {
         onToggleSidebar={() => setIsSidebarOpen((v) => !v)}
         isSidebarOpen={isSidebarOpen}
         trackTitle={currentSession?.title}
+        onOpenNewTopic={() => setIsNewTopicModalOpen(true)}
       />
       <div className="app-body">
         {isSidebarOpen && (
@@ -519,6 +544,7 @@ export default function App() {
               activeMilestoneId={activeMilestone?.id}
               onSelectMilestone={handleSelectMilestone}
               onClose={() => setIsSidebarOpen(false)}
+              onOpenNewTopic={() => setIsNewTopicModalOpen(true)}
             />
           </>
         )}
@@ -613,6 +639,13 @@ export default function App() {
           }}
           cards={dueCards}
           onRateCard={handleRateCard}
+        />
+      )}
+      {isNewTopicModalOpen && (
+        <NewTopicModal
+          isOpen={isNewTopicModalOpen}
+          onClose={() => setIsNewTopicModalOpen(false)}
+          onTrackCreated={handleTrackCreated}
         />
       )}
     </div>

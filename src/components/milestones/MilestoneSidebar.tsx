@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, Route, X } from 'lucide-react';
+import { Check, Route, X, Sparkles } from 'lucide-react';
 import { Milestone } from '../../types';
 
 interface MilestoneSidebarProps {
@@ -7,6 +7,7 @@ interface MilestoneSidebarProps {
   activeMilestoneId?: string;
   onSelectMilestone: (milestone: Milestone) => void;
   onClose: () => void;
+  onOpenNewTopic?: () => void;
 }
 
 export const cleanMilestoneTitle = (title: string) => title.replace(/^Milestone\s*\d+\s*:\s*/i, '');
@@ -16,6 +17,7 @@ export const MilestoneSidebar: React.FC<MilestoneSidebarProps> = ({
   activeMilestoneId,
   onSelectMilestone,
   onClose,
+  onOpenNewTopic,
 }) => {
   const completed = milestones.filter((m) => m.status === 'completed').length;
   const progress = milestones.length ? Math.round((completed / milestones.length) * 100) : 0;
@@ -33,6 +35,18 @@ export const MilestoneSidebar: React.FC<MilestoneSidebarProps> = ({
           <X size={18} />
         </button>
       </div>
+
+      {onOpenNewTopic && (
+        <button
+          type="button"
+          onClick={onOpenNewTopic}
+          className="mx-3 my-2 py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+        >
+          <Sparkles size={13} />
+          <span>+ Master New Topic</span>
+        </button>
+      )}
+
       <div className="path-progress">
         <div>
           <span>Track progress</span>
