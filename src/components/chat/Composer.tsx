@@ -6,7 +6,7 @@ interface ComposerProps {
   isStreaming: boolean;
   onStopStreaming: () => void;
   activeMilestoneTitle?: string;
-  onQuickAction?: (action: 'hint' | 'explain' | 'review') => void;
+  onQuickAction?: (action: 'hint' | 'explain' | 'review' | 'derivation') => void;
 }
 
 export const Composer: React.FC<ComposerProps> = ({
@@ -41,6 +41,9 @@ export const Composer: React.FC<ComposerProps> = ({
         <button onClick={() => onQuickAction?.('review')} disabled={isStreaming}>
           <ScanLine size={13} />
           Review code
+        </button>
+        <button onClick={() => onQuickAction?.('derivation')} disabled={isStreaming} className="text-sky-400">
+          🪜 Derivation
         </button>
       </div>
       <div className="composer-input">

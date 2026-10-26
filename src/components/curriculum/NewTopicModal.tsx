@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { X, Sparkles, Loader2, ArrowRight, Code2 } from 'lucide-react';
-import { SupportedLanguage } from '../../types';
+import { X, Sparkles, Loader2, ArrowRight } from 'lucide-react';
 import { generateCustomTrack } from '../../services/ai/curriculum';
 
 interface NewTopicModalProps {
@@ -10,12 +9,12 @@ interface NewTopicModalProps {
 }
 
 const SUGGESTED_TOPICS = [
-  { title: 'Linux eBPF Packet Filter', lang: 'go' as const },
-  { title: 'LSM-Tree Storage Engine', lang: 'go' as const },
-  { title: 'Raft Key-Value Store', lang: 'rust' as const },
-  { title: 'Async Event Loop & Coroutines', lang: 'python' as const },
-  { title: 'Bytecode Virtual Machine', lang: 'typescript' as const },
-  { title: 'Lock-Free Concurrent Queue', lang: 'rust' as const },
+  'Linux eBPF Packet Filter',
+  'LSM-Tree Storage Engine',
+  'Raft Distributed Key-Value Store',
+  'Async Event Loop & Coroutines',
+  'Bytecode Virtual Machine',
+  'Lock-Free Concurrent Queue',
 ];
 
 export const NewTopicModal: React.FC<NewTopicModalProps> = ({
@@ -24,7 +23,6 @@ export const NewTopicModal: React.FC<NewTopicModalProps> = ({
   onTrackCreated,
 }) => {
   const [topic, setTopic] = useState('');
-  const [language, setLanguage] = useState<SupportedLanguage>('go');
   const [isGenerating, setIsGenerating] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +41,6 @@ export const NewTopicModal: React.FC<NewTopicModalProps> = ({
       const track = await generateCustomTrack(
         {
           topic: topic.trim(),
-          language,
         },
         (status) => setStatusMessage(status)
       );
@@ -57,22 +54,17 @@ export const NewTopicModal: React.FC<NewTopicModalProps> = ({
     }
   };
 
-  const handleSelectSuggestion = (s: { title: string; lang: SupportedLanguage }) => {
-    setTopic(s.title);
-    setLanguage(s.lang);
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
       <div
-        className="w-full max-w-lg bg-[#191919] border border-[#333333] rounded-2xl shadow-2xl p-6 text-[#e6e6e6] space-y-5"
+        className="w-full max-w-lg bg-[#181818] border border-[#2f2f2f] rounded-2xl shadow-2xl p-6 text-[#e6e6e6] space-y-5"
         role="dialog"
         aria-modal="true"
         aria-labelledby="new-topic-title"
       >
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-[#282828]">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <span className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">
               <Sparkles size={18} />
             </span>
@@ -94,7 +86,7 @@ export const NewTopicModal: React.FC<NewTopicModalProps> = ({
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="topic-input" className="block text-xs font-mono uppercase tracking-wider text-[#a0a0a0] mb-1.5">
+            <label htmlFor="topic-input" className="block text-xs font-mono uppercase tracking-wider text-[#a0a0a0] mb-2">
               Topic or Project Goal
             </label>
             <input
@@ -104,50 +96,26 @@ export const NewTopicModal: React.FC<NewTopicModalProps> = ({
               disabled={isGenerating}
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g. Linux eBPF Packet Filter, Building a Redis Clone, Actor Model in Tokio…"
-              className="w-full px-3.5 py-2.5 bg-[#121212] border border-[#383838] focus:border-amber-400 rounded-xl text-sm text-[#f0f0f0] placeholder-[#666666] outline-none transition-colors"
+              placeholder="e.g. Building a Redis Clone, Raft Distributed KV Store, LSM-Tree Engine…"
+              className="w-full px-4 py-3 bg-[#121212] border border-[#383838] focus:border-amber-400 focus:ring-1 focus:ring-amber-400/30 rounded-xl text-base text-[#f0f0f0] placeholder-[#606060] outline-none transition-all"
             />
           </div>
 
-          {/* Language Selector */}
+          {/* Suggested Topics */}
           <div>
-            <label className="block text-xs font-mono uppercase tracking-wider text-[#a0a0a0] mb-1.5">
-              Primary Language
-            </label>
-            <div className="grid grid-cols-4 gap-2">
-              {(['go', 'rust', 'python', 'typescript'] as const).map((lang) => (
-                <button
-                  key={lang}
-                  type="button"
-                  disabled={isGenerating}
-                  onClick={() => setLanguage(lang)}
-                  className={`py-2 px-3 rounded-xl border text-xs font-medium uppercase tracking-wide transition-all cursor-pointer ${
-                    language === lang
-                      ? 'bg-amber-500/15 border-amber-400 text-amber-300'
-                      : 'bg-[#151515] border-[#2c2c2c] text-[#8d8d8d] hover:border-[#444444] hover:text-[#e0e0e0]'
-                  }`}
-                >
-                  {lang === 'typescript' ? 'TS / JS' : lang}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Suggested Topics Pills */}
-          <div>
-            <span className="block text-xs font-mono uppercase tracking-wider text-[#777777] mb-2">
+            <span className="block text-xs font-mono uppercase tracking-wider text-[#707070] mb-2">
               Ideas for Inspiration
             </span>
             <div className="flex flex-wrap gap-1.5">
-              {SUGGESTED_TOPICS.map((s, idx) => (
+              {SUGGESTED_TOPICS.map((t, idx) => (
                 <button
                   key={idx}
                   type="button"
                   disabled={isGenerating}
-                  onClick={() => handleSelectSuggestion(s)}
-                  className="px-2.5 py-1 rounded-lg bg-[#141414] hover:bg-[#202020] border border-[#2b2b2b] text-[11px] text-[#a0a0a0] hover:text-[#f0f0f0] transition-colors cursor-pointer"
+                  onClick={() => setTopic(t)}
+                  className="px-3 py-1.5 rounded-lg bg-[#141414] hover:bg-[#202020] border border-[#2b2b2b] hover:border-[#404040] text-xs text-[#a0a0a0] hover:text-[#f0f0f0] transition-colors cursor-pointer"
                 >
-                  {s.title} <span className="text-amber-400/80 uppercase font-mono text-[9px] ml-1">({s.lang})</span>
+                  {t}
                 </button>
               ))}
             </div>

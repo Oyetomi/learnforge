@@ -16,46 +16,40 @@ export interface DerivationLadderProps {
 
 const colorMap = {
   orange: {
-    line: 'stroke-amber-500',
-    arrow: 'text-amber-500',
-    border: 'border-amber-500/80',
-    text: 'text-amber-300',
-    bg: 'bg-amber-950/20',
+    color: '#e58055',
+    border: 'border-[#e58055]',
+    text: 'text-[#e58055]',
+    bg: 'bg-[#e58055]/15',
   },
   blue: {
-    line: 'stroke-sky-400',
-    arrow: 'text-sky-400',
-    border: 'border-sky-400/80',
-    text: 'text-sky-300',
-    bg: 'bg-sky-950/20',
+    color: '#4ea8de',
+    border: 'border-[#4ea8de]',
+    text: 'text-[#4ea8de]',
+    bg: 'bg-[#4ea8de]/15',
   },
   green: {
-    line: 'stroke-emerald-400',
-    arrow: 'text-emerald-400',
-    border: 'border-emerald-400/80',
-    text: 'text-emerald-300',
-    bg: 'bg-emerald-950/20',
+    color: '#52b788',
+    border: 'border-[#52b788]',
+    text: 'text-[#52b788]',
+    bg: 'bg-[#52b788]/15',
   },
   amber: {
-    line: 'stroke-amber-400',
-    arrow: 'text-amber-400',
-    border: 'border-amber-400/80',
-    text: 'text-amber-300',
-    bg: 'bg-amber-950/20',
+    color: '#e5aa72',
+    border: 'border-[#e5aa72]',
+    text: 'text-[#e5aa72]',
+    bg: 'bg-[#e5aa72]/15',
   },
   purple: {
-    line: 'stroke-purple-400',
-    arrow: 'text-purple-400',
-    border: 'border-purple-400/80',
-    text: 'text-purple-300',
-    bg: 'bg-purple-950/20',
+    color: '#b5838d',
+    border: 'border-[#b5838d]',
+    text: 'text-[#b5838d]',
+    bg: 'bg-[#b5838d]/15',
   },
   red: {
-    line: 'stroke-red-400',
-    arrow: 'text-red-400',
-    border: 'border-red-400/80',
-    text: 'text-red-300',
-    bg: 'bg-red-950/20',
+    color: '#e63946',
+    border: 'border-[#e63946]',
+    text: 'text-[#e63946]',
+    bg: 'bg-[#e63946]/15',
   },
 };
 
@@ -80,7 +74,7 @@ function renderHighlightedState(raw: string) {
     parts.push(
       <span
         key={match.index}
-        className={`inline-block border-2 ${c.border} ${c.text} ${c.bg} px-1.5 py-0.5 rounded-md font-mono text-sm mx-0.5`}
+        className={`inline-block border-2 ${c.border} ${c.text} ${c.bg} px-1.5 py-0.5 rounded-md font-mono text-base mx-1 font-semibold`}
       >
         {content}
       </span>
@@ -102,8 +96,8 @@ export const DerivationLadder: React.FC<DerivationLadderProps> = ({
   result,
 }) => {
   return (
-    <div className="derivation-ladder my-4 p-5 rounded-xl bg-[#171717] border border-[#2b2b2b] text-[#e6e6e6] shadow-sm select-text font-sans">
-      {/* Title */}
+    <div className="derivation-ladder my-3 p-5 rounded-xl bg-[#17191c] border border-[#2b2f36] text-[#e6e6e6] shadow-md select-text font-sans">
+      {/* Title Header */}
       {title && (
         <div className="font-semibold text-sky-400 text-sm tracking-wide mb-3 uppercase font-mono">
           {title}
@@ -111,33 +105,45 @@ export const DerivationLadder: React.FC<DerivationLadderProps> = ({
       )}
 
       {/* Initial Expression State */}
-      <div className="font-mono text-lg font-medium text-[#f0f0f0] tracking-wide mb-2 pl-2">
+      <div className="font-mono text-lg font-medium text-[#f0f0f0] tracking-wide mb-1 pl-1">
         {renderHighlightedState(initialState)}
       </div>
 
       {/* Steps with Directed Vertical Connectors */}
-      <div className="space-y-1">
+      <div className="space-y-0.5">
         {steps.map((step, idx) => {
           const colorKey = step.color || (['orange', 'blue', 'green', 'amber'][idx % 4] as keyof typeof colorMap);
           const c = colorMap[colorKey] || colorMap.blue;
 
           return (
             <div key={idx} className="step-group flex flex-col">
-              {/* Connector Row: Vertical line with annotation */}
-              <div className="flex items-start gap-4 my-1">
+              {/* Connector Row: SVG vertical line with arrow and annotation */}
+              <div className="flex items-start gap-3 my-0.5">
                 {/* Vertical Arrow Indicator */}
-                <div className="flex flex-col items-center w-6 shrink-0 pt-0.5">
-                  <div className={`w-[2px] h-10 ${c.bg.replace('/20', '')} bg-current opacity-80`} />
-                  <div className={`w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[6px] border-t-current ${c.text}`} />
+                <div className="flex flex-col items-center w-5 shrink-0 pt-0.5">
+                  <svg width="12" height="38" viewBox="0 0 12 38" className="overflow-visible">
+                    <line
+                      x1="6"
+                      y1="0"
+                      x2="6"
+                      y2="30"
+                      stroke={c.color}
+                      strokeWidth="2"
+                    />
+                    <polygon
+                      points="2,28 6,36 10,28"
+                      fill={c.color}
+                    />
+                  </svg>
                 </div>
 
                 {/* Step Annotation */}
-                <div className="flex-1 py-1">
-                  <div className="italic text-sm text-[#a8a8a8] font-serif leading-snug">
+                <div className="flex-1 py-0.5">
+                  <div className="italic text-sm text-[#b0b0b0] font-serif leading-snug">
                     {step.rule}
                   </div>
                   {step.evalText && (
-                    <div className="font-mono text-xs text-[#808080] mt-0.5 tracking-tight">
+                    <div className="font-mono text-xs text-[#8d929b] mt-0.5 tracking-tight">
                       {step.evalText}
                     </div>
                   )}
@@ -145,7 +151,7 @@ export const DerivationLadder: React.FC<DerivationLadderProps> = ({
               </div>
 
               {/* State After Transformation */}
-              <div className="font-mono text-lg font-medium text-[#f0f0f0] tracking-wide pl-2 py-1">
+              <div className="font-mono text-lg font-medium text-[#f0f0f0] tracking-wide pl-1 py-1">
                 {renderHighlightedState(step.state)}
               </div>
             </div>
@@ -155,17 +161,110 @@ export const DerivationLadder: React.FC<DerivationLadderProps> = ({
 
       {/* Result Footer */}
       {result && (
-        <div className="mt-4 pt-3 border-t border-[#262626]">
+        <div className="mt-4 pt-3 border-t border-[#2a2e36]">
           <div className="font-semibold text-sky-400 text-xs uppercase tracking-wider font-mono mb-1">
             Result
           </div>
-          <div className="font-mono text-xl font-bold text-emerald-400 pl-2">
+          <div className="font-mono text-xl font-bold text-emerald-400 pl-1">
             {renderHighlightedState(result)}
           </div>
         </div>
       )}
     </div>
   );
+};
+
+/**
+ * Standard Presets for instant display & verification
+ */
+export const MATH_SIMPLIFY_LADDER: DerivationLadderProps = {
+  title: 'Simplify expression',
+  initialState: '6 ÷ 2(1 + 2)',
+  steps: [
+    {
+      rule: 'Rewrite the expression in fractional form',
+      evalText: '6 ÷ 2(1 + 2) = 6 / 2(1 + 2)',
+      state: '6 / 2([1 + 2]:blue)',
+      color: 'orange',
+    },
+    {
+      rule: 'Add numbers',
+      evalText: '1 + 2 = 3',
+      state: '6 / (2 × [3]:blue)',
+      color: 'blue',
+    },
+    {
+      rule: 'Multiply numbers in the denominator',
+      evalText: '2 × 3 = 6',
+      state: '6 / [6]:green',
+      color: 'green',
+    },
+    {
+      rule: 'Dividing the same numbers equals 1',
+      evalText: '6 / 6 = 1',
+      state: '[1]:orange',
+      color: 'orange',
+    },
+  ],
+  result: '1',
+};
+
+export const GO_CHANNEL_LADDER: DerivationLadderProps = {
+  title: 'Channel Synchronization Handoff',
+  initialState: 'ch := make(chan string) [Buffer: 0]',
+  steps: [
+    {
+      rule: 'Main goroutine executes send to unbuffered channel',
+      evalText: 'Sending blocks because no receiver is waiting',
+      state: '[G1: Blocked on send]:orange -> [ch buffer: 0]',
+      color: 'orange',
+    },
+    {
+      rule: 'Spawn concurrent worker goroutine',
+      evalText: 'go func() { ch <- msg }()',
+      state: '[G2: Sender]:blue -> [ch] -> [G1: Receiver]:green',
+      color: 'blue',
+    },
+    {
+      rule: 'Direct synchronous value handoff',
+      evalText: 'Value copied from G2 to G1, both goroutines unblock',
+      state: '[G1: Received "concurrency-ok"]:green',
+      color: 'green',
+    },
+  ],
+  result: 'Zero-copy synchronous transfer complete',
+};
+
+export const GO_WAITGROUP_LADDER: DerivationLadderProps = {
+  title: 'sync.WaitGroup Atomic Lifecycle',
+  initialState: 'var wg sync.WaitGroup [Counter: 0]',
+  steps: [
+    {
+      rule: 'Increment counter in parent before spawning worker',
+      evalText: 'wg.Add(1) -> Counter = 0 + 1 = 1',
+      state: '[Counter: 1]:blue',
+      color: 'blue',
+    },
+    {
+      rule: 'Worker executes task concurrently',
+      evalText: 'go func() { defer wg.Done(); counter += 1 }()',
+      state: '[Worker executing, counter updated]:amber',
+      color: 'amber',
+    },
+    {
+      rule: 'Worker returns and defer wg.Done() executes',
+      evalText: 'wg.Done() -> Counter = 1 - 1 = 0',
+      state: '[Counter: 0]:green',
+      color: 'green',
+    },
+    {
+      rule: 'wg.Wait() unblocks when counter reaches 0',
+      evalText: 'All workers finished, main proceeds safely',
+      state: '[Main unblocked]:orange',
+      color: 'orange',
+    },
+  ],
+  result: 'Safe deterministic concurrency without time.Sleep',
 };
 
 /**

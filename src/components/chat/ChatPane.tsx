@@ -2,8 +2,14 @@ import React, { useRef, useEffect, useState } from 'react';
 import { ChatMessage, Milestone } from '../../types';
 import { MarkdownView } from './MarkdownView';
 import { Composer } from './Composer';
-import { Sparkles, ArrowRight, Check, ChevronDown, ChevronUp, Lightbulb } from 'lucide-react';
+import { Sparkles, ArrowRight, Check, ChevronDown, ChevronUp, GitCommit } from 'lucide-react';
 import { cleanMilestoneTitle } from '../milestones/MilestoneSidebar';
+import {
+  DerivationLadder,
+  MATH_SIMPLIFY_LADDER,
+  GO_CHANNEL_LADDER,
+  GO_WAITGROUP_LADDER,
+} from './DerivationLadder';
 
 interface ChatPaneProps {
   messages: ChatMessage[];
@@ -15,7 +21,7 @@ interface ChatPaneProps {
   onSendMessage: (message: string) => void;
   onStopStreaming: () => void;
   onApplyCodeToEditor?: (code: string) => void;
-  onQuickAction?: (action: 'hint' | 'explain' | 'review') => void;
+  onQuickAction?: (action: 'hint' | 'explain' | 'review' | 'derivation') => void;
   onOpenEditor?: () => void;
   onNextMilestone?: () => void;
   // Kept for backward compatibility with mobile tab bar
@@ -40,6 +46,8 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   const nearBottom = useRef(true);
   const [isPromptExpanded, setIsPromptExpanded] = useState(true);
+  const [showDerivation, setShowDerivation] = useState(false);
+  const [ladderPreset, setLadderPreset] = useState<'milestone' | 'math'>('milestone');
 
   // Auto-scroll on new messages or streaming tokens
   useEffect(() => {
@@ -53,7 +61,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
     onSendMessage(message);
   };
 
-  const quickAction = (action: 'hint' | 'explain' | 'review') => {
+  const quickAction = (action: 'hint' | 'explain' | 'review' | 'derivation') => {
     nearBottom.current = true;
     onQuickAction?.(action);
   };
@@ -107,6 +115,49 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                 <MarkdownView content={activeMilestone.prompt} />
               </div>
             )}
+
+            {/* Visual Derivation Ladder Toggle & View */}
+            <div className="pt-2 border-t border-[#2a2a2a] flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setShowDerivation(!showDerivation)}
+                  className="inline-flex items-center gap-1.5 text-xs text-sky-400 hover:text-sky-300 font-mono transition-colors"
+                >
+                  <span className="font-semibold">{showDerivation ? '▼ Hide Step Derivation' : '▶ 🪜 View Step-by-Step Derivation'}</span>
+                </button>
+                {showDerivation && (
+                  <div className="flex items-center gap-1 bg-[#242424] p-0.5 rounded text-[11px] font-mono border border-[#333333]">
+                    <button
+                      type="button"
+                      onClick={() => setLadderPreset('milestone')}
+                      className={`px-2 py-0.5 rounded transition-colors ${ladderPreset === 'milestone' ? 'bg-[#383838] text-white font-medium' : 'text-[#888] hover:text-[#ccc]'}`}
+                    >
+                      Milestone State
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLadderPreset('math')}
+                      className={`px-2 py-0.5 rounded transition-colors ${ladderPreset === 'math' ? 'bg-[#383838] text-white font-medium' : 'text-[#888] hover:text-[#ccc]'}`}
+                    >
+                      Math 6÷2(1+2)
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {showDerivation && (
+                <div className="pt-1 animate-fadeIn">
+                  <DerivationLadder
+                    {...(ladderPreset === 'math'
+                      ? MATH_SIMPLIFY_LADDER
+                      : milestoneIndex === 1
+                      ? GO_WAITGROUP_LADDER
+                      : GO_CHANNEL_LADDER)}
+                  />
+                </div>
+              )}
+            </div>
 
             {/* If completed, show Next Milestone action directly */}
             {complete && onNextMilestone && (

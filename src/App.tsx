@@ -396,7 +396,7 @@ export default function App() {
   };
 
   // Quick Action Chips
-  const handleQuickAction = (action: 'hint' | 'explain' | 'review') => {
+  const handleQuickAction = (action: 'hint' | 'explain' | 'review' | 'derivation') => {
     switch (action) {
       case 'hint':
         handleSendMessage(
@@ -411,6 +411,11 @@ export default function App() {
       case 'review':
         handleSendMessage(
           'Review my current code in the editor. What invariants or edge cases should I consider?'
+        );
+        break;
+      case 'derivation':
+        handleSendMessage(
+          'Provide a step-by-step state derivation ladder showing each intermediate state transition for this milestone using the ```ladder markdown format.'
         );
         break;
     }
