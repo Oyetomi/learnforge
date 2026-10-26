@@ -1,21 +1,28 @@
 import React from 'react';
 import { TestResult } from '../../types';
-import { CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { CheckCircle2, XCircle } from 'lucide-react';
 
 interface TestResultsPanelProps {
   testResults: TestResult[];
   isRunning?: boolean;
+  canRun?: boolean;
+  hasRun?: boolean;
 }
 
-export const TestResultsPanel: React.FC<TestResultsPanelProps> = ({ testResults, isRunning }) => {
+export const TestResultsPanel: React.FC<TestResultsPanelProps> = ({
+  testResults,
+  isRunning,
+  canRun = true,
+  hasRun = false,
+}) => {
   const passedCount = testResults.filter((t) => t.passed).length;
   const totalCount = testResults.length;
   const allPassed = totalCount > 0 && passedCount === totalCount;
 
   return (
-    <div className="flex flex-col h-full bg-[#0d1117] text-xs font-mono select-text">
+    <div className="flex flex-col h-full bg-transparent text-xs font-mono select-text">
       {/* Test Bar Header */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-[#161b22] border-b border-forge-border text-forge-muted shrink-0">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-transparent border-b border-forge-border text-forge-muted shrink-0">
         <div className="flex items-center gap-2">
           <span className="font-semibold uppercase tracking-wider text-[11px] text-forge-text">
             Test Assertions
@@ -37,8 +44,14 @@ export const TestResultsPanel: React.FC<TestResultsPanelProps> = ({ testResults,
       {/* Tests List */}
       <div className="flex-1 p-3 overflow-y-auto space-y-2">
         {totalCount === 0 ? (
-          <div className="h-full flex items-center justify-center text-forge-muted/50 italic text-[11px]">
-            No test assertions defined for this milestone.
+          <div className="h-full flex items-center justify-center text-forge-muted text-xs">
+            {!canRun
+              ? 'Tests are unavailable for this language.'
+              : isRunning
+                ? 'Running tests…'
+                : hasRun
+                  ? 'No test results were returned. Check Output for details.'
+                  : 'Run your code to check this milestone’s tests.'}
           </div>
         ) : (
           testResults.map((test, idx) => (

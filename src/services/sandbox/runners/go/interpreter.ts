@@ -70,189 +70,313 @@ export class GoTranspiler {
   transpile(goCode: string): string {
     let code = goCode;
 
-    // Remove single line and multiline comments while preserving string literals
+    // 1. Remove comments while preserving newlines
     code = code.replace(/\/\*[\s\S]*?\*\//g, '');
     code = code.replace(/\/\/.*/g, '');
 
-    // Remove package main
-    code = code.replace(/^\s*package\s+[A-Za-z0-9_]+/m, '');
+    // 2. Remove package declaration
+    code = code.replace(/^\s*package\s+[A-Za-z0-9_]+/gm, '');
 
-    // Remove import blocks: import ( ... ) and import "..."
+    // 3. Remove import blocks: import ( ... ) and import "..."
     code = code.replace(/import\s*\([\s\S]*?\)/g, '');
     code = code.replace(/import\s+"[^"]+"/g, '');
 
-    // Transform type struct definitions: type Foo struct { ... }
+    // 4. Collect and transform struct definitions
+    const knownStructs = new Set<string>();
     code = code.replace(/type\s+([A-Za-z0-9_]+)\s+struct\s*\{[\s\S]*?\}/g, (_m, structName) => {
+      knownStructs.add(structName);
       return `class ${structName} { constructor(props = {}) { Object.assign(this, props); } }`;
     });
 
-    // Transform type interfaces to empty no-op comment
+    // Transform type interfaces to comments
     code = code.replace(/type\s+([A-Za-z0-9_]+)\s+interface\s*\{[\s\S]*?\}/g, '// interface $1');
 
-    // Transform make(chan T, cap) -> new GoChannel(cap)
+    // 5. Transform struct instantiations: &StructName{...} or StructName{...} -> new StructName({ ... })
+    for (const structName of knownStructs) {
+      const structRegex = new RegExp(`(?<!class\\s+)(?:&)?\\b${structName}\\s*\\{([\\s\\S]*?)\\}`, 'g');
+      code = code.replace(structRegex, (_m, fields) => {
+        return `new ${structName}({ ${fields.trim()} })`;
+      });
+    }
+
+    // 6. Transform channel make: make(chan T, cap) -> new GoChannel(cap) / make(chan T) -> new GoChannel(0)
     code = code.replace(/make\s*\(\s*chan\s+[^,)]+,\s*([^)]+)\)/g, 'new GoChannel($1)');
-    // Transform make(chan T) -> new GoChannel(0)
     code = code.replace(/make\s*\(\s*chan\s+[^)]+\)/g, 'new GoChannel(0)');
 
-    // Transform var wg sync.WaitGroup -> const wg = new GoWaitGroup()
+    // 7. Transform sync and context variables
     code = code.replace(/var\s+([A-Za-z0-9_]+)\s+sync\.WaitGroup/g, 'const $1 = new GoWaitGroup()');
-    // Transform var mu sync.Mutex -> const mu = new GoMutex()
     code = code.replace(/var\s+([A-Za-z0-9_]+)\s+sync\.Mutex/g, 'const $1 = new GoMutex()');
-    // Transform var mu sync.RWMutex -> const mu = new GoRWMutex()
     code = code.replace(/var\s+([A-Za-z0-9_]+)\s+sync\.RWMutex/g, 'const $1 = new GoRWMutex()');
 
-    // Transform WaitGroup methods
+    // WaitGroup & Mutex methods
     code = code.replace(/([A-Za-z0-9_]+)\.Add\(([^)]+)\)/g, '$1.add($2)');
     code = code.replace(/([A-Za-z0-9_]+)\.Done\(\)/g, '$1.done()');
     code = code.replace(/([A-Za-z0-9_]+)\.Wait\(\)/g, 'await $1.wait()');
-
-    // Transform Mutex methods
     code = code.replace(/([A-Za-z0-9_]+)\.Lock\(\)/g, 'await $1.lock()');
     code = code.replace(/([A-Za-z0-9_]+)\.Unlock\(\)/g, '$1.unlock()');
     code = code.replace(/([A-Za-z0-9_]+)\.RLock\(\)/g, 'await $1.rlock()');
     code = code.replace(/([A-Za-z0-9_]+)\.RUnlock\(\)/g, '$1.runlock()');
 
-    // Transform context methods
+    // Context methods
     code = code.replace(/context\.Background\(\)/g, 'GoContext.Background()');
     code = code.replace(/context\.WithCancel\(([^)]+)\)/g, 'GoContext.WithCancel($1)');
     code = code.replace(/context\.WithTimeout\(([^,]+),\s*([^)]+)\)/g, 'GoContext.WithTimeout($1, $2)');
 
-    // Transform time durations: e.g. 10 * time.Millisecond -> 10, 1 * time.Second -> 1000
+    // Time methods
     code = code.replace(/time\.Millisecond/g, '1');
     code = code.replace(/time\.Second/g, '1000');
     code = code.replace(/time\.Sleep\(([^)]+)\)/g, 'await __time_sleep($1)');
     code = code.replace(/time\.After\(([^)]+)\)/g, '__time_after($1)');
 
-    // Transform Channel receive in assignment:
+    // 8. Transform built-in close(ch) -> ch.close()
+    code = code.replace(/\bclose\s*\(\s*([A-Za-z0-9_]+)\s*\)/g, '$1.close()');
+
+    // 9. Transform fmt calls
+    code = code.replace(/fmt\.Println\(([\s\S]*?)\)/g, '__fmt_println($1)');
+    code = code.replace(/fmt\.Printf\(([\s\S]*?)\)/g, '__fmt_printf($1)');
+    code = code.replace(/fmt\.Sprintf\(([\s\S]*?)\)/g, '__fmt_sprintf($1)');
+
+    // 10. Transform select statements
+    code = this.transformSelect(code);
+
+    // 11. Transform function declarations (stripping types, channel arrows in params, etc.)
+    code = this.transformFunctionsWithDefer(code);
+
+    // 12. Transform channel range: for item := range ch { ... }
+    code = code.replace(/for\s+([A-Za-z0-9_]+)\s*:=\s*range\s+([A-Za-z0-9_]+)\s*\{/g, 'for await (const $1 of $2.iterate()) {');
+    // Transform for i, item := range slice { ... }
+    code = code.replace(/for\s+([A-Za-z0-9_]+)\s*,\s*([A-Za-z0-9_]+)\s*:=\s*range\s+([A-Za-z0-9_]+)\s*\{/g, 'for (const [$1, $2] of $3.entries()) {');
+    // Transform C-style for loop: for i := 0; i < n; i++ {
+    code = code.replace(/for\s+([A-Za-z0-9_]+)\s*:=\s*([^;]+);\s*([^;]+);\s*([^{]+)\s*\{/g, 'for (let $1 = $2; $3; $4) {');
+
+    // 13. Transform Channel receive:
     // val, ok := <-ch
     code = code.replace(/([A-Za-z0-9_]+)\s*,\s*([A-Za-z0-9_]+)\s*:=\s*<-\s*([A-Za-z0-9_]+)/g, 'const { value: $1, ok: $2 } = await $3.receive()');
     // val := <-ch
     code = code.replace(/([A-Za-z0-9_]+)\s*:=\s*<-\s*([A-Za-z0-9_]+)/g, 'const $1 = (await $3.receive()).value');
     // <-ctx.Done()
     code = code.replace(/<-\s*([A-Za-z0-9_]+)\.Done\(\)/g, 'await $1.done().receive()');
+    // standalone <-ch
+    code = code.replace(/(?:^|\n)\s*<-\s*([A-Za-z0-9_]+)/g, 'await $1.receive()');
 
-    // Transform Channel send: ch <- val
-    // We match: identifier <- expression;
-    code = code.replace(/([A-Za-z0-9_]+)\s*<-\s*([^;\n]+)/g, 'await $1.send($2)');
+    // 14. Transform Channel send: ch <- val
+    // (Only lines where ch <- val appears as a statement)
+    code = code.replace(/^(\s*)([A-Za-z0-9_]+)\s*<-\s*([^;\n]+)/gm, '$1await $2.send($3)');
 
-    // Transform for val := range ch { ... }
-    code = code.replace(/for\s+([A-Za-z0-9_]+)\s*:=\s*range\s+([A-Za-z0-9_]+)\s*\{/g, 'for await (const $1 of $2.iterate()) {');
-
-    // Transform for i, v := range slice { ... }
-    code = code.replace(/for\s+([A-Za-z0-9_]+)\s*,\s*([A-Za-z0-9_]+)\s*:=\s*range\s+([A-Za-z0-9_]+)\s*\{/g, 'for (const [$1, $2] of $3.entries()) {');
-
-    // Transform for i := 0; i < n; i++ { ... }
-    code = code.replace(/for\s+([A-Za-z0-9_]+)\s*:=\s*([^;]+);\s*([^;]+);\s*([^{]+)\s*\{/g, 'for (let $1 = $2; $3; $4) {');
-
-    // Transform while-style loop: for condition { ... }
-    code = code.replace(/for\s+([^{;]+)\s*\{/g, (match, cond) => {
-      const trimmed = cond.trim();
-      if (trimmed.startsWith('await') || trimmed.includes('of') || trimmed.includes('let') || trimmed.includes('const')) {
-        return match;
-      }
-      return `while (${trimmed}) {`;
-    });
-
-    // Transform infinite loop: for { ... }
-    code = code.replace(/for\s*\{/g, 'while (true) {');
-
-    // Transform fmt calls
-    code = code.replace(/fmt\.Println\(([\s\S]*?)\)/g, '__fmt_println($1)');
-    code = code.replace(/fmt\.Printf\(([\s\S]*?)\)/g, '__fmt_printf($1)');
-    code = code.replace(/fmt\.Sprintf\(([\s\S]*?)\)/g, '__fmt_sprintf($1)');
-
-    // Transform short variable declarations: foo := bar
+    // 15. Transform short variable assignment:
+    // Multiple assignment: a, b := fn() -> let [a, b] = fn()
+    code = code.replace(/([A-Za-z0-9_]+)\s*,\s*([A-Za-z0-9_]+)\s*:=\s*/g, 'let [$1, $2] = ');
+    // Single assignment: foo := bar -> let foo = bar
     code = code.replace(/([A-Za-z0-9_]+)\s*:=\s*/g, 'let $1 = ');
 
-    // Transform slice literals: []int{1, 2, 3} -> [1, 2, 3]
-    code = code.replace(/\[\](?:int|string|float64|bool|interface\{\})\s*\{([^}]*)\}/g, '[$1]');
+    // 16. Transform Go if statements: if condition { -> if (condition) {
+    code = code.replace(/^(\s*)if\s+([^{]+)\s*\{/gm, (_m, indent, cond) => {
+      const trimmedCond = cond.trim();
+      if (trimmedCond.startsWith('(') && trimmedCond.endsWith(')')) {
+        return `${indent}if ${trimmedCond} {`;
+      }
+      return `${indent}if (${trimmedCond}) {`;
+    });
 
-    // Transform function signatures
-    // func worker(...) or func (s *Struct) method(...) or func TestXxx(t *testing.T)
-    code = this.transformFunctions(code);
-
-    // Transform goroutines: go func(...) { ... }(...) or go fn(...)
+    // 17. Transform goroutines
+    // go func(...) { ... }(...)
     code = code.replace(/\bgo\s+func\s*\((.*?)\)\s*\{([\s\S]*?)\}\s*\((.*?)\)/g, (_m, params, body, args) => {
       return `__scheduler.go(async () => { (async (${params}) => { ${body} })(${args}); })`;
     });
 
+    // go fnName(arg1, arg2)
     code = code.replace(/\bgo\s+([A-Za-z0-9_]+)\s*\((.*?)\)/g, (_m, fnName, args) => {
-      // Don't replace if it's already __scheduler.go
       if (fnName === '__scheduler') return _m;
-      // Handle pointers like &wg by stripping &
-      const cleanedArgs = args.replace(/&([A-Za-z0-9_]+)/g, '$1');
-      return `__scheduler.go(async () => { await ${fnName}(${cleanedArgs}); })`;
+      const cleanArgs = args.replace(/&([A-Za-z0-9_]+)/g, '$1');
+      return `__scheduler.go(async () => { await ${fnName}(${cleanArgs}); })`;
     });
 
-    // Strip address-of operator & on variables in calls: &wg -> wg
+    // Strip address-of operator & on pointers
     code = code.replace(/&([A-Za-z0-9_]+)/g, '$1');
 
     return code;
   }
 
-  private transformFunctions(code: string): string {
-    // Regex for Go function definitions:
-    // func (recv *Type) Name(params) [returnType] { ... }
-    // func Name(params) [returnType] { ... }
+  /**
+   * Transforms Go select { case ...: default: ... } blocks into JS branch execution
+   */
+  private transformSelect(code: string): string {
+    return code.replace(/select\s*\{([\s\S]*?)\}/g, (_m, body) => {
+      const lines = body.split('\n');
+      const cases: Array<{ trigger: string; code: string[] }> = [];
+      let defaultCode: string[] | null = null;
+      let currentSection: 'case' | 'default' | null = null;
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        const caseMatch = trimmed.match(/^case\s+(.+?):/);
+        const defaultMatch = trimmed.match(/^default\s*:/);
+
+        if (caseMatch) {
+          currentSection = 'case';
+          cases.push({ trigger: caseMatch[1].trim(), code: [] });
+          continue;
+        }
+
+        if (defaultMatch) {
+          currentSection = 'default';
+          defaultCode = [];
+          continue;
+        }
+
+        if (currentSection === 'case' && cases.length > 0) {
+          cases[cases.length - 1].code.push(line);
+        } else if (currentSection === 'default' && defaultCode) {
+          defaultCode.push(line);
+        }
+      }
+
+      if (cases.length === 0 && defaultCode) {
+        return defaultCode.join('\n');
+      }
+
+      const branchBlocks: string[] = [];
+      for (const c of cases) {
+        // e.g. <-ctx.Done() or <-ch or val := <-ch
+        let chExpr = c.trigger.replace(/^<-\s*/, '').replace(/\.Done\(\)/, '.done()');
+        let assignment = '';
+        const assignMatch = c.trigger.match(/([A-Za-z0-9_]+)\s*:=\s*<-\s*(.+)/);
+        if (assignMatch) {
+          chExpr = assignMatch[2].replace(/\.Done\(\)/, '.done()');
+          assignment = `const ${assignMatch[1]} = (await ${chExpr}.receive()).value;\n`;
+        } else if (c.trigger.startsWith('<-')) {
+          assignment = `await ${chExpr}.receive();\n`;
+        }
+
+        branchBlocks.push(`if (${chExpr}.canReceiveImmediately()) {\n  ${assignment}  ${c.code.join('\n')}\n}`);
+      }
+
+      if (defaultCode) {
+        return branchBlocks.join(' else ') + ` else {\n  ${defaultCode.join('\n')}\n}`;
+      }
+
+      return branchBlocks.join(' else ');
+    });
+  }
+
+  /**
+   * Transforms Go functions with precise brace tracking to insert defer cleanup only at function exit.
+   */
+  private transformFunctionsWithDefer(code: string): string {
     const lines = code.split('\n');
-    const transformed: string[] = [];
+    const result: string[] = [];
+
+    let inFunction = false;
+    let braceDepth = 0;
+    let isAsyncFunc = false;
 
     for (let i = 0; i < lines.length; i++) {
       let line = lines[i];
 
-      // Check func definition
+      // Detect function definition:
+      // func (recv *Type) Name(params) [returnType] { ... }
+      // func Name(params) [returnType] { ... }
       const funcMatch = line.match(/^(\s*)func\s+(?:(?:\(([^)]+)\)\s+)?([A-Za-z0-9_]+))\s*\((.*?)\)(?:\s+([^{]+))?\s*\{/);
+
       if (funcMatch) {
         const [, indent, receiver, name, params] = funcMatch;
-
-        // Clean params: (id int, jobs <-chan int, wg *sync.WaitGroup)
         const paramNames = this.extractParamNames(params);
 
+        inFunction = true;
+        braceDepth = 1;
+
+        // Check whether function needs async (main, Test*, or uses channels/defers)
+        const isMainOrTest = name === 'main' || name.startsWith('Test');
+        // Look ahead in subsequent lines up to closing brace to see if it uses concurrency/defer
+        let lookAheadUsesConcurrency = false;
+        let depth = 1;
+        for (let j = i + 1; j < lines.length; j++) {
+          const l = lines[j];
+          if (/(\bdefer\s+|\bgo\s+|<-|\bchan\b|\bselect\b|\.Wait\(\)|\.Lock\(\)|\.RLock\(\)|time\.Sleep)/.test(l)) {
+            lookAheadUsesConcurrency = true;
+          }
+          depth += (l.match(/\{/g) || []).length - (l.match(/\}/g) || []).length;
+          if (depth <= 0) break;
+        }
+
+        isAsyncFunc = isMainOrTest || lookAheadUsesConcurrency;
+
         if (receiver) {
-          // Method: Receiver.prototype.Name = async function(params) {
-          const recNameMatch = receiver.trim().match(/([A-Za-z0-9_]+)\s+\*?([A-Za-z0-9_]+)/);
-          if (recNameMatch) {
-            const [, recVar, recType] = recNameMatch;
-            line = `${indent}${recType}.prototype.${name} = async function(${paramNames.join(', ')}) { const ${recVar} = this; const __defers = []; try {`;
+          const recMatch = receiver.trim().match(/([A-Za-z0-9_]+)\s+\*?([A-Za-z0-9_]+)/);
+          if (recMatch) {
+            const [, recVar, recType] = recMatch;
+            if (isAsyncFunc) {
+              line = `${indent}${recType}.prototype.${name} = async function(${paramNames.join(', ')}) {\n${indent}  const ${recVar} = this;\n${indent}  const __defers = [];\n${indent}  try {`;
+            } else {
+              line = `${indent}${recType}.prototype.${name} = function(${paramNames.join(', ')}) {\n${indent}  const ${recVar} = this;`;
+            }
           }
         } else {
-          // Normal function
-          line = `${indent}async function ${name}(${paramNames.join(', ')}) { const __defers = []; try {`;
+          if (isAsyncFunc) {
+            line = `${indent}async function ${name}(${paramNames.join(', ')}) {\n${indent}  const __defers = [];\n${indent}  try {`;
+          } else {
+            line = `${indent}function ${name}(${paramNames.join(', ')}) {`;
+          }
+        }
+
+        result.push(line);
+        continue;
+      }
+
+      if (inFunction) {
+        // Handle defer line: defer foo()
+        const deferMatch = line.match(/^(\s*)defer\s+(.+)$/);
+        if (deferMatch) {
+          const [, indent, deferExpr] = deferMatch;
+          const cleaned = deferExpr.replace(/;$/, '').trim();
+          line = `${indent}__defers.push(async () => { await ${cleaned}; });`;
+          result.push(line);
+          continue;
+        }
+
+        // Count braces to track function scope boundary
+        const openCount = (line.match(/\{/g) || []).length;
+        const closeCount = (line.match(/\}/g) || []).length;
+        braceDepth += openCount - closeCount;
+
+        if (braceDepth <= 0) {
+          // Reached end of function!
+          inFunction = false;
+          braceDepth = 0;
+          if (isAsyncFunc) {
+            line = line.replace(/\}\s*$/, `  } finally {\n    while (__defers.length > 0) {\n      const __fn = __defers.pop();\n      await __fn();\n    }\n  }\n}`);
+          }
         }
       }
 
-      // Handle defer inside function: defer foo()
-      const deferMatch = line.match(/^(\s*)defer\s+(.+)$/);
-      if (deferMatch) {
-        const [, indent, deferExpr] = deferMatch;
-        const cleanedExpr = deferExpr.replace(/;$/, '').trim();
-        line = `${indent}__defers.push(async () => { await ${cleanedExpr}; });`;
-      }
-
-      // Handle function closing brace with defer execution
-      if (/^\s*\}\s*$/.test(line)) {
-        // Close the try block and execute defers
-        line = `  } finally {\n    while (__defers && __defers.length > 0) {\n      const __fn = __defers.pop();\n      await __fn();\n    }\n  }\n}`;
-      }
-
-      transformed.push(line);
+      result.push(line);
     }
 
-    return transformed.join('\n');
+    return result.join('\n');
   }
 
+  /**
+   * Extracts parameter names from Go parameter signature strings.
+   * e.g. "id int, jobs <-chan Task, results chan<- Result, wg *sync.WaitGroup"
+   * -> ["id", "jobs", "results", "wg"]
+   */
   private extractParamNames(paramsStr: string): string[] {
-    if (!paramsStr.trim()) return [];
-    const parts = paramsStr.split(',');
+    if (!paramsStr || !paramsStr.trim()) return [];
+
     const names: string[] = [];
+    const parts = paramsStr.split(',');
 
     for (const part of parts) {
-      const words = part.trim().split(/\s+/).filter(Boolean);
-      if (words.length > 0) {
-        // First word is variable name
-        names.push(words[0]);
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+
+      // Match the first valid identifier before any types
+      const match = trimmed.match(/^([A-Za-z0-9_]+)/);
+      if (match) {
+        names.push(match[1]);
       }
     }
+
     return names;
   }
 }

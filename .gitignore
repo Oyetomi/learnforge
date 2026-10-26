@@ -25,3 +25,6 @@ dist-ssr
 
 # Tauri / Cargo
 src-tauri/target
+
+# Local design research cache
+.lazyweb/

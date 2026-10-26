@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, CornerDownLeft, Sparkles, HelpCircle, Code, Lightbulb, Square } from 'lucide-react';
+import { ArrowUp, Lightbulb, ScanLine, BookOpen, Square } from 'lucide-react';
 
 interface ComposerProps {
   onSendMessage: (message: string) => void;
@@ -13,116 +13,75 @@ export const Composer: React.FC<ComposerProps> = ({
   onSendMessage,
   isStreaming,
   onStopStreaming,
-  activeMilestoneTitle,
   onQuickAction,
 }) => {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
   useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
-    }
+    if (!textareaRef.current) return;
+    textareaRef.current.style.height = 'auto';
+    textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
   }, [input]);
-
-  const handleSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (isStreaming) {
-      onStopStreaming();
-      return;
-    }
-    if (!input.trim()) return;
+  const submit = () => {
+    if (!input.trim() || isStreaming) return;
     onSendMessage(input.trim());
     setInput('');
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
   };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  };
-
   return (
-    <div className="border-t border-forge-border bg-forge-surface/60 backdrop-blur-sm p-3">
-      {/* Quick Action Chips (Never-Locked prompts) */}
-      <div className="flex items-center gap-1.5 mb-2 overflow-x-auto pb-1 text-xs text-forge-muted">
-        <span className="flex items-center gap-1 text-[11px] font-medium text-forge-accent/80 shrink-0 mr-1">
-          <Sparkles size={12} />
-          Never-Locked:
-        </span>
-        <button
-          onClick={() => onQuickAction?.('hint')}
-          disabled={isStreaming}
-          className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-forge-surface border border-forge-border hover:border-forge-accent/40 hover:text-forge-heading transition-colors shrink-0 disabled:opacity-50"
-        >
-          <Lightbulb size={11} className="text-yellow-400" />
-          Give me a hint
+    <div className="composer">
+      <div className="quick-actions" aria-label="Ask your coach">
+        <button onClick={() => onQuickAction?.('hint')} disabled={isStreaming}>
+          <Lightbulb size={13} />
+          Get a hint
         </button>
-        <button
-          onClick={() => onQuickAction?.('explain')}
-          disabled={isStreaming}
-          className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-forge-surface border border-forge-border hover:border-forge-accent/40 hover:text-forge-heading transition-colors shrink-0 disabled:opacity-50"
-        >
-          <HelpCircle size={11} className="text-forge-accent" />
-          Explain concept
+        <button onClick={() => onQuickAction?.('explain')} disabled={isStreaming}>
+          <BookOpen size={13} />
+          Explain this
         </button>
-        <button
-          onClick={() => onQuickAction?.('review')}
-          disabled={isStreaming}
-          className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-forge-surface border border-forge-border hover:border-forge-accent/40 hover:text-forge-heading transition-colors shrink-0 disabled:opacity-50"
-        >
-          <Code size={11} className="text-emerald-400" />
-          Review my editor code
+        <button onClick={() => onQuickAction?.('review')} disabled={isStreaming}>
+          <ScanLine size={13} />
+          Review code
         </button>
       </div>
-
-      {/* Input container */}
-      <div className="relative flex items-end rounded-lg border border-forge-border bg-[#0d1117] focus-within:border-forge-accent/70 transition-all shadow-inner">
+      <div className="composer-input">
         <textarea
+          aria-label="Message your AI coach"
           ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={
-            activeMilestoneTitle
-              ? `Ask clarifying questions on "${activeMilestoneTitle}" or propose your logic...`
-              : 'Ask a question, request a concept dive, or share your thinking...'
-          }
-          rows={1}
-          className="w-full resize-none bg-transparent px-3 py-2.5 text-sm text-forge-heading placeholder:text-forge-muted/60 focus:outline-none"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              submit();
+            }
+          }}
+          placeholder="Ask a question or share your thinking…"
+          rows={2}
         />
-
-        <div className="flex items-center p-2 gap-1.5 shrink-0">
-          {isStreaming ? (
-            <button
-              onClick={onStopStreaming}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-forge-danger/20 hover:bg-forge-danger/30 text-forge-danger text-xs font-medium transition-colors"
-              title="Stop Generation"
-            >
-              <Square size={12} className="fill-current" />
-              <span>Stop</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => handleSubmit()}
-              disabled={!input.trim()}
-              className="flex items-center justify-center p-1.5 rounded-md bg-forge-accent hover:bg-forge-accentHover text-white disabled:opacity-30 disabled:hover:bg-forge-accent transition-colors"
-              title="Send (Enter)"
-            >
-              <CornerDownLeft size={14} />
-            </button>
-          )}
-        </div>
+        {isStreaming ? (
+          <button
+            className="send-button stop-button"
+            onClick={onStopStreaming}
+            aria-label="Stop response"
+          >
+            <Square size={15} fill="currentColor" />
+          </button>
+        ) : (
+          <button
+            className="send-button"
+            onClick={submit}
+            disabled={!input.trim()}
+            aria-label="Send message"
+          >
+            <ArrowUp size={18} />
+          </button>
+        )}
       </div>
-
-      <div className="flex items-center justify-between mt-1.5 px-1 text-[11px] text-forge-muted/70">
-        <span>You can ask tangents or side-questions at any time without answering active checks.</span>
-        <span className="hidden sm:inline">Shift+Enter for newline</span>
+      <div className="composer-footnote">
+        <span>Your editor code is included for context</span>
+        <span>
+          ↵ Send <span className="newline-hint">· ⇧↵ New line</span>
+        </span>
       </div>
     </div>
   );

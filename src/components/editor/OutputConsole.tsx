@@ -1,5 +1,5 @@
 import React from 'react';
-import { Terminal, Trash2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Terminal, Trash2, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 
 interface OutputConsoleProps {
   stdout: string;
@@ -7,6 +7,9 @@ interface OutputConsoleProps {
   durationMs?: number;
   exitCode?: number;
   onClear: () => void;
+  isRunning?: boolean;
+  canRun?: boolean;
+  errorGuidance?: string;
 }
 
 export const OutputConsole: React.FC<OutputConsoleProps> = ({
@@ -15,63 +18,63 @@ export const OutputConsole: React.FC<OutputConsoleProps> = ({
   durationMs,
   exitCode,
   onClear,
+  isRunning,
+  canRun = true,
+  errorGuidance,
 }) => {
-  const hasOutput = stdout.trim().length > 0 || stderr.trim().length > 0;
-
+  const hasResult = exitCode !== undefined;
   return (
-    <div className="flex flex-col h-full bg-[#0a0e14] text-xs font-mono select-text">
-      {/* Console Header */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-[#161b22] border-b border-forge-border text-forge-muted shrink-0">
-        <div className="flex items-center gap-2">
-          <Terminal size={13} className="text-forge-accent" />
-          <span className="font-semibold uppercase tracking-wider text-[11px] text-forge-text">Console Output</span>
-          {exitCode !== undefined && (
-            <span
-              className={`px-1.5 py-0.2 rounded text-[10px] ${
-                exitCode === 0
-                  ? 'bg-forge-success/20 text-emerald-400'
-                  : 'bg-forge-danger/20 text-red-400'
-              }`}
-            >
-              exit {exitCode}
+    <div className="console-panel">
+      {isRunning ? (
+        <div className="output-empty">
+          <Loader2 size={22} className="animate-spin" />
+          <strong>Running your code…</strong>
+          <p>Output and test results will appear here.</p>
+        </div>
+      ) : hasResult ? (
+        <>
+          <div className={`execution-summary ${exitCode !== 0 || stderr ? 'has-error' : ''}`}>
+            <span>
+              {exitCode === 0 && !stderr ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
+              {exitCode === 0 && !stderr ? 'Execution complete' : 'Execution failed'}
+              {durationMs !== undefined && <small>{durationMs.toFixed(0)} ms</small>}
+            </span>
+            <button onClick={onClear} className="icon-button" aria-label="Clear output">
+              <Trash2 size={13} />
+            </button>
+          </div>
+          <div className="console-stream">
+            {stdout && <pre>{stdout}</pre>}
+            {stderr && (
+              <>
+                {errorGuidance && <p className="output-guidance">{errorGuidance}</p>}
+                <pre className="console-error">{stderr}</pre>
+              </>
+            )}
+            {!stdout && !stderr && (
+              <p className="quiet-output">Code finished without printing output.</p>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="output-empty">
+          <span className="output-empty-icon">
+            <Terminal size={20} />
+          </span>
+          <strong>{canRun ? 'See your code in action' : 'Code execution unavailable'}</strong>
+          <p>
+            {canRun
+              ? 'Run your code to see output and test results.'
+              : 'You can edit this file and discuss it with your coach.'}
+          </p>
+          {canRun && (
+            <span className="output-shortcut">
+              <kbd>⌘</kbd> + <kbd>Enter</kbd>
+              <span> or Ctrl + Enter</span>
             </span>
           )}
-          {durationMs !== undefined && (
-            <span className="text-[10px] text-forge-muted">{durationMs.toFixed(1)}ms</span>
-          )}
         </div>
-
-        <button
-          onClick={onClear}
-          className="flex items-center gap-1 hover:text-forge-heading transition-colors"
-          title="Clear Console"
-        >
-          <Trash2 size={12} />
-          <span className="text-[11px]">Clear</span>
-        </button>
-      </div>
-
-      {/* Console Stream */}
-      <div className="flex-1 p-3 overflow-y-auto space-y-1">
-        {!hasOutput ? (
-          <div className="h-full flex items-center justify-center text-forge-muted/50 italic text-[11px]">
-            Execution output will appear here after clicking "Run Code"
-          </div>
-        ) : (
-          <>
-            {stdout && (
-              <pre className="text-[#e6edf3] whitespace-pre-wrap break-words leading-relaxed">
-                {stdout}
-              </pre>
-            )}
-            {stderr && (
-              <pre className="text-red-400 whitespace-pre-wrap break-words leading-relaxed bg-red-950/20 p-2 rounded border border-red-900/30">
-                {stderr}
-              </pre>
-            )}
-          </>
-        )}
-      </div>
+      )}
     </div>
   );
 };

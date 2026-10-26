@@ -1,11 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
-import confetti from 'canvas-confetti';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import { Code2, BookOpen, Sparkles } from 'lucide-react';
+import { handleTabNavigation } from './components/layout/keyboard';
 import { Header } from './components/layout/Header';
 import { MilestoneSidebar } from './components/milestones/MilestoneSidebar';
 import { ChatPane } from './components/chat/ChatPane';
-import { EditorPane } from './components/editor/EditorPane';
+const EditorPane = lazy(() =>
+  import('./components/editor/EditorPane').then((module) => ({ default: module.EditorPane }))
+);
 import { DailyReviewModal } from './components/fsrs/DailyReviewModal';
-import { LearningSession, ChatMessage, Milestone, SupportedLanguage, ExecutionResult, FSRSRating } from './types';
+import {
+  LearningSession,
+  ChatMessage,
+  Milestone,
+  SupportedLanguage,
+  ExecutionResult,
+  FSRSRating,
+} from './types';
 import { db } from './services/db';
 import { executeCode } from './services/sandbox';
 import {
@@ -19,7 +29,16 @@ import {
 export default function App() {
   // --- Curriculum Tracks State ---
   const [tracks] = useState<CourseTrack[]>(STARTER_TRACKS);
-  const [currentTrackId, setCurrentTrackId] = useState<string>('track-go-concurrency');
+  const [currentTrackId, setCurrentTrackId] = useState<string>(() => {
+    try {
+      return (
+        getTrackById(localStorage.getItem('learnforge:active-track') || '')?.id ||
+        STARTER_TRACKS[0].id
+      );
+    } catch {
+      return STARTER_TRACKS[0].id;
+    }
+  });
 
   // --- Session & Milestones State ---
   const [currentSession, setCurrentSession] = useState<LearningSession | null>(null);
@@ -43,13 +62,121 @@ export default function App() {
   const [dueCards, setDueCards] = useState(db.getDueCardsList());
 
   // --- Sidebar Collapse State ---
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= 1200);
+  const [mobilePane, setMobilePane] = useState<'lesson' | 'editor'>('lesson');
+  const [learningTab, setLearningTab] = useState<'challenge' | 'coach'>('challenge');
+  const [isCompactLayout, setIsCompactLayout] = useState(() => window.innerWidth < 1200);
+  const [draftStatus, setDraftStatus] = useState<'saved' | 'saving' | 'memory'>('saved');
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const executionId = useRef(0);
+  const drafts = useRef<Record<string, string> | null>(null);
+  if (drafts.current === null) {
+    try {
+      const stored = JSON.parse(localStorage.getItem('learnforge:code-drafts') || '{}');
+      drafts.current =
+        stored && typeof stored === 'object' && !Array.isArray(stored)
+          ? Object.fromEntries(
+              Object.entries(stored).filter(
+                (entry): entry is [string, string] => typeof entry[1] === 'string'
+              )
+            )
+          : {};
+    } catch {
+      drafts.current = {};
+    }
+  }
+  const milestoneIndex = Math.max(
+    0,
+    milestones.findIndex((m) => m.id === activeMilestone?.id)
+  );
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 1200px)');
+    const collapseOnSmallScreen = () => {
+      setIsCompactLayout(!desktop.matches);
+      if (!desktop.matches) setIsSidebarOpen(false);
+    };
+    desktop.addEventListener('change', collapseOnSmallScreen);
+    return () => desktop.removeEventListener('change', collapseOnSmallScreen);
+  }, []);
+
+  useEffect(() => {
+    if (!isSidebarOpen || !isCompactLayout) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const sidebar = document.getElementById('learning-path');
+    const main = document.getElementById('main-content');
+    const header = document.querySelector<HTMLElement>('.app-header');
+    if (main) main.inert = true;
+    if (header) header.inert = true;
+    sidebar?.querySelector<HTMLButtonElement>('button')?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsSidebarOpen(false);
+      }
+      if (e.key !== 'Tab' || !sidebar) return;
+      const focusables = Array.from(
+        sidebar.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')
+      );
+      const first = focusables[0],
+        last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last?.focus();
+      }
+      if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      if (main) main.inert = false;
+      if (header) header.inert = false;
+      document.removeEventListener('keydown', onKey);
+      previousFocus?.focus();
+    };
+  }, [isSidebarOpen, isCompactLayout]);
+
+  const persistDrafts = () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    try {
+      localStorage.setItem('learnforge:code-drafts', JSON.stringify(drafts.current));
+      setDraftStatus('saved');
+    } catch {
+      setDraftStatus('memory');
+    }
+  };
+
+  const handleChangeCode = (code: string) => {
+    setEditorCode(code);
+    if (!activeMilestone) return;
+    drafts.current![activeMilestone.id] = code;
+    setDraftStatus('saving');
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(persistDrafts, 350);
+  };
+
+  useEffect(() => {
+    const flush = () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      try {
+        localStorage.setItem('learnforge:code-drafts', JSON.stringify(drafts.current));
+      } catch {}
+    };
+    window.addEventListener('pagehide', flush);
+    window.addEventListener('beforeunload', flush);
+    return () => {
+      flush();
+      window.removeEventListener('pagehide', flush);
+      window.removeEventListener('beforeunload', flush);
+    };
+  }, []);
 
   // Initialize or load session on track change
   useEffect(() => {
     const track = getTrackById(currentTrackId) || tracks[0];
     const sessions = db.getSessions();
-    let session = sessions.find((s) => s.topic.toLowerCase().includes(track.title.toLowerCase().split(' ')[0]));
+    let session = sessions.find((s) => s.title === track.title);
 
     if (!session) {
       session = db.createSession({
@@ -57,7 +184,10 @@ export default function App() {
         topic: track.tagline,
         language: track.language,
       });
+    }
 
+    // Seed an existing empty session as well as a newly created session.
+    if (db.getMilestones(session.id).length === 0) {
       // Populate track milestones into db
       track.milestones.forEach((m, idx) => {
         db.createMilestone({
@@ -76,11 +206,20 @@ export default function App() {
 
     const sessionMilestones = db.getMilestones(session.id);
     setMilestones(sessionMilestones);
-    const active = sessionMilestones.find((m) => m.status === 'active') || sessionMilestones[0] || null;
+    let rememberedMilestone: string | null = null;
+    try {
+      rememberedMilestone = localStorage.getItem(`learnforge:active-milestone:${session.id}`);
+    } catch {}
+    const active =
+      sessionMilestones.find((m) => m.id === rememberedMilestone) ||
+      sessionMilestones.find((m) => m.status === 'active') ||
+      sessionMilestones.find((m) => m.status !== 'completed') ||
+      sessionMilestones[0] ||
+      null;
     setActiveMilestone(active);
 
     if (active) {
-      setEditorCode(active.starter_code);
+      setEditorCode(drafts.current![active.id] ?? active.starter_code);
     }
 
     const sessionMessages = db.getMessages(session.id);
@@ -91,7 +230,7 @@ export default function App() {
       const greeting: ChatMessage = db.addMessage({
         session_id: session.id,
         role: 'assistant',
-        content: `### Welcome to ${track.title}\n\n${track.description}\n\n**Axiom:** *"Hear and forget. See and remember. Build and understand."*\n\nWe start with **${active?.title || 'Milestone 1'}**. The starter code is loaded in your editor on the right. When you are ready, ask clarifying questions or click **Run Code** to test your logic!`,
+        content: `### Let’s work on ${track.title}\n\n${track.description}\n\nYour current challenge is **${active?.title || 'Milestone 1'}**. Open the Challenge tab for the brief, or ask me a question about the code.`,
       });
       setMessages([greeting]);
     }
@@ -99,19 +238,41 @@ export default function App() {
 
   // Handle Track Selection
   const handleSelectTrack = (trackId: string) => {
+    if (trackId === currentTrackId) return;
+    handleStopStreaming();
+    persistDrafts();
+    executionId.current += 1;
+    setExecutionResult(null);
+    setIsRunningCode(false);
     setCurrentTrackId(trackId);
+    setMobilePane('lesson');
+    setLearningTab('challenge');
+    try {
+      localStorage.setItem('learnforge:active-track', trackId);
+    } catch {}
   };
 
   // Handle Milestone Selection
   const handleSelectMilestone = (m: Milestone) => {
+    if (m.id === activeMilestone?.id) return;
+    handleStopStreaming();
+    persistDrafts();
     setActiveMilestone(m);
-    setEditorCode(m.starter_code);
+    executionId.current += 1;
+    setIsRunningCode(false);
+    setEditorCode(drafts.current![m.id] ?? m.starter_code);
     setExecutionResult(null);
+    setMobilePane('lesson');
+    setLearningTab('challenge');
+    if (window.innerWidth < 1200) setIsSidebarOpen(false);
+    try {
+      localStorage.setItem(`learnforge:active-milestone:${m.session_id}`, m.id);
+    } catch {}
   };
 
   // Send Message (Never-Locked Composer)
   const handleSendMessage = async (userText: string) => {
-    if (!currentSession) return;
+    if (!currentSession || isStreaming) return;
 
     // Add user message
     const userMsg = db.addMessage({
@@ -136,10 +297,12 @@ export default function App() {
       await streamSocraticChat(updatedMessages, activeMilestone || undefined, editorCode, {
         abortSignal: controller.signal,
         onChunk: (chunk) => {
+          if (controller.signal.aborted) return;
           accumulated += chunk;
           setStreamingContent(accumulated);
         },
         onComplete: (fullText) => {
+          if (controller.signal.aborted) return;
           setIsStreaming(false);
           setStreamingContent('');
 
@@ -170,19 +333,21 @@ export default function App() {
           }
         },
         onError: (err) => {
+          if (controller.signal.aborted) return;
           setIsStreaming(false);
           setStreamingContent('');
-          if (err.name !== 'AbortError') {
+          if (err.name !== 'AbortError' && !controller.signal.aborted) {
             const errorMsg = db.addMessage({
               session_id: currentSession.id,
               role: 'assistant',
-              content: `⚠️ **Connection Notice:** Unable to reach the local proxy (${err.message}). Make sure \`http://127.0.0.1:10532\` is active.`,
+              content: `**Your coach couldn’t connect.** Check that the AI service is running, then try your message again. Your code is saved in this workspace.\n\nConnection details: ${err.message}`,
             });
             setMessages([...updatedMessages, errorMsg]);
           }
         },
       });
     } catch (err: any) {
+      if (controller.signal.aborted) return;
       setIsStreaming(false);
       setStreamingContent('');
     }
@@ -210,43 +375,48 @@ export default function App() {
   const handleQuickAction = (action: 'hint' | 'explain' | 'review') => {
     switch (action) {
       case 'hint':
-        handleSendMessage('Give me a Socratic hint for the current challenge without giving away the full answer.');
+        handleSendMessage(
+          'Give me a Socratic hint for the current challenge without giving away the full answer.'
+        );
         break;
       case 'explain':
-        handleSendMessage('Deep dive into the core mental model behind this milestone: explain the mechanics in 2 concise paragraphs.');
+        handleSendMessage(
+          'Deep dive into the core mental model behind this milestone: explain the mechanics in 2 concise paragraphs.'
+        );
         break;
       case 'review':
-        handleSendMessage('Review my current code in the editor. What invariants or edge cases should I consider?');
+        handleSendMessage(
+          'Review my current code in the editor. What invariants or edge cases should I consider?'
+        );
         break;
     }
   };
 
   // Run Code in Browser Sandbox
   const handleRunCode = async () => {
+    if (isRunningCode || language === 'rust') return;
+    const runId = ++executionId.current;
     setIsRunningCode(true);
     try {
       const res = await executeCode(language, editorCode, activeMilestone?.test_code);
+      if (runId !== executionId.current) return;
       setExecutionResult(res);
 
       // Check if all tests passed
       if (res.testResults && res.testResults.length > 0) {
         const allPassed = res.testResults.every((t) => t.passed);
-        if (allPassed) {
-          // Trigger Confetti!
-          confetti({
-            particleCount: 80,
-            spread: 60,
-            origin: { y: 0.6 },
-          });
-
+        if (allPassed && res.exitCode === 0 && !res.error && !res.stderr) {
           // Mark milestone completed
           if (activeMilestone && currentSession) {
             db.updateMilestoneStatus(activeMilestone.id, 'completed');
-            setMilestones(db.getMilestones(currentSession.id));
+            const updated = db.getMilestones(currentSession.id);
+            setMilestones(updated);
+            setActiveMilestone(updated.find((m) => m.id === activeMilestone.id) || null);
           }
         }
       }
     } catch (err: any) {
+      if (runId !== executionId.current) return;
       setExecutionResult({
         stdout: '',
         stderr: err?.message || 'Execution error occurred',
@@ -255,14 +425,14 @@ export default function App() {
         error: err?.message,
       });
     } finally {
-      setIsRunningCode(false);
+      if (runId === executionId.current) setIsRunningCode(false);
     }
   };
 
   // Reset Code to starter
   const handleResetCode = () => {
     if (activeMilestone) {
-      setEditorCode(activeMilestone.starter_code);
+      handleChangeCode(activeMilestone.starter_code);
       setExecutionResult(null);
     }
   };
@@ -286,9 +456,10 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
+  const nextMilestone = milestones.slice(milestoneIndex + 1).find((m) => m.status !== 'completed');
+
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-forge-bg text-forge-text font-sans">
-      {/* Top Application Header */}
+    <div className="app-shell">
       <Header
         currentTrackId={currentTrackId}
         onSelectTrack={handleSelectTrack}
@@ -296,59 +467,136 @@ export default function App() {
         dueCardsCount={dueCards.length}
         onOpenReview={() => setIsReviewModalOpen(true)}
         onExportNotes={handleExportNotes}
-        modelName="gemini-3.8-flash-high"
-        isModelConnected={true}
+        onToggleSidebar={() => setIsSidebarOpen((v) => !v)}
+        isSidebarOpen={isSidebarOpen}
       />
-
-      {/* Main Dual-Pane Body */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Milestone Tracker Sidebar (Collapsible) */}
+      <div className="app-body">
         {isSidebarOpen && (
-          <MilestoneSidebar
-            milestones={milestones}
-            activeMilestoneId={activeMilestone?.id}
-            onSelectMilestone={handleSelectMilestone}
-          />
+          <>
+            <button
+              className="sidebar-backdrop"
+              aria-label="Close learning path"
+              onClick={() => setIsSidebarOpen(false)}
+            />
+            <MilestoneSidebar
+              milestones={milestones}
+              activeMilestoneId={activeMilestone?.id}
+              onSelectMilestone={handleSelectMilestone}
+              onClose={() => setIsSidebarOpen(false)}
+            />
+          </>
         )}
-
-        {/* Left Pane (50%): Socratic Dialogue Stream */}
-        <div className="flex-1 min-w-[320px] max-w-full md:w-1/2 min-h-0">
-          <ChatPane
-            messages={messages}
-            isStreaming={isStreaming}
-            streamingContent={streamingContent}
-            activeMilestoneTitle={activeMilestone?.title}
-            onSendMessage={handleSendMessage}
-            onStopStreaming={handleStopStreaming}
-            onApplyCodeToEditor={(code) => setEditorCode(code)}
-            onQuickAction={handleQuickAction}
-            currentTopic={currentSession?.topic || 'Systems Engineering'}
-          />
-        </div>
-
-        {/* Right Pane (50%): Live Interactive Sandbox & Monaco Editor */}
-        <div className="hidden md:flex flex-1 min-w-[360px] md:w-1/2 min-h-0">
-          <EditorPane
-            code={editorCode}
-            onChangeCode={setEditorCode}
-            language={language}
-            onChangeLanguage={setLanguage}
-            onRunCode={handleRunCode}
-            onResetCode={handleResetCode}
-            isRunning={isRunningCode}
-            executionResult={executionResult}
-            onClearConsole={() => setExecutionResult(null)}
-          />
-        </div>
+        <main className="main-workspace" id="main-content">
+          <div
+            className="mobile-workspace-tabs"
+            role="tablist"
+            aria-label="Workspace view"
+            onKeyDown={handleTabNavigation}
+          >
+            <button
+              role="tab"
+              id="lesson-view-tab"
+              aria-selected={mobilePane === 'lesson' && learningTab === 'challenge'}
+              aria-controls="lesson-workspace"
+              tabIndex={mobilePane === 'lesson' && learningTab === 'challenge' ? 0 : -1}
+              onClick={() => {
+                setMobilePane('lesson');
+                setLearningTab('challenge');
+              }}
+            >
+              <BookOpen size={15} />
+              Challenge
+            </button>
+            <button
+              role="tab"
+              id="editor-view-tab"
+              aria-selected={mobilePane === 'editor'}
+              aria-controls="editor-workspace"
+              tabIndex={mobilePane === 'editor' ? 0 : -1}
+              onClick={() => setMobilePane('editor')}
+            >
+              <Code2 size={15} />
+              Code
+            </button>
+            <button
+              role="tab"
+              id="coach-view-tab"
+              aria-selected={mobilePane === 'lesson' && learningTab === 'coach'}
+              aria-controls="lesson-workspace"
+              tabIndex={mobilePane === 'lesson' && learningTab === 'coach' ? 0 : -1}
+              onClick={() => {
+                setMobilePane('lesson');
+                setLearningTab('coach');
+              }}
+            >
+              <Sparkles size={15} />
+              Coach
+            </button>
+          </div>
+          <div className="workspace-panes">
+            <div
+              id="lesson-workspace"
+              className={`lesson-column ${mobilePane === 'lesson' ? 'mobile-visible' : ''}`}
+            >
+              <ChatPane
+                messages={messages}
+                isStreaming={isStreaming}
+                streamingContent={streamingContent}
+                activeTab={learningTab}
+                onChangeTab={setLearningTab}
+                activeMilestone={activeMilestone}
+                milestoneIndex={milestoneIndex}
+                milestoneCount={milestones.length}
+                onSendMessage={handleSendMessage}
+                onStopStreaming={handleStopStreaming}
+                onApplyCodeToEditor={(code) => {
+                  handleChangeCode(code);
+                  setMobilePane('editor');
+                }}
+                onQuickAction={handleQuickAction}
+                onOpenEditor={() => setMobilePane('editor')}
+                onNextMilestone={
+                  nextMilestone ? () => handleSelectMilestone(nextMilestone) : undefined
+                }
+              />
+            </div>
+            <div
+              id="editor-workspace"
+              className={`editor-column ${mobilePane === 'editor' ? 'mobile-visible' : ''}`}
+            >
+              <Suspense
+                fallback={
+                  <div className="workspace-panel editor-loading">Preparing your editor…</div>
+                }
+              >
+                <EditorPane
+                  code={editorCode}
+                  onChangeCode={handleChangeCode}
+                  language={language}
+                  onRunCode={handleRunCode}
+                  onResetCode={handleResetCode}
+                  isRunning={isRunningCode}
+                  executionResult={executionResult}
+                  onClearConsole={() => setExecutionResult(null)}
+                  draftStatus={draftStatus}
+                  milestoneId={activeMilestone?.id}
+                />
+              </Suspense>
+            </div>
+          </div>
+        </main>
       </div>
-
-      {/* Daily FSRS Spaced Repetition Review Modal */}
-      <DailyReviewModal
-        isOpen={isReviewModalOpen}
-        onClose={() => setIsReviewModalOpen(false)}
-        cards={dueCards}
-        onRateCard={handleRateCard}
-      />
+      {isReviewModalOpen && (
+        <DailyReviewModal
+          isOpen={isReviewModalOpen}
+          onClose={() => {
+            setIsReviewModalOpen(false);
+            setDueCards(db.getDueCardsList());
+          }}
+          cards={dueCards}
+          onRateCard={handleRateCard}
+        />
+      )}
     </div>
   );
 }

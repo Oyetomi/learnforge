@@ -1,181 +1,401 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
-import { Play, RotateCcw, Check, Sparkles, Terminal, CheckCircle2, ChevronDown } from 'lucide-react';
+import {
+  Play,
+  RotateCcw,
+  Code2,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
+  CheckCircle2,
+  Terminal,
+  Check,
+  X,
+  AlertCircle,
+} from 'lucide-react';
 import { SupportedLanguage, ExecutionResult } from '../../types';
 import { OutputConsole } from './OutputConsole';
 import { TestResultsPanel } from './TestResultsPanel';
+import './monaco';
+import { handleTabNavigation } from '../layout/keyboard';
 
 interface EditorPaneProps {
   code: string;
   onChangeCode: (newCode: string) => void;
   language: SupportedLanguage;
-  onChangeLanguage: (lang: SupportedLanguage) => void;
   onRunCode: () => void;
   onResetCode: () => void;
   isRunning: boolean;
   executionResult: ExecutionResult | null;
   onClearConsole: () => void;
+  draftStatus: 'saved' | 'saving' | 'memory';
+  milestoneId?: string;
 }
+
+const fileNames: Record<SupportedLanguage, string> = {
+  go: 'main.go',
+  python: 'main.py',
+  rust: 'main.rs',
+  typescript: 'main.ts',
+  javascript: 'main.js',
+};
+const languageNames: Record<SupportedLanguage, string> = {
+  go: 'Go',
+  python: 'Python',
+  rust: 'Rust',
+  typescript: 'TypeScript',
+  javascript: 'JavaScript',
+};
 
 export const EditorPane: React.FC<EditorPaneProps> = ({
   code,
   onChangeCode,
   language,
-  onChangeLanguage,
   onRunCode,
   onResetCode,
   isRunning,
   executionResult,
   onClearConsole,
+  draftStatus,
+  milestoneId,
 }) => {
+  const [reducedMotion, setReducedMotion] = useState(
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+  useEffect(() => {
+    const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReducedMotion(preference.matches);
+    preference.addEventListener('change', update);
+    return () => preference.removeEventListener('change', update);
+  }, []);
   const [activeBottomTab, setActiveBottomTab] = useState<'console' | 'tests'>('console');
-
-  // Convert language to Monaco language id
-  const getMonacoLang = (lang: SupportedLanguage) => {
-    switch (lang) {
-      case 'go': return 'go';
-      case 'python': return 'python';
-      case 'rust': return 'rust';
-      case 'typescript': return 'typescript';
-      case 'javascript': return 'javascript';
-      default: return 'plaintext';
+  const [outputOpen, setOutputOpen] = useState(true);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [resetUndo, setResetUndo] = useState<string | null>(null);
+  const resetFocus = useRef(false);
+  const resetRef = useRef<HTMLButtonElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  const undoRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (confirmReset) confirmRef.current?.focus();
+    else if (resetUndo !== null) undoRef.current?.focus();
+    else if (resetFocus.current) {
+      resetRef.current?.focus();
+      resetFocus.current = false;
     }
-  };
-
+  }, [confirmReset, resetUndo]);
+  const runtimeAvailable = language !== 'rust';
   const testsCount = executionResult?.testResults?.length || 0;
   const passedTests = executionResult?.testResults?.filter((t) => t.passed).length || 0;
-
+  const failed =
+    executionResult &&
+    (executionResult.exitCode !== 0 || !!executionResult.error || !!executionResult.stderr);
+  useEffect(() => {
+    resetFocus.current = false;
+    setConfirmReset(false);
+    setResetUndo(null);
+    setActiveBottomTab('console');
+  }, [milestoneId, language]);
+  useEffect(() => {
+    if (isRunning) {
+      setOutputOpen(true);
+      setActiveBottomTab('console');
+    }
+    if (executionResult) {
+      setOutputOpen(true);
+      setActiveBottomTab(executionResult.testResults?.length && !failed ? 'tests' : 'console');
+    }
+  }, [executionResult, isRunning]);
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        e.key === 'Enter' &&
+        !document.querySelector('dialog[open]')
+      ) {
+        e.preventDefault();
+        if (!isRunning && runtimeAvailable) onRunCode();
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [onRunCode, isRunning, runtimeAvailable]);
   return (
-    <div className="flex flex-col h-full bg-[#0d1117] min-h-0 overflow-hidden">
-      {/* Editor Top Bar */}
-      <div className="flex items-center justify-between px-3 py-2 bg-forge-surface/70 border-b border-forge-border text-xs shrink-0">
-        <div className="flex items-center gap-2">
-          {/* Language Selector */}
-          <div className="relative">
-            <select
-              value={language}
-              onChange={(e) => onChangeLanguage(e.target.value as SupportedLanguage)}
-              className="appearance-none bg-forge-surface hover:bg-forge-surfaceHover text-forge-heading text-xs font-mono font-medium py-1 pl-2.5 pr-6 rounded border border-forge-border cursor-pointer focus:outline-none focus:border-forge-accent"
+    <section className="editor-pane workspace-panel" aria-label="Code workspace">
+      <div className="editor-toolbar">
+        <span className="editor-heading">
+          <Code2 size={16} />
+          Code workspace
+        </span>
+        <div className="editor-actions">
+          {confirmReset ? (
+            <div className="reset-confirm">
+              <span>Discard edits?</span>
+              <button
+                onClick={() => {
+                  setResetUndo(code);
+                  onResetCode();
+                  setConfirmReset(false);
+                }}
+                ref={confirmRef}
+                aria-label="Confirm reset to starter code"
+              >
+                <Check size={15} />
+              </button>
+              <button onClick={() => setConfirmReset(false)} aria-label="Cancel reset">
+                <X size={15} />
+              </button>
+            </div>
+          ) : resetUndo !== null ? (
+            <button
+              ref={undoRef}
+              className="reset-button undo-reset"
+              onClick={() => {
+                onChangeCode(resetUndo);
+                setResetUndo(null);
+              }}
             >
-              <option value="go">Go 1.22</option>
-              <option value="python">Python 3.12</option>
-              <option value="typescript">TypeScript 5.7</option>
-              <option value="rust">Rust 1.80</option>
-            </select>
-            <ChevronDown size={12} className="absolute right-2 top-2 pointer-events-none text-forge-muted" />
-          </div>
-
-          <span className="text-forge-muted text-[11px] hidden sm:inline">
-            In-Browser Execution
-          </span>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2">
+              <RotateCcw size={14} />
+              Undo reset
+            </button>
+          ) : (
+            <button
+              ref={resetRef}
+              className="reset-button"
+              disabled={isRunning}
+              onClick={() => {
+                resetFocus.current = true;
+                setConfirmReset(true);
+              }}
+              title="Reset to starter code"
+            >
+              <RotateCcw size={14} />
+              <span>Reset</span>
+            </button>
+          )}
           <button
-            onClick={onResetCode}
-            disabled={isRunning}
-            className="flex items-center gap-1 px-2.5 py-1 rounded bg-forge-surface hover:bg-forge-surfaceHover border border-forge-border text-forge-muted hover:text-forge-heading transition-colors text-xs disabled:opacity-50"
-            title="Reset to starter code"
-          >
-            <RotateCcw size={12} />
-            <span className="hidden sm:inline">Reset</span>
-          </button>
-
-          <button
+            className="run-button"
             onClick={onRunCode}
-            disabled={isRunning}
-            className="flex items-center gap-1.5 px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs transition-colors shadow-sm disabled:opacity-50"
-            title="Run Code (Cmd+Enter or Ctrl+Enter)"
+            disabled={isRunning || !runtimeAvailable}
+            title={
+              runtimeAvailable
+                ? 'Run code (⌘ Enter / Ctrl Enter)'
+                : 'Rust execution is not available yet'
+            }
           >
-            <Play size={12} className={isRunning ? 'animate-spin' : 'fill-current'} />
-            <span>{isRunning ? 'Running...' : 'Run Code'}</span>
+            {isRunning ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Play size={12} fill="currentColor" />
+            )}
+            <span>{isRunning ? 'Running…' : 'Run code'}</span>
+            <kbd>⌘ ↵</kbd>
           </button>
         </div>
       </div>
-
-      {/* Monaco Code Editor */}
-      <div className="flex-1 min-h-0 relative">
+      <div className="editor-filebar">
+        <span className="editor-file">
+          <span className="file-language-icon">
+            {language === 'go'
+              ? 'GO'
+              : language === 'python'
+                ? 'PY'
+                : language === 'rust'
+                  ? 'RS'
+                  : 'JS'}
+          </span>
+          {fileNames[language]}
+          <span
+            className="file-saved-dot"
+            title={
+              draftStatus === 'saved'
+                ? 'Saved on this device'
+                : draftStatus === 'saving'
+                  ? 'Saving changes'
+                  : 'In-memory draft'
+            }
+          />
+        </span>
+        <span className="file-language-label">{languageNames[language]}</span>
+      </div>
+      {!runtimeAvailable && (
+        <div className="runtime-notice">
+          <AlertCircle size={15} />
+          <span>You can edit and discuss Rust code here. Running Rust isn’t supported yet.</span>
+        </div>
+      )}
+      <div className="monaco-container">
         <Editor
           height="100%"
-          language={getMonacoLang(language)}
+          language={language}
           value={code}
-          onChange={(val) => onChangeCode(val || '')}
-          theme="vs-dark"
+          onChange={(value) => {
+            setResetUndo(null);
+            onChangeCode(value || '');
+          }}
+          theme="learnforge"
+          beforeMount={(monaco) =>
+            monaco.editor.defineTheme('learnforge', {
+              base: 'vs-dark',
+              inherit: true,
+              rules: [
+                { token: 'comment', foreground: '788279', fontStyle: 'italic' },
+                { token: 'keyword', foreground: 'C8A4DB' },
+                { token: 'string', foreground: 'B9CA91' },
+                { token: 'number', foreground: 'E6B986' },
+              ],
+              colors: {
+                'editor.background': '#17191C',
+                'editor.foreground': '#D9DDE3',
+                'editorLineNumber.foreground': '#636A74',
+                'editorLineNumber.activeForeground': '#BDC3CC',
+                'editor.lineHighlightBackground': '#FFFFFF04',
+                'editor.selectionBackground': '#E8AD6830',
+                'editorCursor.foreground': '#E8AD68',
+                'editorIndentGuide.background1': '#FFFFFF0B',
+              },
+            })
+          }
           options={{
             minimap: { enabled: false },
             fontSize: 13,
-            lineHeight: 20,
-            fontFamily: "'JetBrains Mono', 'Fira Code', Menlo, monospace",
+            lineHeight: 22,
+            fontFamily: "'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace",
             tabSize: 4,
-            insertSpaces: true,
             automaticLayout: true,
             scrollBeyondLastLine: false,
-            padding: { top: 12, bottom: 12 },
-            renderLineHighlight: 'all',
-            cursorBlinking: 'smooth',
-            smoothScrolling: true,
+            padding: { top: 18, bottom: 18 },
+            renderLineHighlight: 'gutter',
+            cursorBlinking: reducedMotion ? 'solid' : 'smooth',
+            smoothScrolling: !reducedMotion,
+            overviewRulerLanes: 0,
+            hideCursorInOverviewRuler: true,
+            scrollbar: { verticalScrollbarSize: 6, horizontalScrollbarSize: 6 },
+            wordWrap: 'on',
+            lineNumbersMinChars: 3,
+            folding: true,
+            contextmenu: true,
+            ariaLabel: `${languageNames[language]} code editor`,
           }}
           loading={
-            <div className="h-full flex items-center justify-center text-forge-muted text-xs font-mono">
-              Loading Monaco Editor...
+            <div className="editor-loading">
+              <Loader2 size={18} className="animate-spin" />
+              Preparing your editor…
             </div>
           }
         />
       </div>
-
-      {/* Bottom Tabs & Output Section */}
-      <div className="h-44 sm:h-52 border-t border-forge-border flex flex-col shrink-0 bg-[#0a0e14]">
-        {/* Tab Header */}
-        <div className="flex items-center px-2 bg-[#161b22] border-b border-forge-border text-xs gap-1 shrink-0">
-          <button
-            onClick={() => setActiveBottomTab('console')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 font-medium border-b-2 transition-colors ${
-              activeBottomTab === 'console'
-                ? 'border-forge-accent text-forge-heading'
-                : 'border-transparent text-forge-muted hover:text-forge-text'
-            }`}
-          >
-            <Terminal size={12} />
-            <span>Console Output</span>
-          </button>
-
-          <button
-            onClick={() => setActiveBottomTab('tests')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 font-medium border-b-2 transition-colors ${
-              activeBottomTab === 'tests'
-                ? 'border-forge-accent text-forge-heading'
-                : 'border-transparent text-forge-muted hover:text-forge-text'
-            }`}
-          >
-            <CheckCircle2 size={12} />
-            <span>Tests</span>
-            {testsCount > 0 && (
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${passedTests === testsCount ? 'bg-emerald-900/60 text-emerald-300' : 'bg-yellow-900/60 text-yellow-300'}`}>
-                {passedTests}/{testsCount}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* Tab Content */}
-        <div className="flex-1 min-h-0">
-          {activeBottomTab === 'console' ? (
-            <OutputConsole
-              stdout={executionResult?.stdout || ''}
-              stderr={executionResult?.stderr || executionResult?.error || ''}
-              durationMs={executionResult?.durationMs}
-              exitCode={executionResult?.exitCode}
-              onClear={onClearConsole}
-            />
-          ) : (
-            <TestResultsPanel
-              testResults={executionResult?.testResults || []}
-              isRunning={isRunning}
-            />
-          )}
-        </div>
+      <div className="editor-statusbar">
+        <span role="status" aria-live="polite">
+          <span
+            className={`tiny-dot ${isRunning || draftStatus === 'saving' ? 'running-dot' : ''}`}
+          />
+          {isRunning
+            ? 'Executing code'
+            : draftStatus === 'saving'
+              ? 'Saving changes…'
+              : draftStatus === 'saved'
+                ? 'Saved on this device'
+                : 'Device storage unavailable'}
+        </span>
+        <span>
+          {language === 'go'
+            ? 'Go simulator'
+            : runtimeAvailable
+              ? languageNames[language]
+              : 'Editor only'}
+        </span>
       </div>
-    </div>
+      <div className={`output-section ${outputOpen ? 'is-open' : ''}`}>
+        <div className="output-tabs">
+          <div role="tablist" aria-label="Code output" onKeyDown={handleTabNavigation}>
+            <button
+              role="tab"
+              id="console-tab"
+              aria-selected={activeBottomTab === 'console'}
+              tabIndex={activeBottomTab === 'console' ? 0 : -1}
+              aria-controls="console-panel"
+              onClick={() => {
+                setActiveBottomTab('console');
+                setOutputOpen(true);
+              }}
+            >
+              <Terminal size={14} />
+              Output{failed && <span className="output-error-dot" />}
+            </button>
+            <button
+              role="tab"
+              id="tests-tab"
+              aria-selected={activeBottomTab === 'tests'}
+              tabIndex={activeBottomTab === 'tests' ? 0 : -1}
+              aria-controls="tests-panel"
+              onClick={() => {
+                setActiveBottomTab('tests');
+                setOutputOpen(true);
+              }}
+            >
+              <CheckCircle2 size={14} />
+              Tests
+              {testsCount > 0 && (
+                <span className={`test-count ${passedTests === testsCount ? 'passing' : ''}`}>
+                  {passedTests}/{testsCount}
+                </span>
+              )}
+            </button>
+          </div>
+          <button
+            className="icon-button"
+            onClick={() => setOutputOpen((v) => !v)}
+            aria-label={outputOpen ? 'Collapse output' : 'Expand output'}
+            aria-expanded={outputOpen}
+          >
+            {outputOpen ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+          </button>
+        </div>
+        {outputOpen && (
+          <div
+            className="output-content"
+            role="tabpanel"
+            id={activeBottomTab === 'console' ? 'console-panel' : 'tests-panel'}
+            aria-labelledby={activeBottomTab === 'console' ? 'console-tab' : 'tests-tab'}
+          >
+            {activeBottomTab === 'console' ? (
+              <OutputConsole
+                stdout={executionResult?.stdout || ''}
+                stderr={executionResult?.stderr || executionResult?.error || ''}
+                durationMs={executionResult?.durationMs}
+                exitCode={executionResult?.exitCode}
+                onClear={onClearConsole}
+                isRunning={isRunning}
+                canRun={runtimeAvailable}
+                errorGuidance={
+                  language === 'go'
+                    ? 'The Go simulator could not execute this program. Some Go syntax is not supported; check the error below before changing your solution.'
+                    : 'Execution stopped. Check the error below, update the code, and run again.'
+                }
+              />
+            ) : (
+              <TestResultsPanel
+                testResults={executionResult?.testResults || []}
+                isRunning={isRunning}
+                canRun={runtimeAvailable}
+                hasRun={executionResult !== null}
+              />
+            )}
+          </div>
+        )}
+      </div>
+      <span className="sr-only" role="status">
+        {isRunning
+          ? 'Running code'
+          : executionResult
+            ? failed
+              ? 'Execution failed. See output for details.'
+              : testsCount
+                ? `${passedTests} of ${testsCount} tests passed.`
+                : 'Execution complete.'
+            : ''}
+      </span>
+    </section>
   );
 };
