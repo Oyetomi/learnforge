@@ -30,7 +30,22 @@ export type SupportedLanguage =
   | 'javascript'
   | 'js'
   | 'typescript'
-  | 'ts';
+  | 'ts'
+  | 'cpp'
+  | 'c++'
+  | 'c'
+  | 'java'
+  | 'csharp'
+  | 'cs'
+  | 'bash'
+  | 'sh'
+  | 'ruby'
+  | 'php'
+  | 'swift'
+  | 'zig'
+  | 'elixir'
+  | 'sql'
+  | string;
 
 export interface ExecutionOptions {
   /** Execution timeout in milliseconds (default: 5000ms) */

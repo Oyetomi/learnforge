@@ -5,6 +5,7 @@
 
 import { parseGoTestOutput } from '../../assertions';
 import { ExecutionOptions, ExecutionResult, SandboxRunner, TestResult } from '../../types';
+import { executeGoPlayground } from '../../api';
 import { GoTranspiler } from './interpreter';
 import {
   GoChannel,
@@ -36,10 +37,10 @@ export class GoSandboxRunner implements SandboxRunner {
     tests?: string,
     options?: ExecutionOptions
   ): Promise<ExecutionResult> {
-    const timeoutMs = options?.timeoutMs ?? 5000;
+    const timeoutMs = options?.timeoutMs ?? 8000;
     const startTime = performance.now();
 
-    // If an external Wasm / native runner is registered and not forced to built-in
+    // 1. If external native/Wasm runner is registered and active
     if (this.externalRunner && !options?.forceBuiltinRunner && this.externalRunner.canExecute(code)) {
       try {
         const extRes = await this.externalRunner.execute(code, tests);
@@ -53,7 +54,16 @@ export class GoSandboxRunner implements SandboxRunner {
           testResults: testResults.length > 0 ? testResults : undefined,
         };
       } catch (err) {
-        console.warn('External Go runner failed, falling back to built-in simulator:', err);
+        console.warn('External Go runner failed, falling back:', err);
+      }
+    }
+
+    // 2. Unless built-in simulator is explicitly forced, run with the official Go Playground API
+    if (!options?.forceBuiltinRunner) {
+      try {
+        return await executeGoPlayground(code, tests, timeoutMs);
+      } catch (cloudErr) {
+        console.warn('Go Playground API failed or offline, falling back to built-in simulator:', cloudErr);
       }
     }
 

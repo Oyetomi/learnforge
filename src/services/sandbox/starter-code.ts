@@ -470,6 +470,84 @@ if __name__ == "__main__":
 `;
   }
 
+  if (lang === 'rust' || lang === 'rs') {
+    return `fn main() {
+    println!("Hello from LearnForge Rust sandbox!");
+}
+`;
+  }
+
+  if (lang === 'cpp' || lang === 'c++' || lang === 'cxx') {
+    return `#include <iostream>
+
+int main() {
+    std::cout << "Hello from LearnForge C++ sandbox!" << std::endl;
+    return 0;
+}
+`;
+  }
+
+  if (lang === 'c') {
+    return `#include <stdio.h>
+
+int main() {
+    printf("Hello from LearnForge C sandbox!\\n");
+    return 0;
+}
+`;
+  }
+
+  if (lang === 'java') {
+    return `public class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello from LearnForge Java sandbox!");
+    }
+}
+`;
+  }
+
+  if (lang === 'csharp' || lang === 'cs' || lang === 'c#') {
+    return `using System;
+
+class Program {
+    static void Main() {
+        Console.WriteLine("Hello from LearnForge C# sandbox!");
+    }
+}
+`;
+  }
+
+  if (lang === 'bash' || lang === 'sh' || lang === 'shell') {
+    return `#!/usr/bin/env bash
+echo "Hello from LearnForge Bash sandbox!"
+`;
+  }
+
+  if (lang === 'ruby' || lang === 'rb') {
+    return `puts "Hello from LearnForge Ruby sandbox!"
+`;
+  }
+
+  if (lang === 'php') {
+    return `<?php
+echo "Hello from LearnForge PHP sandbox!\\n";
+`;
+  }
+
+  if (lang === 'swift') {
+    return `print("Hello from LearnForge Swift sandbox!")
+`;
+  }
+
+  if (lang === 'zig') {
+    return `const std = @import("std");
+
+pub fn main() void {
+    std.debug.print("Hello from LearnForge Zig sandbox!\\n", .{});
+}
+`;
+  }
+
   // Default TypeScript / JavaScript
   return `function main(): void {
   console.log("Hello from LearnForge TypeScript sandbox!");

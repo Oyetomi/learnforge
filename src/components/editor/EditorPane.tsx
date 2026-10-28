@@ -34,20 +34,114 @@ interface EditorPaneProps {
   onClose?: () => void;
 }
 
-const fileNames: Record<SupportedLanguage, string> = {
+const fileNames: Record<string, string> = {
   go: 'main.go',
+  golang: 'main.go',
   python: 'main.py',
+  py: 'main.py',
   rust: 'main.rs',
+  rs: 'main.rs',
   typescript: 'main.ts',
+  ts: 'main.ts',
   javascript: 'main.js',
+  js: 'main.js',
+  cpp: 'main.cpp',
+  'c++': 'main.cpp',
+  c: 'main.c',
+  java: 'Main.java',
+  csharp: 'Program.cs',
+  cs: 'Program.cs',
+  'c#': 'Program.cs',
+  bash: 'script.sh',
+  sh: 'script.sh',
+  shell: 'script.sh',
+  ruby: 'main.rb',
+  rb: 'main.rb',
+  php: 'index.php',
+  swift: 'main.swift',
+  zig: 'main.zig',
+  elixir: 'main.exs',
+  sql: 'query.sql',
 };
-const languageNames: Record<SupportedLanguage, string> = {
+
+const languageNames: Record<string, string> = {
   go: 'Go',
-  python: 'Python',
+  golang: 'Go',
+  python: 'Python 3.12',
+  py: 'Python 3.12',
   rust: 'Rust',
+  rs: 'Rust',
   typescript: 'TypeScript',
+  ts: 'TypeScript',
   javascript: 'JavaScript',
+  js: 'JavaScript',
+  cpp: 'C++ (GCC)',
+  'c++': 'C++ (GCC)',
+  c: 'C (GCC)',
+  java: 'Java 21',
+  csharp: 'C# (.NET)',
+  cs: 'C# (.NET)',
+  'c#': 'C# (.NET)',
+  bash: 'Bash',
+  sh: 'Bash',
+  shell: 'Bash',
+  ruby: 'Ruby',
+  rb: 'Ruby',
+  php: 'PHP',
+  swift: 'Swift',
+  zig: 'Zig',
+  elixir: 'Elixir',
+  sql: 'SQL',
 };
+
+function getMonacoLanguage(lang: string): string {
+  const clean = (lang || '').trim().toLowerCase();
+  switch (clean) {
+    case 'go':
+    case 'golang':
+      return 'go';
+    case 'python':
+    case 'py':
+      return 'python';
+    case 'rust':
+    case 'rs':
+      return 'rust';
+    case 'typescript':
+    case 'ts':
+      return 'typescript';
+    case 'javascript':
+    case 'js':
+      return 'javascript';
+    case 'cpp':
+    case 'c++':
+    case 'cxx':
+      return 'cpp';
+    case 'c':
+      return 'c';
+    case 'java':
+      return 'java';
+    case 'csharp':
+    case 'cs':
+    case 'c#':
+      return 'csharp';
+    case 'bash':
+    case 'sh':
+    case 'shell':
+    case 'zsh':
+      return 'shell';
+    case 'ruby':
+    case 'rb':
+      return 'ruby';
+    case 'php':
+      return 'php';
+    case 'swift':
+      return 'swift';
+    case 'sql':
+      return 'sql';
+    default:
+      return 'plaintext';
+  }
+}
 
 export const EditorPane: React.FC<EditorPaneProps> = ({
   code,
@@ -243,21 +337,12 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             }
           />
         </span>
-        <span className="file-language-label">{languageNames[language]}</span>
+        <span className="file-language-label">{languageNames[language] || language}</span>
       </div>
-      {!runtimeAvailable && (
-        <div className="runtime-notice">
-          <AlertCircle size={15} />
-          <span>
-            You can edit and discuss Rust code here. Running Rust isn’t
-            supported yet.
-          </span>
-        </div>
-      )}
       <div className="monaco-container">
         <Editor
           height="100%"
-          language={language}
+          language={getMonacoLanguage(language)}
           value={code}
           onChange={(value) => {
             setResetUndo(null);
@@ -331,12 +416,14 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             : 'Device storage unavailable'}
         </span>
         <span>
-          {language === 'go'
-            ? 'Go simulator'
-            : language === 'rust'
+          {language === 'go' || language === 'golang'
+            ? 'Go Playground · online'
+            : language === 'rust' || language === 'rs'
             ? 'Rust Playground · online'
+            : language === 'python' || language === 'py'
+            ? 'Python 3.12 · online'
             : runtimeAvailable
-            ? languageNames[language]
+            ? `${languageNames[language] || language} · online`
             : 'Editor only'}
         </span>
       </div>
@@ -413,9 +500,9 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                 isRunning={isRunning}
                 canRun={runtimeAvailable}
                 errorGuidance={
-                  language === 'go'
-                    ? 'The Go simulator could not execute this program. Some Go syntax is not supported; check the error below before changing your solution.'
-                    : 'Execution stopped. Check the error below, update the code, and run again.'
+                  executionResult?.exitCode !== 0
+                    ? 'Execution stopped with error. Review the compiler/runtime output below, update the code, and run again.'
+                    : undefined
                 }
               />
             ) : (

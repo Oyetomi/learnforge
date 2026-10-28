@@ -347,8 +347,8 @@ export function parsePythonTestOutput(stdout: string, stderr: string): TestResul
 
   // Regex for unittest: "test_something (test_mod.TestClass) ... ok" or "FAIL" or "ERROR"
   const unittestRegex = /^(test\w+)\s*\(([^)]+)\)\s*\.\.\.\s*(ok|FAIL|ERROR)/;
-  // Regex for pytest: "test_something.py::test_fn PASSED" or "FAILED"
-  const pytestRegex = /^(.+?)::(\w+)\s+(PASSED|FAILED|ERROR)/;
+  // Regex for pytest: "test_something.py::test_fn PASSED" or "FAILED: details"
+  const pytestRegex = /^(.+?)::(\w+)\s+(PASSED|FAILED|ERROR)(?:\s*[:\-]\s*(.*))?/;
 
   for (const line of lines) {
     const uMatch = line.match(unittestRegex);
@@ -364,11 +364,11 @@ export function parsePythonTestOutput(stdout: string, stderr: string): TestResul
 
     const pMatch = line.match(pytestRegex);
     if (pMatch) {
-      const [, , testName, status] = pMatch;
+      const [, , testName, status, details] = pMatch;
       results.push({
         name: testName,
         passed: status === 'PASSED',
-        error: status !== 'PASSED' ? `Test ${status}` : undefined,
+        error: status !== 'PASSED' ? (details || `Test ${status}`) : undefined,
       });
     }
   }

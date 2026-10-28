@@ -4,7 +4,19 @@ export type SupportedLanguage =
   | "python"
   | "rust"
   | "typescript"
-  | "javascript";
+  | "javascript"
+  | "cpp"
+  | "c"
+  | "java"
+  | "csharp"
+  | "bash"
+  | "ruby"
+  | "php"
+  | "swift"
+  | "zig"
+  | "elixir"
+  | "sql"
+  | string;
 
 export interface LearningIntent {
   interest: string;

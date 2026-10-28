@@ -86,7 +86,7 @@ import (
 )
 
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	cancel()
 
 	select {

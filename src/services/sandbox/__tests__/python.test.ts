@@ -14,7 +14,7 @@ print("Calculation:", 21 * 2)
     expect(result.stdout).toContain('Hello from Python!');
     expect(result.stdout).toContain('Calculation: 42');
     expect(result.stderr).toBe('');
-  });
+  }, 20000);
 
   it('executes functions, conditionals, and loops', async () => {
     const code = `
@@ -35,7 +35,7 @@ print("Fibonacci:", fibs)
     const result = await runner.execute(code);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('Fibonacci: [0, 1, 1, 2, 3, 5, 8]');
-  });
+  }, 20000);
 
   it('supports list comprehensions and builtins', async () => {
     const code = `
@@ -52,7 +52,7 @@ print("Len:", len(evens))
     expect(result.stdout).toContain('Sum: 120');
     expect(result.stdout).toContain('Max: 60');
     expect(result.stdout).toContain('Len: 3');
-  });
+  }, 20000);
 
   it('runs assert statements and produces TestResult items', async () => {
     const code = `
@@ -69,7 +69,7 @@ assert add(-1, 1) == 0, "-1 + 1 should equal 0"
     expect(result.testResults?.length).toBe(2);
     expect(result.testResults?.[0].passed).toBe(true);
     expect(result.testResults?.[1].passed).toBe(true);
-  });
+  }, 20000);
 
   it('handles failing assertions properly', async () => {
     const code = `
@@ -87,5 +87,5 @@ assert multiply(2, 5) == 99, "2 * 5 should be 99 (bug)"
     expect(result.testResults?.[0].passed).toBe(true);
     expect(result.testResults?.[1].passed).toBe(false);
     expect(result.testResults?.[1].error).toContain('bug');
-  });
+  }, 20000);
 });

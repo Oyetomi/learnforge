@@ -6,6 +6,7 @@
  */
 
 import { parsePythonTestOutput } from '../assertions';
+import { executeWandbox } from '../api';
 import { ExecutionOptions, ExecutionResult, SandboxRunner, TestResult } from '../types';
 
 declare global {
@@ -29,22 +30,32 @@ export class PythonSandboxRunner implements SandboxRunner {
     tests?: string,
     options?: ExecutionOptions
   ): Promise<ExecutionResult> {
-    const timeoutMs = options?.timeoutMs ?? 5000;
+    const timeoutMs = options?.timeoutMs ?? 10000;
     const startTime = performance.now();
 
-    // If built-in runner is forced or Pyodide is not available, run with MiniPythonEvaluator
-    if (options?.forceBuiltinRunner || !this.canUsePyodide()) {
+    // 1. If built-in runner is explicitly forced, run with MiniPythonEvaluator
+    if (options?.forceBuiltinRunner) {
       return this.executeWithBuiltin(code, tests, options, startTime);
     }
 
-    // Try Pyodide with fallback to built-in if Pyodide fails to load (e.g. offline/network blocked)
+    // 2. Execute via Wandbox Python 3.12 (supporting full standard library, asyncio, etc.)
     try {
-      return await this.executeWithPyodide(code, tests, timeoutMs, startTime);
-    } catch (pyodideErr) {
-      // Fallback cleanly to built-in evaluator
-      console.warn('Pyodide execution failed/unavailable, falling back to built-in Python engine:', pyodideErr);
-      return this.executeWithBuiltin(code, tests, options, startTime);
+      return await executeWandbox('python', code, tests, timeoutMs);
+    } catch (cloudErr) {
+      console.warn('Cloud Python API unavailable, falling back:', cloudErr);
     }
+
+    // 3. Try Pyodide if available
+    if (this.canUsePyodide()) {
+      try {
+        return await this.executeWithPyodide(code, tests, timeoutMs, startTime);
+      } catch (pyodideErr) {
+        console.warn('Pyodide execution failed/unavailable, falling back to built-in Python engine:', pyodideErr);
+      }
+    }
+
+    // 4. Offline built-in evaluator fallback
+    return this.executeWithBuiltin(code, tests, options, startTime);
   }
 
   private canUsePyodide(): boolean {
