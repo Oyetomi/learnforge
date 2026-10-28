@@ -16,6 +16,11 @@
   <a href="LICENSE">MIT License</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/Oyetomi/learnforge/actions/workflows/ci.yml"><img src="https://github.com/Oyetomi/learnforge/actions/workflows/ci.yml/badge.svg" alt="CI Status" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
+</p>
+
 <br />
 
 ![LearnForge Session Workspace](docs/images/hero-session.png)
@@ -74,7 +79,16 @@ flowchart TD
 
 ## Core Capabilities
 
-### 1. The Never-Locked Socratic Composer and Ephemeral `/btw` Queries
+### 1. Active Retrieval and Conceptual Challenge Probes
+
+Rather than passive chat consumption, LearnForge structures concepts into discrete, mastery-graded milestones. Each milestone tests synthesis through closed-book conceptual probes before advancing:
+- **Honest Knowledge Assessment:** Options include explicit *"I don't know yet"* pathways to prevent deduction shortcuts and trigger targeted Socratic hints.
+- **Mastery Accounting:** Progress requires demonstrable recall across multiple spaced intervals before marking topics mastered.
+- **Direct Side-Bar Access:** Review the reference, request an on-the-fly visual diagram, or toggle step-by-step derivation ladders at any point.
+
+![Active Recall Challenge Interface](docs/images/active-recall-question.png)
+
+### 2. The Never-Locked Socratic Composer and Ephemeral `/btw` Queries
 
 In conventional educational software, once a problem or milestone is presented, the interface traps the learner into guessing an answer before permitting questions.
 
@@ -84,25 +98,25 @@ LearnForge decouples challenge evaluation from dialectic exploration:
 
 ![Socratic Side Question Drawer](docs/images/socratic-btw.png)
 
-### 2. First-Principles Derivation and Mathematical Rigor
+### 3. First-Principles Derivation and Mathematical Rigor
 
 Complex domains cannot be mastered through casual prose alone:
 - **KaTeX Mathematical Typesetting:** Full LaTeX rendering for differential equations, matrix operations, statistical bounds, and algorithmic complexity expressions.
 - **Derivation Ladders:** Step-by-step reasoning chains that break down state transformations, mathematical proofs, and logical deductions before synthesis.
 
-### 3. Dynamic Visual Mental Models
+### 4. Dynamic Visual Mental Models
 
 To anchor abstract principles into durable mental models, LearnForge generates dynamic inline SVG visualizers:
 - Flowcharts, state machine progressions, and data flow pipelines generated directly from topic context.
 - Clean vector rendering designed natively for dark-mode contrast.
 
-### 4. FSRS-4.5 Long-Term Cognitive Retention
+### 5. FSRS-4.5 Long-Term Cognitive Retention
 
 Mastering difficult material is wasted if forgotten within weeks. LearnForge embeds the modern **Free Spaced Repetition Scheduler (FSRS-4.5)**:
 - Calculates personalized memory stability and retrievability curves for every concept.
 - Daily review decks schedule targeted retrieval sessions at optimal intervals to ensure permanent retention.
 
-### 5. Grounding on Custom Syllabi, Notes, and Codebases
+### 6. Grounding on Custom Syllabi, Notes, and Codebases
 
 Rather than relying solely on generic pre-baked tracks, LearnForge allows learners to ground curriculum generation directly in their own source material:
 - **Document Ingestion:** Drop lecture notes, research papers, textbook excerpts, or documentation (`.pdf`, `.md`, `.txt`).
@@ -111,7 +125,7 @@ Rather than relying solely on generic pre-baked tracks, LearnForge allows learne
 
 ![Diagnostic Placement and Topic Generation](docs/images/diagnostic-placement.png)
 
-### 6. Built-In WebAssembly Execution Sandboxes
+### 7. Built-In WebAssembly Execution Sandboxes
 
 When studying computational, algorithmic, or systems topics, LearnForge eliminates setup friction with zero-install client-side sandboxes:
 - **Go:** WebAssembly compiler and concurrent execution simulator.
@@ -119,7 +133,7 @@ When studying computational, algorithmic, or systems topics, LearnForge eliminat
 - **Python:** In-browser Pyodide runtime with standard library support.
 - **TypeScript & JavaScript:** Isolated worker environment with automated test harnesses.
 
-### 7. Multi-Model Telemetry and Complete Privacy
+### 8. Multi-Model Telemetry and Complete Privacy
 
 LearnForge operates with a strict local-first architecture:
 - **Zero Third-Party Telemetry:** All data, notes, and progress logs are saved locally in SQLite/IndexedDB on your device.
