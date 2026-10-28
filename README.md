@@ -1,6 +1,22 @@
-# LearnForge
+<p align="center">
+  <img src="docs/images/icon.png" width="112" height="112" alt="LearnForge Icon" />
+</p>
 
-A local-first, Socratic learning harness for mastering complex subjects through active recall, first-principles derivation, and verifiable practice.
+<h1 align="center">LearnForge</h1>
+
+<p align="center">
+  <strong>A local-first, Socratic learning harness for mastering complex subjects through active recall, first-principles derivation, and verifiable practice.</strong>
+</p>
+
+<p align="center">
+  <a href="#quickstart">Quickstart</a> &bull;
+  <a href="#core-capabilities">Capabilities</a> &bull;
+  <a href="#architecture">Architecture</a> &bull;
+  <a href="#supported-ai-providers">AI Providers</a> &bull;
+  <a href="LICENSE">MIT License</a>
+</p>
+
+<br />
 
 ![LearnForge Session Workspace](docs/images/hero-session.png)
 
