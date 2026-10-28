@@ -33,15 +33,17 @@ export interface GenerateTrackOptions {
 
 function normalizeLanguage(lang: unknown): SupportedLanguage | null {
   if (typeof lang !== "string") return null;
+  const clean = lang.toLowerCase().trim();
   const aliases: Record<string, SupportedLanguage> = {
-    go: "go",
-    golang: "go",
-    rust: "rust",
-    python: "python",
-    typescript: "typescript",
-    javascript: "javascript",
+    golang: "go", py: "python", python3: "python", rs: "rust",
+    js: "javascript", node: "javascript", ts: "typescript",
+    "c++": "cpp", cxx: "cpp", "c#": "csharp", cs: "csharp",
+    sh: "bash", shell: "bash", rb: "ruby", ex: "elixir", exs: "elixir", sqlite: "sql",
   };
-  return aliases[lang.toLowerCase().trim()] || null;
+  // A learning plan may teach a language even when its execution service lacks
+  // a runtime. Do not silently substitute one of the original five languages.
+  if (!/^[a-z][a-z0-9+#.-]{0,39}$/.test(clean) || ["none", "null", "general"].includes(clean)) return null;
+  return aliases[clean] || clean;
 }
 
 export async function generateCustomTrack(
@@ -64,7 +66,7 @@ The original interest is the source of truth. The selected goal narrows it; it m
 ${FREE_RESPONSE_INSTRUCTIONS}
 
 SUBJECT-APPROPRIATE PRACTICE
-Return practice_mode="general" and language=null for language learning, history, art, everyday skills and other goals that do not ask for coding. General lessons must have no starter_code or test_code. Only return practice_mode="coding" and a supported programming language when learning or writing code directly serves the stated goal. A technical topic does not automatically require code.
+Return practice_mode="general" and language=null for language learning, history, art, everyday skills and other goals that do not ask for coding. General lessons must have no starter_code or test_code. Only return practice_mode="coding" and a programming language when learning or writing code directly serves the stated goal. A technical topic does not automatically require code. For coding, preserve the requested programming language and return its lowercase identifier (for example cpp, csharp, sql, lua); do not substitute Go or Python. Runtime availability is checked separately by the editor.
 For spoken languages, use accurate, natural phrases with translations and correct diacritics, then ask about meaning or use in a short exchange. Explain new terms in plain words. Do not claim to hear, evaluate pronunciation, or assess listening without actual audio; text questions establish written understanding only. Do not invent translations when uncertain.
 
 TEACHING AND STRUCTURE
@@ -221,7 +223,7 @@ Return valid JSON only, using this structure. The single milestone here is a sch
       : null;
   if (practiceMode === "coding" && !chosenLanguage)
     throw new Error(
-      "The coding plan did not specify a supported programming language. Please try again."
+      "The coding plan did not specify a programming language. Please try again."
     );
 
   const track: CourseTrack = {

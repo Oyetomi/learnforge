@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "LearnForge main window. HTTP is limited to the supported AI providers and local services.",
+  "description": "LearnForge main window. HTTP is limited to the supported AI providers code execution services, and local services.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -15,7 +15,9 @@
         { "url": "https://generativelanguage.googleapis.com/*" },
         { "url": "https://api.anthropic.com/*" },
         { "url": "https://openrouter.ai/*" },
-        { "url": "https://play.rust-lang.org/*" }
+        { "url": "https://play.rust-lang.org/*" },
+        { "url": "https://play.golang.org/compile" },
+        { "url": "https://wandbox.org/api/*" }
       ]
     }
   ]

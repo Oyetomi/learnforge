@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PythonSandboxRunner } from '../runners/python';
 
-describe('Python Sandbox Runner', () => {
+describe('Python limited evaluator (explicit test mode)', () => {
   const runner = new PythonSandboxRunner();
 
   it('executes basic print statements and captures stdout', async () => {
@@ -9,7 +9,7 @@ describe('Python Sandbox Runner', () => {
 print("Hello from Python!")
 print("Calculation:", 21 * 2)
 `;
-    const result = await runner.execute(code);
+    const result = await runner.execute(code, undefined, { forceBuiltinRunner: true });
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('Hello from Python!');
     expect(result.stdout).toContain('Calculation: 42');
@@ -32,7 +32,7 @@ def fibonacci(n):
 fibs = fibonacci(7)
 print("Fibonacci:", fibs)
 `;
-    const result = await runner.execute(code);
+    const result = await runner.execute(code, undefined, { forceBuiltinRunner: true });
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('Fibonacci: [0, 1, 1, 2, 3, 5, 8]');
   }, 20000);
@@ -46,7 +46,7 @@ print("Sum:", sum(evens))
 print("Max:", max(evens))
 print("Len:", len(evens))
 `;
-    const result = await runner.execute(code);
+    const result = await runner.execute(code, undefined, { forceBuiltinRunner: true });
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('Evens: [20, 40, 60]');
     expect(result.stdout).toContain('Sum: 120');
@@ -63,7 +63,7 @@ def add(a, b):
 assert add(2, 3) == 5, "2 + 3 should equal 5"
 assert add(-1, 1) == 0, "-1 + 1 should equal 0"
 `;
-    const result = await runner.execute(code, tests);
+    const result = await runner.execute(code, tests, { forceBuiltinRunner: true });
     expect(result.exitCode).toBe(0);
     expect(result.testResults).toBeDefined();
     expect(result.testResults?.length).toBe(2);
@@ -80,7 +80,7 @@ def multiply(a, b):
 assert multiply(3, 4) == 12, "3 * 4 == 12"
 assert multiply(2, 5) == 99, "2 * 5 should be 99 (bug)"
 `;
-    const result = await runner.execute(code, tests);
+    const result = await runner.execute(code, tests, { forceBuiltinRunner: true });
     expect(result.exitCode).toBe(1);
     expect(result.testResults).toBeDefined();
     expect(result.testResults?.length).toBe(2);

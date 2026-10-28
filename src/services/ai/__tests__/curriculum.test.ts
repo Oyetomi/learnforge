@@ -214,3 +214,15 @@ it("preserves a nontechnical original interest and disables programming even if 
     "Do not recast ordinary learning as engineering"
   );
 });
+
+
+it.each([['C++', 'cpp'], ['SQL', 'sql'], ['Lua', 'lua'], ['Kotlin', 'kotlin']])(
+  "preserves %s coding plans beyond the original five editor languages", async (generated, expected) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply(JSON.stringify({
+      practice_mode: "coding", language: generated, milestones: [milestone],
+    }))));
+    const track = await generateCustomTrack({ topic: `Learn ${generated}` });
+    expect(track.language).toBe(expected);
+    expect(track.learningIntent?.programmingLanguage).toBe(expected);
+  }
+);

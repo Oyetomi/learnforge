@@ -127,13 +127,16 @@ Rather than relying solely on generic pre-baked tracks, LearnForge allows learne
 
 ![Diagnostic Placement and Topic Generation](docs/images/diagnostic-placement.png)
 
-### 7. Built-In WebAssembly Execution Sandboxes
+### 7. Optional code execution
 
-When studying computational, algorithmic, or systems topics, LearnForge eliminates setup friction with zero-install client-side sandboxes:
-- **Go:** WebAssembly compiler and concurrent execution simulator.
-- **Rust:** Native Rust playground integration with assertion verification.
-- **Python:** In-browser Pyodide runtime with standard library support.
-- **TypeScript & JavaScript:** Isolated worker environment with automated test harnesses.
+The editor is optional. Run uses real execution services for programming lessons:
+
+- **Go:** Go Playground, including native test mode with separate source files.
+- **Rust:** Rust Playground, including `#[test]` suites.
+- **Python, C/C++, Java, C#, Bash, SQL, and other catalog languages:** Wandbox. Compiler IDs are discovered from its live catalog and cached for five minutes; missing runtimes are editor-only.
+- **JavaScript & TypeScript:** On-device browser worker. This is a browser environment with lightweight TypeScript stripping, not a Node.js or full TypeScript project runtime.
+
+The editor names the execution provider and explains when Run sends code and tests off-device. Cloud failures return errors instead of silently simulating another language. Services have time, package, network, and availability limits; no provider runs every language or arbitrary application projects. See [execution details and verification](docs/code-execution.md).
 
 ### 8. Multi-Model Telemetry and Complete Privacy
 

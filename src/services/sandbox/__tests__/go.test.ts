@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { GoSandboxRunner } from '../runners/go/runner';
 
-describe('Go Sandbox Runner', () => {
+describe('Go limited simulator (explicit test mode)', () => {
   const runner = new GoSandboxRunner();
 
   it('executes fmt.Println and captures stdout', async () => {
@@ -13,7 +13,7 @@ func main() {
 	fmt.Println("Hello, LearnForge Go!")
 }
 `;
-    const result = await runner.execute(code);
+    const result = await runner.execute(code, undefined, { forceBuiltinRunner: true });
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('Hello, LearnForge Go!');
   });
@@ -70,7 +70,7 @@ func main() {
 	}
 }
 `;
-    const result = await runner.execute(code);
+    const result = await runner.execute(code, undefined, { forceBuiltinRunner: true });
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('Task 1 completed: 20');
     expect(result.stdout).toContain('Task 4 completed: 80');
@@ -97,7 +97,7 @@ func main() {
 	}
 }
 `;
-    const result = await runner.execute(code);
+    const result = await runner.execute(code, undefined, { forceBuiltinRunner: true });
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('Context canceled successfully');
   });
@@ -119,7 +119,7 @@ func TestDouble(t *testing.T) {
 	}
 }
 `;
-    const result = await runner.execute(code, tests);
+    const result = await runner.execute(code, tests, { forceBuiltinRunner: true });
     expect(result.exitCode).toBe(0);
     expect(result.testResults).toBeDefined();
     expect(result.testResults?.length).toBeGreaterThan(0);

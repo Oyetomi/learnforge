@@ -2,9 +2,10 @@
  * LearnForge Rust Sandbox Runner
  *
  * Compiles and executes Rust code, memory katas, ownership invariants,
- * and #[test] suites via the Rust compilation engine with sub-second execution.
+ * and #[test] suites via the Rust compilation engine with sandbox service limits.
  */
 
+import { executionFetch } from '../transport';
 import { parseRustTestOutput } from '../assertions';
 import { ExecutionOptions, ExecutionResult, SandboxRunner, TestResult } from '../types';
 
@@ -30,9 +31,9 @@ export class RustSandboxRunner implements SandboxRunner {
       }
     }
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
 
       const payload = {
         channel: 'stable',
@@ -44,7 +45,7 @@ export class RustSandboxRunner implements SandboxRunner {
         backtrace: false,
       };
 
-      const response = await fetch('https://play.rust-lang.org/execute', {
+      const response = await executionFetch('https://play.rust-lang.org/execute', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -53,13 +54,13 @@ export class RustSandboxRunner implements SandboxRunner {
         signal: controller.signal,
       });
 
-      clearTimeout(timer);
 
       if (!response.ok) {
         throw new Error(`Rust Playground returned HTTP ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
+      if (typeof data.success !== 'boolean') throw new Error('Rust Playground returned an invalid execution result.');
       const durationMs = Math.round(performance.now() - startTime);
 
       const stdout = data.stdout || '';
@@ -101,6 +102,8 @@ export class RustSandboxRunner implements SandboxRunner {
         durationMs,
         error: `Rust runner: ${errorMsg}`,
       };
+    } finally {
+      clearTimeout(timer);
     }
   }
 }

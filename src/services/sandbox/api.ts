@@ -1,325 +1,159 @@
-/**
- * LearnForge Universal Code Execution API Client
- *
- * Connects to production-grade, multi-language compiler & execution APIs:
- * 1. Official Go Playground API (go.dev/_/compile) for 100% native Go execution with stdlib, goroutines, deadlocks.
- * 2. Official Rust Playground API (play.rust-lang.org) for native rustc execution with cargo test.
- * 3. Wandbox Multi-Language API (wandbox.org) supporting C, C++, Python 3.12, Java 21, C#, Bash, Ruby, PHP, Swift, Zig, Elixir.
- * 4. Custom API proxy / Piston / Judge0 if configured in user settings.
- */
+/** Real remote execution; compiler availability comes from the provider's live catalog. */
+import { parseGoTestOutput, parsePythonTestOutput } from './assertions';
+import { ExecutionResult } from './types';
+import { executionFetch } from './transport';
 
-import { parseGoTestOutput, parsePythonTestOutput, parseRustTestOutput } from './assertions';
-import { ExecutionResult, TestResult } from './types';
+export interface WandboxCompiler {
+  name: string;
+  language: string;
+  version: string;
+}
 
-// Standard compiler mappings for Wandbox
-export const WANDBOX_COMPILERS: Record<string, string> = {
-  python: 'cpython-3.12.7',
-  py: 'cpython-3.12.7',
-  cpp: 'gcc-13.2.0',
-  'c++': 'gcc-13.2.0',
-  c: 'gcc-13.2.0-c',
-  java: 'openjdk-jdk-21+35',
-  csharp: 'dotnetcore-8.0.402',
-  cs: 'dotnetcore-8.0.402',
-  'c#': 'dotnetcore-8.0.402',
-  bash: 'bash',
-  sh: 'bash',
-  shell: 'bash',
-  ruby: 'ruby-3.4.9',
-  rb: 'ruby-3.4.9',
-  php: 'php-8.3.12',
-  swift: 'swift-6.0.1',
-  zig: 'zig-0.13.0',
-  elixir: 'elixir-1.17.3',
-  typescript: 'typescript-5.6.2',
-  ts: 'typescript-5.6.2',
-  javascript: 'nodejs-20.17.0',
-  js: 'nodejs-20.17.0',
-  go: 'go-1.23.2',
-  rust: 'rust-1.82.0',
+// Language aliases only. Compiler versions must never be assumed to exist.
+const aliases: Record<string, string> = {
+  golang: 'go', py: 'python', python3: 'python', rs: 'rust',
+  cpp: 'c++', cxx: 'c++', cc: 'c++', clang: 'c',
+  csharp: 'c#', cs: 'c#', dotnet: 'c#',
+  bash: 'bash script', sh: 'bash script', shell: 'bash script',
+  rb: 'ruby', js: 'javascript', node: 'javascript', ts: 'typescript',
+  ex: 'elixir', exs: 'elixir', sqlite: 'sql', ocaml: 'ocaml',
 };
+const languageKey = (value: string) => aliases[value.trim().toLowerCase()] ?? value.trim().toLowerCase();
+let catalog: { expires: number; value: WandboxCompiler[] } | undefined;
+let pendingCatalog: Promise<WandboxCompiler[]> | undefined;
 
-/**
- * Executes Go code using the official Go playground compiler (go.dev).
- * Full native standard library, goroutines, channels, waitgroups, deadlocks, and race detection.
- */
-export async function executeGoPlayground(
-  code: string,
-  tests?: string,
-  timeoutMs = 8000
-): Promise<ExecutionResult> {
-  const startTime = performance.now();
-  let userCode = code.trim();
-  let testCode = (tests || '').trim();
-
-  // Clean package declarations
-  userCode = userCode.replace(/^package\s+[A-Za-z0-9_]+\s*/, '').trim();
-  testCode = testCode.replace(/^package\s+[A-Za-z0-9_]+\s*/, '').trim();
-
-  // Extract all imports from user code and test code to consolidate at top
-  const importRegex = /import\s*\(\s*[\s\S]*?\)|import\s*"[^"]+"/g;
-  const userImports = userCode.match(importRegex) || [];
-  userCode = userCode.replace(importRegex, '').trim();
-
-  const testImports = testCode.match(importRegex) || [];
-  testCode = testCode.replace(importRegex, '').trim();
-
-  const packages = new Set<string>();
-  const extractPkgRegex = /"([^"]+)"/g;
-  for (const block of [...userImports, ...testImports]) {
-    for (const m of block.matchAll(extractPkgRegex)) {
-      packages.add(m[1]);
-    }
-  }
-
-  const testFuncMatches = Array.from(
-    testCode.matchAll(/func\s+(Test[A-Za-z0-9_]+)\s*\(\s*([A-Za-z0-9_]+)?\s*\*testing\.T\s*\)/g)
-  );
-
-  let testHarness = '';
-  if (testFuncMatches.length > 0 && !userCode.includes('func main()')) {
-    packages.add('testing');
-    packages.add('fmt');
-
-    const runnerCalls = testFuncMatches
-      .map((m) => {
-        const fnName = m[1];
-        return `\tfmt.Println("=== RUN   ${fnName}")\n\tt_${fnName} := &testing.T{}\n\t${fnName}(t_${fnName})\n\tif t_${fnName}.Failed() {\n\t\tfmt.Println("--- FAIL: ${fnName}")\n\t\tallPassed = false\n\t} else {\n\t\tfmt.Println("--- PASS: ${fnName} (0.00s)")\n\t}`;
-      })
-      .join('\n');
-
-    testHarness = `\n${testCode}\n\nfunc main() {\n\tallPassed := true\n${runnerCalls}\n\tif allPassed {\n\t\tfmt.Println("PASS")\n\t} else {\n\t\tfmt.Println("FAIL")\n\t}\n}\n`;
-  } else if (testCode.length > 0) {
-    testHarness = `\n\n${testCode}`;
-  }
-
-  const importBlock =
-    packages.size > 0
-      ? `import (\n${Array.from(packages)
-          .map((p) => `\t"${p}"`)
-          .join('\n')}\n)\n\n`
-      : '';
-
-  const fullCode = `package main\n\n${importBlock}${userCode}\n${testHarness}`;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const params = new URLSearchParams();
-    params.append('version', '2');
-    params.append('body', fullCode);
-
-    const response = await fetch('https://go.dev/_/compile', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: params.toString(),
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Go Playground HTTP error ${response.status}`);
-    }
-
-    const data = await response.json();
-    const durationMs = Math.round(performance.now() - startTime);
-
-    // Compilation error
-    if (data.Errors && data.Errors.trim().length > 0) {
-      return {
-        stdout: '',
-        stderr: data.Errors.trim(),
-        exitCode: 1,
-        durationMs,
-        error: 'Go compilation failed',
-      };
-    }
-
-    // Runtime events
-    let stdout = '';
-    let stderr = '';
-    let hasRuntimeError = false;
-
-    if (Array.isArray(data.Events)) {
-      for (const ev of data.Events) {
-        if (ev.Kind === 'stdout') {
-          stdout += ev.Message;
-        } else if (ev.Kind === 'stderr') {
-          stderr += ev.Message;
-          hasRuntimeError = true;
-        }
-      }
-    }
-
-    if (data.VetErrors) {
-      stderr += (stderr ? '\n' : '') + data.VetErrors;
-    }
-
-    const testResults = tests ? parseGoTestOutput(stdout, stderr) : undefined;
-    const hasFailedTests = testResults?.some((t) => !t.passed);
-
-    return {
-      stdout: stdout.trim(),
-      stderr: stderr.trim(),
-      exitCode: hasRuntimeError || hasFailedTests ? 1 : 0,
-      durationMs,
-      testResults: testResults && testResults.length > 0 ? testResults : undefined,
-    };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/**
- * Executes code using the Wandbox multi-compiler API.
- * Supports C, C++, Python 3.12, Java 21, C#, Bash, Ruby, PHP, Swift, Zig, Elixir.
- */
-export async function executeWandbox(
-  language: string,
-  code: string,
-  tests?: string,
-  timeoutMs = 12000
-): Promise<ExecutionResult> {
-  const startTime = performance.now();
-  const cleanLang = language.trim().toLowerCase();
-  const compiler = WANDBOX_COMPILERS[cleanLang];
-
-  if (!compiler) {
-    throw new Error(`No Wandbox compiler mapping for language: ${language}`);
-  }
-
-  let combinedCode = code;
-  if (tests && tests.trim().length > 0) {
-    if (cleanLang === 'python' || cleanLang === 'py') {
-      const assertLines = tests
-        .split('\n')
-        .map((l) => l.trim())
-        .filter((l) => l.startsWith('assert '));
-
-      if (assertLines.length > 0) {
-        let harness = '\nimport sys\n';
-        assertLines.forEach((line, idx) => {
-          harness += `\ntry:\n    ${line}\n    print("test_mod.py::assert_${idx + 1} PASSED")\nexcept AssertionError as _err:\n    print(f"test_mod.py::assert_${idx + 1} FAILED: {_err}", file=sys.stderr)\n`;
-        });
-        combinedCode = `${code}\n\n${harness}`;
-      } else {
-        combinedCode = `${code}\n\n${tests}`;
-      }
-    } else {
-      combinedCode = `${code}\n\n${tests}`;
-    }
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const payload: Record<string, unknown> = {
-      compiler,
-      code: combinedCode,
-    };
-
-    // Pass compiler options where appropriate
-    if (cleanLang === 'cpp' || cleanLang === 'c++') {
-      payload.options = 'warning,c++20';
-    } else if (cleanLang === 'c') {
-      payload.options = 'warning,c17';
-    }
-
-    let response = await fetch('https://wandbox.org/api/compile.json', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'LearnForge/1.0',
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-
-    // If rate-limited, wait briefly and retry once
-    if (response.status === 429) {
-      await new Promise((r) => setTimeout(r, 1200));
-      response = await fetch('https://wandbox.org/api/compile.json', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'LearnForge/1.0',
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-    }
-
-    if (!response.ok) {
-      throw new Error(`Wandbox HTTP error ${response.status}`);
-    }
-
-    const data = await response.json();
-    const durationMs = Math.round(performance.now() - startTime);
-
-    const stdout = (data.program_output || '').trim();
-    const stderr = (data.program_error || data.compiler_error || data.compiler_message || '').trim();
-    let exitCode = data.status === '0' || data.status === 0 ? 0 : 1;
-
-    let testResults: TestResult[] | undefined;
-    if (tests) {
-      if (cleanLang === 'python' || cleanLang === 'py') {
-        testResults = parsePythonTestOutput(stdout, stderr);
-      } else if (cleanLang === 'go') {
-        testResults = parseGoTestOutput(stdout, stderr);
-      } else if (cleanLang === 'rust') {
-        testResults = parseRustTestOutput(stdout, stderr);
-      }
-    }
-
-    if (testResults && testResults.some((t) => !t.passed)) {
-      exitCode = 1;
-    }
-
-    return {
-      stdout,
-      stderr,
-      exitCode,
-      durationMs,
-      testResults: testResults && testResults.length > 0 ? testResults : undefined,
-    };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/**
- * Universal code executor that routes to the appropriate cloud coding API.
- */
-export async function executeUniversalCode(
-  language: string,
-  code: string,
-  tests?: string,
-  timeoutMs = 10000
-): Promise<ExecutionResult> {
-  const norm = language.trim().toLowerCase();
-
-  // 1. Go: Use official Go Playground API first
-  if (norm === 'go' || norm === 'golang') {
+export async function listWandboxCompilers(): Promise<WandboxCompiler[]> {
+  if (catalog && catalog.expires > Date.now()) return catalog.value;
+  if (pendingCatalog) return pendingCatalog;
+  pendingCatalog = (async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
     try {
-      return await executeGoPlayground(code, tests, timeoutMs);
-    } catch (err) {
-      console.warn('Go Playground API failed, attempting Wandbox fallback:', err);
-      return await executeWandbox('go', code, tests, timeoutMs);
+      const response = await executionFetch('https://wandbox.org/api/list.json', { signal: controller.signal });
+      if (!response.ok) throw new Error(`Compiler catalog unavailable (HTTP ${response.status}). Try again shortly.`);
+      const data: unknown = await response.json();
+      if (!Array.isArray(data) || !data.length || !data.every(c =>
+        c && typeof c.name === 'string' && typeof c.language === 'string' && typeof c.version === 'string')) {
+        throw new Error('The execution service returned an invalid compiler catalog.');
+      }
+      catalog = { expires: Date.now() + 5 * 60_000, value: data };
+      return data;
+    } finally {
+      clearTimeout(timer);
     }
-  }
+  })();
+  try { return await pendingCatalog; }
+  finally { pendingCatalog = undefined; }
+}
 
-  // 2. Rust: Handled by dedicated Rust runner or Wandbox
-  if (norm === 'rust' || norm === 'rs') {
-    return await executeWandbox('rust', code, tests, timeoutMs);
-  }
+export async function resolveWandboxCompiler(language: string): Promise<WandboxCompiler | undefined> {
+  const candidates = (await listWandboxCompilers()).filter(c => languageKey(c.language) === languageKey(language));
+  // Prefer a stable release. The catalog orders current releases before older ones.
+  const stable = candidates.filter(c => !/(?:head|trunk|nightly|snapshot|preview|dev|experimental)/i.test(`${c.name} ${c.version}`));
+  const preferred = stable.length ? stable : candidates;
+  if (languageKey(language) === 'python') return preferred.find(c => /^cpython-3\./.test(c.name)) ?? preferred[0];
+  if (languageKey(language) === 'c#') return preferred.find(c => c.name.startsWith('dotnet')) ?? preferred[0];
+  return preferred[0];
+}
 
-  // 3. All other languages via Wandbox
-  if (WANDBOX_COMPILERS[norm]) {
-    return await executeWandbox(norm, code, tests, timeoutMs);
-  }
+export interface ExecutionEnvironment {
+  available: boolean;
+  label: string;
+  detail: string;
+}
 
-  throw new Error(`Unsupported programming language for cloud execution: ${language}`);
+export async function getExecutionEnvironment(language: string): Promise<ExecutionEnvironment> {
+  const key = languageKey(language);
+  if (key === 'javascript' || key === 'typescript') return {
+    available: true, label: 'Browser worker · on device',
+    detail: 'Runs on this device. Browser JavaScript APIs; Node.js modules and package installation are unavailable.',
+  };
+  if (key === 'go' || key === 'rust') {
+    const provider = key === 'go' ? 'Go Playground' : 'Rust Playground';
+    return { available: true, label: `${provider} · cloud`, detail: `Run sends this code and its tests to ${provider}. Internet access is required; playground limits apply.` };
+  }
+  const compiler = await resolveWandboxCompiler(language);
+  return compiler ? {
+    available: true, label: `${compiler.language} ${compiler.version} · Wandbox`,
+    detail: `Run sends this code and its tests to Wandbox (${compiler.name}). Internet access is required; service limits apply.`,
+  } : {
+    available: false, label: `${language} · editor only`,
+    detail: `Wandbox does not currently offer a runtime for ${language}. You can edit and copy this code, but it cannot be run here.`,
+  };
+}
+
+function withGoPackage(source: string): string {
+  return /^\s*package\s+\w+/m.test(source) ? source : `package main\n\n${source}`;
+}
+
+export async function executeGoPlayground(code: string, tests?: string, timeoutMs = 15000): Promise<ExecutionResult> {
+  const start = performance.now();
+  // Tests go in prog.go so the Playground detects test mode. Source stays in a
+  // separate file, preserving imports/aliases and main(), and using real testing.T.
+  const body = tests?.trim()
+    ? `${withGoPackage(tests)}\n-- learner.go --\n${withGoPackage(code)}`
+    : withGoPackage(code);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await executionFetch('https://play.golang.org/compile', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ version: '2', body }).toString(), signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`Go Playground unavailable (HTTP ${response.status}). Try again shortly.`);
+    const data = await response.json();
+    if (typeof data.Status !== 'number' && !data.Errors) throw new Error('Go Playground returned an invalid execution result.');
+    const events: { Kind: string; Message: string }[] = Array.isArray(data.Events) ? data.Events : [];
+    const stdout = events.filter(e => e.Kind === 'stdout').map(e => e.Message).join('').trim();
+    let stderr = [data.Errors, events.filter(e => e.Kind === 'stderr').map(e => e.Message).join(''), data.VetErrors].filter(Boolean).join('\n').trim();
+    const testResults = tests ? parseGoTestOutput(stdout, stderr) : undefined;
+    const exitCode = data.Errors || data.TestsFailed > 0 || testResults?.some(t => !t.passed) ? 1 : data.Status;
+    if (exitCode !== 0 && !stderr && !stdout) stderr = `Program exited with status ${exitCode}.`;
+    return {
+      stdout, stderr, durationMs: Math.round(performance.now() - start),
+      exitCode,
+      error: data.Errors ? 'Go compilation or execution failed' : undefined,
+      testResults: testResults?.length ? testResults : undefined,
+    };
+  } finally { clearTimeout(timer); }
+}
+
+function pythonWithTests(code: string, tests: string): string {
+  // Execute the complete suite (including setup and multiline assertions), rather
+  // than dropping every line that doesn't start with "assert".
+  return `${code}\n\nimport ast as _lf_ast, sys as _lf_sys\n_lf_failed = False\n_lf_count = 0\nfor _lf_node in _lf_ast.parse(${JSON.stringify(tests)}, filename="checks.py").body:\n    if isinstance(_lf_node, _lf_ast.Assert):\n        _lf_count += 1\n        try:\n            exec(compile(_lf_ast.Module(body=[_lf_node], type_ignores=[]), "checks.py", "exec"), globals())\n            print(f"test_mod.py::assert_{_lf_count} PASSED")\n        except AssertionError as _lf_err:\n            _lf_failed = True\n            print(f"test_mod.py::assert_{_lf_count} FAILED: {_lf_err}", file=_lf_sys.stderr)\n    else:\n        exec(compile(_lf_ast.Module(body=[_lf_node], type_ignores=[]), "checks.py", "exec"), globals())\nif _lf_failed:\n    _lf_sys.exit(1)\n`;
+}
+
+export async function executeWandbox(language: string, code: string, tests?: string, timeoutMs = 15000): Promise<ExecutionResult> {
+  const start = performance.now();
+  const compiler = await resolveWandboxCompiler(language);
+  if (!compiler) throw new Error(`No execution runtime is available for ${language}. Your code has not been run.`);
+  const python = languageKey(language) === 'python';
+  const combinedCode = tests?.trim() ? (python ? pythonWithTests(code, tests) : `${code}\n\n${tests}`) : code;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await executionFetch('https://wandbox.org/api/compile.json', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ compiler: compiler.name, code: combinedCode, save: false }), signal: controller.signal,
+    });
+    // Do not retry a POST automatically: the remote program may already have run.
+    if (!response.ok) throw new Error(`Wandbox unavailable (HTTP ${response.status}). Try again shortly.`);
+    const data = await response.json();
+    if (data.status === undefined) throw new Error('Wandbox returned an invalid execution result.');
+    const stdout = typeof data.program_output === 'string' ? data.program_output.trim() : '';
+    const stderr = [data.compiler_error, data.program_error, data.signal ? `Signal: ${data.signal}` : ''].filter(Boolean).join('\n').trim();
+    const testResults = tests && python ? parsePythonTestOutput(stdout, stderr) : undefined;
+    return {
+      stdout, stderr, durationMs: Math.round(performance.now() - start),
+      exitCode: String(data.status) === '0' && !data.signal && !testResults?.some(t => !t.passed) ? 0 : 1,
+      testResults: testResults?.length ? testResults : undefined,
+    };
+  } finally { clearTimeout(timer); }
+}
+
+export async function executeUniversalCode(language: string, code: string, tests?: string, timeoutMs = 15000): Promise<ExecutionResult> {
+  return languageKey(language) === 'go'
+    ? executeGoPlayground(code, tests, timeoutMs)
+    : executeWandbox(language, code, tests, timeoutMs);
 }

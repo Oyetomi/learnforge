@@ -37,7 +37,7 @@ export class GoSandboxRunner implements SandboxRunner {
     tests?: string,
     options?: ExecutionOptions
   ): Promise<ExecutionResult> {
-    const timeoutMs = options?.timeoutMs ?? 8000;
+    const timeoutMs = options?.timeoutMs ?? 15000;
     const startTime = performance.now();
 
     // 1. If external native/Wasm runner is registered and active
@@ -60,11 +60,7 @@ export class GoSandboxRunner implements SandboxRunner {
 
     // 2. Unless built-in simulator is explicitly forced, run with the official Go Playground API
     if (!options?.forceBuiltinRunner) {
-      try {
-        return await executeGoPlayground(code, tests, timeoutMs);
-      } catch (cloudErr) {
-        console.warn('Go Playground API failed or offline, falling back to built-in simulator:', cloudErr);
-      }
+      return executeGoPlayground(code, tests, timeoutMs);
     }
 
     return this.executeWithSimulator(code, tests, timeoutMs, startTime);

@@ -17,6 +17,7 @@ import { SupportedLanguage, ExecutionResult } from '../../types';
 import { OutputConsole } from './OutputConsole';
 import { TestResultsPanel } from './TestResultsPanel';
 import './monaco';
+import { getExecutionEnvironment, ExecutionEnvironment } from '../../services/sandbox/api';
 import { handleTabNavigation } from '../layout/keyboard';
 
 interface EditorPaneProps {
@@ -67,21 +68,21 @@ const fileNames: Record<string, string> = {
 const languageNames: Record<string, string> = {
   go: 'Go',
   golang: 'Go',
-  python: 'Python 3.12',
-  py: 'Python 3.12',
+  python: 'Python',
+  py: 'Python',
   rust: 'Rust',
   rs: 'Rust',
   typescript: 'TypeScript',
   ts: 'TypeScript',
   javascript: 'JavaScript',
   js: 'JavaScript',
-  cpp: 'C++ (GCC)',
-  'c++': 'C++ (GCC)',
-  c: 'C (GCC)',
-  java: 'Java 21',
-  csharp: 'C# (.NET)',
-  cs: 'C# (.NET)',
-  'c#': 'C# (.NET)',
+  cpp: 'C++',
+  'c++': 'C++',
+  c: 'C',
+  java: 'Java',
+  csharp: 'C#',
+  cs: 'C#',
+  'c#': 'C#',
   bash: 'Bash',
   sh: 'Bash',
   shell: 'Bash',
@@ -138,6 +139,10 @@ function getMonacoLanguage(lang: string): string {
       return 'swift';
     case 'sql':
       return 'sql';
+    case 'lua':
+    case 'kotlin':
+    case 'r':
+      return clean;
     default:
       return 'plaintext';
   }
@@ -184,7 +189,21 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       resetFocus.current = false;
     }
   }, [confirmReset, resetUndo]);
-  const runtimeAvailable = true;
+  const [runtime, setRuntime] = useState<ExecutionEnvironment & { language: string }>({
+    language, available: false, label: 'Checking runtime…', detail: 'Checking execution service availability.',
+  });
+  useEffect(() => {
+    let active = true;
+    setRuntime({ language, available: false, label: 'Checking runtime…', detail: 'Checking execution service availability.' });
+    getExecutionEnvironment(language).then(result => {
+      if (active) setRuntime({ ...result, language });
+    }).catch(() => {
+      // Allow an explicit Run to retry catalog discovery after a connection error.
+      if (active) setRuntime({ language, available: true, label: 'Runtime check unavailable · retry with Run', detail: 'Could not reach the execution service. Run retries the connection; code is sent only when you run it.' });
+    });
+    return () => { active = false; };
+  }, [language]);
+  const runtimeAvailable = runtime.language === language && runtime.available;
   const testsCount = executionResult?.testResults?.length || 0;
   const passedTests =
     executionResult?.testResults?.filter((t) => t.passed).length || 0;
@@ -300,8 +319,8 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             disabled={isRunning || !runtimeAvailable}
             title={
               runtimeAvailable
-                ? 'Run code (⌘ Enter / Ctrl Enter)'
-                : 'Rust execution is not available yet'
+                ? `Run code (⌘ Enter / Ctrl Enter). ${runtime.detail}`
+                : runtime.detail
             }
           >
             {isRunning ? (
@@ -317,15 +336,9 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       <div className="editor-filebar">
         <span className="editor-file">
           <span className="file-language-icon">
-            {language === 'go'
-              ? 'GO'
-              : language === 'python'
-              ? 'PY'
-              : language === 'rust'
-              ? 'RS'
-              : 'JS'}
+            {({ go: 'GO', golang: 'GO', python: 'PY', py: 'PY', rust: 'RS', rs: 'RS', javascript: 'JS', js: 'JS', typescript: 'TS', ts: 'TS', cpp: 'C++', 'c++': 'C++', csharp: 'C#', sql: 'SQL' } as Record<string, string>)[language] ?? language.toUpperCase().slice(0, 4)}
           </span>
-          {fileNames[language]}
+          {fileNames[language] ?? `main.${language.replace(/[^a-z0-9]/gi, '') || 'txt'}`}
           <span
             className="file-saved-dot"
             title={
@@ -390,7 +403,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             lineNumbersMinChars: 3,
             folding: true,
             contextmenu: true,
-            ariaLabel: `${languageNames[language]} code editor`,
+            ariaLabel: `${languageNames[language] || language} code editor`,
           }}
           loading={
             <div className="editor-loading">
@@ -415,18 +428,11 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             ? 'Saved on this device'
             : 'Device storage unavailable'}
         </span>
-        <span>
-          {language === 'go' || language === 'golang'
-            ? 'Go Playground · online'
-            : language === 'rust' || language === 'rs'
-            ? 'Rust Playground · online'
-            : language === 'python' || language === 'py'
-            ? 'Python 3.12 · online'
-            : runtimeAvailable
-            ? `${languageNames[language] || language} · online`
-            : 'Editor only'}
+        <span title={runtime.detail} aria-live="polite">
+          {runtime.language === language ? runtime.label : 'Checking runtime…'}
         </span>
       </div>
+      <p className="editor-runtime-note">{runtime.detail}</p>
       <div className={`output-section ${outputOpen ? 'is-open' : ''}`}>
         <div className="output-tabs">
           <div

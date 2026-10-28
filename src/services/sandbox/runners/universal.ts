@@ -1,8 +1,8 @@
 /**
  * LearnForge Universal Cloud Sandbox Runner
  *
- * Runs C, C++, C#, Java, Swift, Kotlin, Zig, Ruby, PHP, Bash, Elixir, Scala, Haskell, etc.
- * via production compiler APIs.
+ * Runs languages present in Wandbox's current compiler catalog.
+ * Missing runtimes return an explicit error; no simulated fallback.
  */
 
 import { executeUniversalCode } from '../api';
@@ -20,7 +20,7 @@ export class UniversalSandboxRunner implements SandboxRunner {
     tests?: string,
     options?: ExecutionOptions
   ): Promise<ExecutionResult> {
-    const timeoutMs = options?.timeoutMs ?? 12000;
+    const timeoutMs = options?.timeoutMs ?? 15000;
     return executeUniversalCode(this.language, code, tests, timeoutMs);
   }
 }

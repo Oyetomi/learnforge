@@ -62,7 +62,6 @@ export function normalizeLanguage(lang: string): SupportedLanguage {
     case 'bash':
     case 'sh':
     case 'shell':
-    case 'zsh':
       return 'bash';
     case 'ruby':
     case 'rb':

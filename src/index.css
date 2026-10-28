@@ -847,6 +847,15 @@ h1 {
   border-top: 1px solid #ffffff03;
   color: #939ca9;
 }
+.editor-runtime-note {
+  margin: 0;
+  padding: 8px 14px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.6;
+  flex-shrink: 0;
+  border-top: 1px solid #ffffff06;
+}
 .editor-statusbar > span:first-child {
   display: flex;
   align-items: center;

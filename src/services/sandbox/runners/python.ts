@@ -1,8 +1,7 @@
 /**
  * LearnForge Python Execution Sandbox Runner
- * Supports dual-engine execution:
- * 1. Pyodide WebAssembly engine (full CPython standard library in browser)
- * 2. High-speed built-in Python Kata Evaluator (zero network dependency, offline, instant sub-5ms)
+ * Uses a discovered CPython compiler on Wandbox for normal execution.
+ * The limited evaluator is available only when forceBuiltinRunner is explicit.
  */
 
 import { parsePythonTestOutput } from '../assertions';
@@ -30,7 +29,7 @@ export class PythonSandboxRunner implements SandboxRunner {
     tests?: string,
     options?: ExecutionOptions
   ): Promise<ExecutionResult> {
-    const timeoutMs = options?.timeoutMs ?? 10000;
+    const timeoutMs = options?.timeoutMs ?? 15000;
     const startTime = performance.now();
 
     // 1. If built-in runner is explicitly forced, run with MiniPythonEvaluator
@@ -38,24 +37,8 @@ export class PythonSandboxRunner implements SandboxRunner {
       return this.executeWithBuiltin(code, tests, options, startTime);
     }
 
-    // 2. Execute via Wandbox Python 3.12 (supporting full standard library, asyncio, etc.)
-    try {
-      return await executeWandbox('python', code, tests, timeoutMs);
-    } catch (cloudErr) {
-      console.warn('Cloud Python API unavailable, falling back:', cloudErr);
-    }
-
-    // 3. Try Pyodide if available
-    if (this.canUsePyodide()) {
-      try {
-        return await this.executeWithPyodide(code, tests, timeoutMs, startTime);
-      } catch (pyodideErr) {
-        console.warn('Pyodide execution failed/unavailable, falling back to built-in Python engine:', pyodideErr);
-      }
-    }
-
-    // 4. Offline built-in evaluator fallback
-    return this.executeWithBuiltin(code, tests, options, startTime);
+    // A cloud failure must not silently become a partial-language simulation.
+    return executeWandbox('python', code, tests, timeoutMs);
   }
 
   private canUsePyodide(): boolean {

@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RustSandboxRunner } from '../runners/rust';
 import { parseRustTestOutput } from '../assertions';
 
 describe('Rust Sandbox Runner', () => {
+  afterEach(() => vi.unstubAllGlobals());
   const runner = new RustSandboxRunner();
 
   it('correctly parses Rust test assertions output', () => {
@@ -51,6 +52,7 @@ mod tests {
     }
 }
 `;
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true, stdout: 'test tests::test_add ... ok\n', stderr: '' }))));
     const result = await runner.execute(code, tests);
     expect(result.exitCode).toBe(0);
     expect(result.testResults).toBeDefined();
