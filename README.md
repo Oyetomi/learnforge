@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Oyetomi/learnforge/releases/latest">Download (.dmg)</a> &bull;
   <a href="#quickstart">Quickstart</a> &bull;
   <a href="#core-capabilities">Capabilities</a> &bull;
   <a href="#architecture">Architecture</a> &bull;
@@ -17,6 +18,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Oyetomi/learnforge/releases/latest"><img src="https://img.shields.io/github/v/release/Oyetomi/learnforge?label=Release&color=orange" alt="Latest Release" /></a>
   <a href="https://github.com/Oyetomi/learnforge/actions/workflows/ci.yml"><img src="https://github.com/Oyetomi/learnforge/actions/workflows/ci.yml/badge.svg" alt="CI Status" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
