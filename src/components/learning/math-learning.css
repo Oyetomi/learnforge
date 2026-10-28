@@ -1,0 +1,143 @@
+/* Mathematical notation keeps its own typeface; controls inherit the app font. */
+.math-formula { min-width: 0; max-width: 100%; overflow-x: auto; padding: 8px 2px; color: #e9edf2; font-size: 20px; }
+.math-formula .katex-display { margin: 0 !important; }
+.math-formula .katex-display > .katex { text-align: left; }
+.math-fallback { font-size: 12px; color: #bdc7d3; }
+.math-fallback code { display: block; white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 8px; }
+.math-eyebrow { color: #9ca9b9; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+.guided-derivation { margin: 20px 0; border: 1px solid #363e47; border-radius: 12px; background: #15191e; overflow: hidden; }
+.guided-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 22px; border-bottom: 1px solid #2a3139; }
+.guided-header h4 { color: #e2e7ed; font: 500 15px/1.6 var(--font-ui); margin: 4px 0 0; }
+.guided-header > span { color: #b7c1cf; font-size: 11px; white-space: nowrap; }
+.guided-current { padding: 22px; }
+.guided-equations { display: grid; grid-template-columns: minmax(0,1fr) 20px minmax(0,1fr); gap: 20px; align-items: center; padding: 12px 0 22px; }
+.guided-equations > div { min-width: 0; }
+.guided-equations > div > span, .guided-result > span { display: block; color: #9ba9b8; font-size: 11px; margin-bottom: 14px; }
+.guided-equations > svg { color: #6f7f92; }
+.guided-equations > div:last-child .math-formula { color: #c4e4d9; }
+.guided-reason { border-top: 1px solid #2c353f; padding-top: 18px; }
+.guided-reason h5 { font: 500 14px/1.7 var(--font-ui); color: #e2e7ed; margin: 6px 0 0; }
+.guided-reason p, .guided-state-text, .guided-overview p { color: #b4c0cf; font-size: 13px; line-height: 1.8; margin: 8px 0; }
+.guided-calculation { margin-top: 10px; }
+.guided-calculation .math-formula { font-size: 16px; color: #b6c6d9; }
+.guided-result { display: flex; align-items: center; gap: 24px; margin-top: 16px; }
+.guided-result > span { margin: 0; }
+.guided-result .math-formula { font-size: 17px; }
+.guided-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 22px; border-top: 1px solid #2a3139; }
+.guided-derivation button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 6px 10px; border: 1px solid #3c4652; border-radius: 6px; color: #d6dfe9; background: transparent; font: 11px/1.5 var(--font-ui); cursor: pointer; }
+.guided-derivation button:hover:not(:disabled) { background: #222a33; }
+.guided-derivation button:focus-visible, .math-coordinate-editor input:focus-visible { outline: 2px solid #e5b985; outline-offset: 3px; }
+.guided-derivation button:disabled { opacity: .35; cursor: default; }
+.guided-progress { display: flex; gap: 4px; }
+.guided-progress > span { width: 6px; height: 6px; border-radius: 50%; background: #34404d; }
+.guided-progress .is-seen { background: #a1cbbd; }
+.guided-footer { display: flex; justify-content: space-between; padding: 0 16px 12px; }
+.guided-footer button { border: 0; color: #96a7b9; font-size: 10px; }
+.guided-overview { margin: 0; padding: 20px 22px; list-style: none; }
+.guided-overview li { margin: 0 0 22px; padding-bottom: 14px; border-bottom: 1px solid #2c353f; }
+.guided-overview strong { font-size: 12px; }
+.math-lab-hint { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; color: #aab6c5; font-size: 10px; line-height: 1.7; }
+.math-lab-hint > span:first-child { color: #d9e2ec; }
+.slope-workbench { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 22px; align-items: center; margin: 12px 0; }
+.slope-plot { width: 100%; max-height: 330px; overflow: visible; }
+.slope-plot text { font: 10px var(--font-ui); fill: #8395ab; }
+.plot-grid { stroke: #a7b8cd; stroke-opacity: .1; stroke-width: .6; }
+.plot-axis { stroke: #7b8da3; stroke-width: 1; }
+.slope-line { stroke: #aebed7; stroke-width: 2; }
+.slope-area { fill: #8fc9bb; fill-opacity: .06; }
+.slope-run { stroke: #e5b985; stroke-width: 2.5; stroke-dasharray: 5 3; }
+.slope-rise { stroke: #8fc9bb; stroke-width: 2.5; stroke-dasharray: 5 3; }
+.slope-point { cursor: grab; touch-action: none; outline: none; }
+.slope-point.is-active { cursor: grabbing; }
+.slope-point .point-hit { fill: transparent; }
+.slope-point .point-halo { fill: #15191e; stroke: #e5b985; stroke-width: 1.3; }
+.slope-point .point-core { fill: #e5b985; }
+.slope-point text { fill: #e5d4bb; font-weight: 600; pointer-events: none; }
+.slope-point:focus-visible .point-halo, .slope-point.is-active .point-halo { stroke: #fff1dc; stroke-width: 3; }
+.slope-reading { min-width: 0; }
+.slope-measures { display: flex; gap: 22px; margin-bottom: 22px; font-size: 11px; }
+.slope-measures strong { display: block; font-size: 23px; line-height: 1.6; font-weight: 400; }
+.run-measure { color: #e5b985; }
+.rise-measure { color: #8fc9bb; }
+.slope-reading .math-formula { font-size: 23px; padding: 14px 0; }
+.slope-observation { margin: 10px 0 0; font-size: 12px; line-height: 1.8; color: #c1cbd8; min-height: 66px; }
+.slope-coordinate-summary { color: #8b9bae; font-size: 10px; margin-top: 14px; }
+.math-coordinate-editor, .math-text-equivalent { color: #9babbf; font-size: 11px; border-top: 1px solid #303a46; padding: 12px 0; }
+.math-coordinate-editor summary, .math-text-equivalent summary { cursor: pointer; }
+.math-text-equivalent p { line-height: 1.8; }
+.math-coordinate-editor > div { display: flex; gap: 28px; margin-top: 12px; flex-wrap: wrap; }
+.math-coordinate-editor fieldset { border: 0; padding: 0; display: flex; gap: 12px; margin: 0; }
+.math-coordinate-editor legend { margin-bottom: 8px; color: #d0dbe8; }
+.math-coordinate-editor label { display: flex; align-items: center; gap: 8px; }
+.math-coordinate-editor input { color: #d9e5f2; background: #10151b; border: 1px solid #405167; border-radius: 5px; width: 68px; padding: 6px; font: inherit; }
+@media (max-width: 640px) {
+  .slope-workbench { grid-template-columns: 1fr; gap: 8px; }
+  .slope-plot { max-height: 270px; }
+  .slope-reading { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; }
+  .slope-reading > .math-eyebrow { display: none; }
+  .slope-measures { margin: 0; gap: 18px; }
+  .slope-reading .math-formula { padding: 0; font-size: 20px; }
+  .slope-observation, .slope-coordinate-summary { grid-column: 1 / -1; min-height: 0; }
+  .guided-header, .guided-current { padding: 16px; }
+  .guided-equations { gap: 10px; }
+  .guided-equations .math-formula { font-size: 16px; }
+  .guided-controls { padding: 12px; gap: 8px; }
+}
+.visual-graph, .guided-derivation { container-type: inline-size; }
+.visual-graph .visual-summary { margin-bottom: 10px; }
+@container (max-width: 500px) {
+  .slope-workbench { grid-template-columns: 1fr; gap: 6px; margin: 6px 0; }
+  .slope-plot { max-height: 220px; }
+  .slope-reading { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); column-gap: 10px; }
+  .slope-reading > .math-eyebrow { display: none; }
+  .slope-measures { margin: 0; gap: 18px; }
+  .slope-reading .math-formula { padding: 0; font-size: 20px; }
+  .slope-observation, .slope-coordinate-summary { grid-column: 1 / -1; min-height: 0; }
+  .slope-observation { margin-top: 0; }
+  .slope-coordinate-summary { margin-top: 8px; }
+  .guided-header, .guided-current { padding: 16px; }
+  .guided-equations { gap: 10px; }
+  .guided-equations .math-formula { font-size: 16px; }
+  .guided-controls { padding: 12px; gap: 8px; }
+}
+/* Keep the next action visible in the session's short reading viewport. */
+.guided-derivation .guided-header { padding: 12px 18px; }
+.guided-derivation .guided-header h4 { margin: 0; font-size: 13px; }
+.guided-derivation .guided-current { padding: 12px 18px; }
+.guided-derivation .guided-equations { padding: 0 0 12px; }
+.guided-equations > div > span { margin-bottom: 4px; }
+.guided-equations .math-formula { padding: 4px 2px; }
+.guided-derivation .guided-reason { padding-top: 10px; }
+.guided-reason h5 { margin-top: 4px; font-size: 13px; }
+.guided-reason p { margin: 4px 0; font-size: 12px; }
+.guided-calculation { color: #9cabbc; font-size: 11px; margin-top: 8px; }
+.guided-calculation summary { cursor: pointer; }
+.guided-derivation .guided-controls { padding: 8px 14px; }
+.guided-footer { padding: 0 12px 6px; }
+.guided-footer button { min-height: 24px; padding: 2px 6px; }
+.visual-graph .visual-text-version { display: none; }
+.visual-graph .visual-example-body { padding: 0 16px 8px; }
+.visual-graph .visual-example-body > footer { margin-top: 10px; padding-top: 8px; }
+.visual-graph .visual-takeaway { margin: 6px 0 10px; }
+.session-flow:has(.guided-derivation) > .lesson-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 12px; }
+.session-flow:has(.guided-derivation) > .lesson-heading h1 { font-size: 14px; margin: 0; }
+.session-flow:has(.guided-derivation) > .lesson-heading .lesson-position { margin: 0; }
+.activity-slide:has(.guided-derivation) .lesson-reading { margin-bottom: 8px; }
+.activity-slide:has(.guided-derivation) .guided-derivation { margin: 6px 0; }
+.activity-slide:has(.guided-derivation) > .activity-continue { margin-top: 8px; }
+.math-graph-details { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.math-graph-details > details { padding: 8px 0; }
+.math-graph-details:has(details[open]) { grid-template-columns: 1fr; }
+.focused-visual:has(.visual-graph) > .activity-continue { position: sticky; bottom: -20px; z-index: 2; background: #191c20; padding: 8px 0; margin-top: 8px; }
+.focused-visual .slope-plot { max-height: 230px; }
+.focused-visual .slope-workbench { gap: 16px; margin: 6px 0; }
+.focused-visual .slope-measures { margin-bottom: 8px; }
+.focused-visual .slope-measures strong { font-size: 20px; }
+.focused-visual .slope-reading .math-formula { font-size: 21px; padding: 6px 0; }
+.focused-visual .slope-observation { min-height: 0; margin-top: 4px; font-size: 11px; line-height: 1.7; }
+.focused-visual .slope-coordinate-summary { margin-top: 6px; margin-bottom: 0; }
+.focused-visual .visual-graph .visual-disclosure { min-height: 36px; padding-top: 8px; padding-bottom: 8px; }
+.focused-visual .visual-graph .visual-summary { margin-bottom: 6px; font-size: 11px; }
+.focused-visual .visual-graph .visual-example-body > footer { margin-top: 0; padding-top: 0; padding-bottom: 0; border: 0; }
+.focused-visual .visual-graph .visual-example-body > footer button { padding-top: 3px; padding-bottom: 3px; min-height: 28px; }
+.activity-slide:has(.guided-derivation) > .activity-continue { position: sticky; bottom: -20px; z-index: 2; padding: 8px 0; background: #191c20; }

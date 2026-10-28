@@ -8,6 +8,8 @@ import {
   RotateCcw,
 } from "lucide-react";
 import type { VisualExample as VisualSpec } from "../../services/learning/visuals";
+import { StateWalkthrough } from "./StateWalkthrough";
+import { SlopeGraph } from "./SlopeGraph";
 import { TeachingSimulation, PhraseBuilder } from "./TeachingSimulation";
 import { recordVisualSupport } from "../../services/learning/preferences";
 interface Props {
@@ -75,7 +77,11 @@ export function VisualExample({
       {open && (
         <div className="visual-example-body">
           <p className="visual-summary">{visual.summary}</p>
-          {visual.kind === "simulation" && visual.model ? (
+          {visual.kind === "state-model" && visual.stateModel ? (
+            <StateWalkthrough model={visual.stateModel} onInteract={markSupport} notes={visual.items} takeaway={visual.takeaway}/>
+          ) : visual.kind === "graph" && visual.graph ? (
+            <SlopeGraph key={`${visualId}:${resetCount}`} graph={visual.graph} onInteract={markSupport} notes={visual.items} takeaway={visual.takeaway}/>
+          ) : visual.kind === "simulation" && visual.model ? (
             <TeachingSimulation
               key={resetCount}
               model={visual.model}
@@ -151,7 +157,7 @@ export function VisualExample({
               )}
             </>
           )}
-          <p className="visual-takeaway">{visual.takeaway}</p>
+          {visual.kind !== "graph" && <p className="visual-takeaway">{visual.takeaway}</p>}
           <details className="visual-text-version">
             <summary>Read as text</summary>
             <ol>
@@ -174,7 +180,7 @@ export function VisualExample({
               <RotateCcw size={13} />
               Start again
             </button>
-            {onTryFreshCase && (
+            {onTryFreshCase && visual.kind !== "graph" && (
               <button
                 type="button"
                 className="visual-fresh"

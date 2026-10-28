@@ -25,13 +25,15 @@ describe("rich learning content", () => {
     expect(html).toContain("fmt.Println");
     expect(html).not.toMatch(/<pre[^>]*>\s*<div/);
   });
-  it("renders the worked example with typeset fractions and visual transition arrows", () => {
+  it("renders only the current mathematical transformation with accessible navigation", () => {
     const html = renderToStaticMarkup(
       <DerivationLadder {...MATH_SIMPLIFY_LADDER} />
     );
     expect(html).toContain('class="katex"');
     expect(html).toContain("<math");
-    expect(html).toContain("ladder-arrow");
+    expect(html).toContain("guided-derivation");
+    expect(html).toContain("Next step");
+    expect(html).not.toContain("Divide the numerator by the denominator");
     expect(html).toContain("Write the division as a fraction");
     expect(MATH_SIMPLIFY_LADDER.initialState).toContain("bigl[");
   });

@@ -2,7 +2,7 @@ import { VISUAL_INSTRUCTIONS } from "../learning/visuals";
 import { loadLearningPreferences } from "../learning/preferences";
 import { referenceContext, GROUNDING_INSTRUCTIONS } from "../learning/grounding";
 import { FREE_RESPONSE_INSTRUCTIONS } from "../learning/freeResponse";
-import { ILLUSTRATION_INSTRUCTIONS } from "../learning/visualContract";
+import { ILLUSTRATION_INSTRUCTIONS, MATH_INSTRUCTIONS } from "../learning/visualContract";
 /**
  * LearnForge Socratic AI Tutoring Prompts & Orchestrator
  *
@@ -125,7 +125,7 @@ test_code:
 \`\`\`
 
 ### 7. STEP-BY-STEP REASONING & DERIVATION LADDERS (ladder)
-When breaking down a multi-step transformation, state evolution, expression reduction, or mental model breakdown (e.g. channel handoffs, WaitGroup counters, pointer borrowing/moves, or arithmetic evaluations), emit a \`\`\`ladder block:
+When breaking down a multi-step transformation, state evolution, expression reduction, or mental model breakdown (e.g. changing quantities, process stages, or arithmetic transformations), emit a \`\`\`ladder block:
 
 \`\`\`ladder
 title: <Short Title describing the transformation>
@@ -154,7 +154,7 @@ export function buildSocraticSystemPrompt(
   activeCheck?: LearningCheckSpec,
   referenceQuery = ""
 ): string {
-  const sections: string[] = [SOCRATIC_CORE_INSTRUCTIONS, VISUAL_INSTRUCTIONS, ILLUSTRATION_INSTRUCTIONS, FREE_RESPONSE_INSTRUCTIONS];
+  const sections: string[] = [SOCRATIC_CORE_INSTRUCTIONS, VISUAL_INSTRUCTIONS, ILLUSTRATION_INSTRUCTIONS, MATH_INSTRUCTIONS, FREE_RESPONSE_INSTRUCTIONS];
   const reference = referenceContext(activeMilestone?.references, referenceQuery || activeMilestone?.title);
   if (reference) sections.push(`${GROUNDING_INSTRUCTIONS}\n${reference}`);
   const preferences = loadLearningPreferences();

@@ -58,7 +58,7 @@ describe("HTTP final status teaching model", () => {
     expect(s.body).toBe("HelloHello");
   });
 });
-it("accepts only owned simulation models and prevents coding models in non-coding lessons", () => {
+it("reads legacy fixed models but does not propose them for new lessons", () => {
   const notes = {
     title: "An experiment",
     summary: "Try both orders.",
@@ -74,7 +74,7 @@ it("accepts only owned simulation models and prevents coding models in non-codin
     model: "http-response",
   });
   expect(valid?.model).toBe("http-response");
-  expect(visualForSubject(valid, "go")).toEqual(valid);
+  expect(visualForSubject(valid, "go")).toBeNull();
   expect(visualForSubject(valid, null)).toBeNull();
   expect(visualForSubject(valid, "rust")).toBeNull();
   expect(

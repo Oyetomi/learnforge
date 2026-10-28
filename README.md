@@ -127,6 +127,10 @@ Rather than relying solely on generic pre-baked tracks, LearnForge allows learne
 
 ![Diagnostic Placement and Topic Generation](docs/images/diagnostic-placement.png)
 
+Interactive concept walkthroughs use lesson-supplied states and actions across subjects and programming languages, with optional source-line highlights, branching and replay. They are illustrative walkthroughs rather than recorded execution traces. See [the reusable visual contract and validation](docs/declarative-visuals.md).
+
+Mathematical lessons also support guided LaTeX derivations and an interactive slope graph: move points, compare rise/run and watch the equation update. Visual support stays separate from independent mastery. See [mathematical visual learning](docs/latex-visual-learning.md) for the design rationale, supported model and validation.
+
 ### 7. Optional code execution
 
 The editor is optional. Run uses real execution services for programming lessons:

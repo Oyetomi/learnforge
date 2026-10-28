@@ -1,10 +1,13 @@
 import React from 'react';
 import { renderToString } from 'katex';
+import { MATH_RENDER_OPTIONS } from '../../services/learning/math';
 import 'katex/dist/katex.min.css';
+import { GuidedDerivation, mathSource } from '../learning/GuidedDerivation';
 
 export interface LadderStep {
   rule: string;
   evalText?: string;
+  explanation?: string;
   state: string;
   color?: 'orange' | 'blue' | 'green' | 'amber' | 'purple' | 'red';
 }
@@ -57,10 +60,9 @@ function renderState(raw: string) {
             : null;
   if (math !== null) {
     const html = renderToString(math, {
+      ...MATH_RENDER_OPTIONS,
       displayMode: true,
       throwOnError: false,
-      trust: false,
-      strict: 'ignore',
     });
     return <div className="ladder-formula" dangerouslySetInnerHTML={{ __html: html }} />;
   }
@@ -72,7 +74,9 @@ export const DerivationLadder: React.FC<DerivationLadderProps> = ({
   initialState,
   steps,
   result,
-}) => (
+}) => mathSource(initialState) !== null && steps.some(step => mathSource(step.state) !== null) ? (
+  <GuidedDerivation key={JSON.stringify([initialState, steps, result])} title={title} initialState={initialState} steps={steps} result={result}/>
+) : (
   <section
     className="derivation-ladder visual-ladder"
     aria-label={title || 'Step-by-step explanation'}
@@ -198,6 +202,7 @@ export const GO_WAITGROUP_LADDER: DerivationLadderProps = {
  */
 export function parseLadderMarkdown(rawText: string): DerivationLadderProps | null {
   try {
+    if (rawText.length > 32000) return null;
     const lines = rawText.trim().split('\n');
     let title: string | undefined;
     let initialState: string = '';
@@ -240,6 +245,8 @@ export function parseLadderMarkdown(rawText: string): DerivationLadderProps | nu
       if (currentStep) {
         if (line.toLowerCase().startsWith('rule:')) {
           currentStep.rule = line.slice(5).trim();
+        } else if (line.toLowerCase().startsWith('why:')) {
+          currentStep.explanation = line.slice(4).trim();
         } else if (line.toLowerCase().startsWith('eval:')) {
           currentStep.evalText = line.slice(5).trim();
         } else if (line.toLowerCase().startsWith('state:')) {
@@ -256,7 +263,7 @@ export function parseLadderMarkdown(rawText: string): DerivationLadderProps | nu
       steps.push(currentStep as LadderStep);
     }
 
-    if (initialState && steps.length > 0) {
+    if (initialState && initialState.length <= 4000 && steps.length > 0 && steps.length <= 12 && steps.every(step => step.rule && step.rule.length <= 600 && step.state.length <= 4000 && (!step.evalText || step.evalText.length <= 4000) && (!step.explanation || step.explanation.length <= 1000))) {
       return {
         title,
         initialState,

@@ -1,7 +1,7 @@
 import { aiFetch, loadAIConnection, recordUsage } from "../ai/connection";
 import type { ChatMessage, LearningCheck, Milestone } from "../../types";
 import { hideLearningCheckBlocks } from "./checks";
-import { ILLUSTRATION_INSTRUCTIONS } from "./visualContract";
+import { ILLUSTRATION_INSTRUCTIONS, MATH_INSTRUCTIONS } from "./visualContract";
 import { GROUNDING_INSTRUCTIONS, referenceContext } from "./grounding";
 
 /**
@@ -25,7 +25,7 @@ export async function askBtwQuestion(
       messages: [
         {
           role: "system",
-          content: `Answer a quick /btw side question in 2–4 plain-language sentences without changing the lesson. ${ILLUSTRATION_INSTRUCTIONS} ${GROUNDING_INSTRUCTIONS} Do not emit forge-check, forge-visual, forge-repair or forge-assessment. Never reveal the answer to an active unanswered check.`,
+          content: `Answer a quick /btw side question in 2–4 plain-language sentences without changing the lesson. ${ILLUSTRATION_INSTRUCTIONS} ${MATH_INSTRUCTIONS} ${GROUNDING_INSTRUCTIONS} Do not emit forge-check, forge-visual, forge-repair or forge-assessment. Never reveal the answer to an active unanswered check.`,
         },
         {
           role: "user",

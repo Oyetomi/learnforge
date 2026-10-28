@@ -10,6 +10,7 @@ import {
   visualForSubject,
   VISUAL_INSTRUCTIONS,
 } from "../learning/visuals";
+import { MATH_INSTRUCTIONS } from "../learning/visualContract";
 import { loadLearningPreferences } from "../learning/preferences";
 import { CourseTrack } from "./types";
 import { aiFetch, loadAIConnection, recordUsage } from "./connection";
@@ -76,6 +77,7 @@ VISUAL SUPPORT
 Learner presentation preferences: ${JSON.stringify(loadLearningPreferences())}.
 When visuals=auto, optionally add a visual object to a milestone when a contrast, phrase breakdown, process or state change would clarify the idea. Use a different example from the assessment. Otherwise omit it. The object follows the schema below, but must be a JSON field named visual, not a fenced block in lesson. Do not force a visual onto every activity.
 ${VISUAL_INSTRUCTIONS}
+${MATH_INSTRUCTIONS}
 
 Return valid JSON only, using this structure. The single milestone here is a schema example, not a required plan length:
 {

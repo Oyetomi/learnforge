@@ -489,6 +489,14 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
     if (latest) setActivity(checkEntry());
     else onRequestCheck();
   };
+  const openVisualCompanion = () => {
+    if ((availableVisual?.kind === "graph" || availableVisual?.kind === "state-model")) {
+      if (latest && !attempt) recordVisualSupport(latest.id, "open-book:interactive-visual");
+      setLessonVisual(!lastReply?.visual_example);
+      setInlineVisualOpen(false);
+      setActivity("visual");
+    } else setInlineVisualOpen(v => !v);
+  };
   const continueFromTeaching = () => {
     if (latest && attemptFor(latest)) onContinueCheck(latest);
     else goToQuestion();
@@ -797,8 +805,8 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                   <button
                     type="button"
                     className="slide-reference-button"
-                    aria-expanded={inlineVisualOpen}
-                    onClick={() => setInlineVisualOpen((v) => !v)}
+                    aria-expanded={(availableVisual.kind === "graph" || availableVisual.kind === "state-model") ? undefined : inlineVisualOpen}
+                    onClick={openVisualCompanion}
                   >
                     <Eye size={13} />
                     {inlineVisualOpen
@@ -1095,6 +1103,8 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
             onClick={() => {
               if (activity === "visual") {
                 continueFromTeaching();
+              } else if ((availableVisual?.kind === "graph" || availableVisual?.kind === "state-model")) {
+                openVisualCompanion();
               } else if (
                 availableVisual &&
                 (activity === "check" || activity === "lesson")
@@ -1105,7 +1115,9 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
               }
             }}
             title={
-              availableVisual
+              (availableVisual?.kind === "graph" || availableVisual?.kind === "state-model")
+                ? "Explore the interactive visual in its own step"
+                : availableVisual
                 ? "Toggle inline visual companion alongside this step"
                 : "Show me visually"
             }

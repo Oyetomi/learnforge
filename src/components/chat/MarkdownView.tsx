@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import { MATH_RENDER_OPTIONS } from "../../services/learning/math";
 import { CodeBlock, highlightSource } from "./CodeBlock";
 import { DerivationLadder, parseLadderMarkdown } from "./DerivationLadder";
 import {
@@ -27,7 +28,7 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
     <div className="prose prose-invert max-w-none text-forge-text text-sm leading-relaxed space-y-3">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
+        rehypePlugins={[[rehypeKatex, MATH_RENDER_OPTIONS]]}
         components={{
           pre: ({ children }) => {
             const element = React.Children.toArray(children).find((child) =>

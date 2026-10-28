@@ -9,20 +9,22 @@
  * - A step closes after `maxParas` prose paragraphs.
  */
 
-const ATTACHED = /^(```|~~~|[-*+]\s|\d+[.)]\s|>|\|)/;
+const ATTACHED = /^(\$\$|```|~~~|[-*+]\s|\d+[.)]\s|>|\|)/;
 const HEADING = /^#{1,6}\s/;
 
 function toBlocks(markdown: string): string[] {
   const blocks: string[] = [];
   let current: string[] = [];
   let inFence = false;
+  let inMath = false;
   const flush = () => {
     if (current.length) blocks.push(current.join("\n").trim());
     current = [];
   };
   for (const line of markdown.replace(/\r\n/g, "\n").split("\n")) {
     if (/^\s*(```|~~~)/.test(line)) inFence = !inFence;
-    if (!inFence && line.trim() === "") {
+    if (!inFence && (line.match(/(?<!\\)\$\$/g) || []).length % 2 === 1) inMath = !inMath;
+    if (!inFence && !inMath && line.trim() === "") {
       flush();
       continue;
     }
