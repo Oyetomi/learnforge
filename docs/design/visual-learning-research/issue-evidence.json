@@ -1,0 +1,191 @@
+{
+  "snapshot_date": "2026-10-27",
+  "method": "Public GitHub REST API; all issue pages; pull requests excluded",
+  "issues_scanned": 136,
+  "open": 112,
+  "closed": 24,
+  "selected": [
+    {
+      "number": 221,
+      "title": "Resolving word-count bias in MCQ",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/221",
+      "updated_at": "2026-10-27T12:21:47Z"
+    },
+    {
+      "number": 220,
+      "title": "jargon and long text",
+      "state": "closed",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/220",
+      "updated_at": "2026-10-27T12:09:01Z"
+    },
+    {
+      "number": 207,
+      "title": "[Feature Request / RFC] Multi-Workspace (Profile) Support to Isolate Knowledge Graphs Across Subjects",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/207",
+      "updated_at": "2026-10-27T01:49:09Z"
+    },
+    {
+      "number": 206,
+      "title": "Learner Profiles/Facts",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/206",
+      "updated_at": "2026-10-27T10:44:38Z"
+    },
+    {
+      "number": 195,
+      "title": "Feature Suggestion: Study Session Timer",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/195",
+      "updated_at": "2026-10-27T00:26:18Z"
+    },
+    {
+      "number": 187,
+      "title": "Long questions (e.x. Probes) get cut off at the top",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/187",
+      "updated_at": "2026-10-27T08:04:12Z"
+    },
+    {
+      "number": 175,
+      "title": "Give the teach agent the ability to use documents as the source of what it should teach (for example papers, course content, etc)",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/175",
+      "updated_at": "2026-10-26T20:15:50Z"
+    },
+    {
+      "number": 158,
+      "title": "Unified Adaptive Learning: Combine Teaching and Practice into One Continuous Loop",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/158",
+      "updated_at": "2026-10-26T18:00:09Z"
+    },
+    {
+      "number": 148,
+      "title": "Image Uploads",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/148",
+      "updated_at": "2026-10-25T22:24:30Z"
+    },
+    {
+      "number": 146,
+      "title": "Feature request: Clarify question",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/146",
+      "updated_at": "2026-10-27T11:38:30Z"
+    },
+    {
+      "number": 137,
+      "title": "Retry affordance for errored or cancelled messages",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/137",
+      "updated_at": "2026-10-25T19:14:38Z"
+    },
+    {
+      "number": 136,
+      "title": "Long AI answers are hard to read on wide screens (300 characters per line)",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/136",
+      "updated_at": "2026-10-25T19:08:26Z"
+    },
+    {
+      "number": 124,
+      "title": "Plan map text turns dark after a visual is generated",
+      "state": "closed",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/124",
+      "updated_at": "2026-10-26T09:22:42Z"
+    },
+    {
+      "number": 123,
+      "title": "Reducibility of \"confidence\" to 5-point likert (or infer implicitly by tone of voice/answer)?",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/123",
+      "updated_at": "2026-10-25T19:13:52Z"
+    },
+    {
+      "number": 118,
+      "title": "Visualization clarity metrics?",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/118",
+      "updated_at": "2026-10-25T19:13:47Z"
+    },
+    {
+      "number": 110,
+      "title": "Can't resubmit answer if OpenAI request failed",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/110",
+      "updated_at": "2026-10-26T15:17:28Z"
+    },
+    {
+      "number": 99,
+      "title": "Let the quizzing mechanic differ between probing and teaching",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/99",
+      "updated_at": "2026-10-25T19:13:36Z"
+    },
+    {
+      "number": 96,
+      "title": "Insert Image in the input",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/96",
+      "updated_at": "2026-10-25T21:15:57Z"
+    },
+    {
+      "number": 82,
+      "title": "Add options for non-technical people",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/82",
+      "updated_at": "2026-10-25T19:13:27Z"
+    },
+    {
+      "number": 75,
+      "title": "Show probe progress: which areas are being checked and roughly how many questions are left",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/75",
+      "updated_at": "2026-10-25T19:13:24Z"
+    },
+    {
+      "number": 72,
+      "title": "Graph extraction: preserve the source material's language",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/72",
+      "updated_at": "2026-10-25T19:13:23Z"
+    },
+    {
+      "number": 71,
+      "title": "Multiple graphs: keep unrelated knowledge domains separate",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/71",
+      "updated_at": "2026-10-25T19:13:22Z"
+    },
+    {
+      "number": 64,
+      "title": "[Bug] Jumping to next question like it's a marathon",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/64",
+      "updated_at": "2026-10-26T10:03:08Z"
+    },
+    {
+      "number": 37,
+      "title": "[Question] Has someone tested this on non math subjects",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/37",
+      "updated_at": "2026-10-26T10:08:31Z"
+    },
+    {
+      "number": 33,
+      "title": "Ability for Long term retention",
+      "state": "open",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/33",
+      "updated_at": "2026-10-26T18:38:11Z"
+    },
+    {
+      "number": 2,
+      "title": "macOS 0.3.0 DMG interactive demo/visualization feature is missing Next.js dependencies",
+      "state": "closed",
+      "url": "https://github.com/amosblomqvist/learnharness/issues/2",
+      "updated_at": "2026-10-23T03:21:19Z"
+    }
+  ]
+}

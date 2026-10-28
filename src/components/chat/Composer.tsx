@@ -1,12 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowUp, Lightbulb, ScanLine, BookOpen, Square } from 'lucide-react';
+import {
+  ArrowUp,
+  Lightbulb,
+  ScanLine,
+  BookOpen,
+  Square,
+  ListTree,
+} from 'lucide-react';
 
 interface ComposerProps {
   onSendMessage: (message: string) => void;
   isStreaming: boolean;
   onStopStreaming: () => void;
   activeMilestoneTitle?: string;
-  onQuickAction?: (action: 'hint' | 'explain' | 'review' | 'derivation') => void;
+  codeIncluded?: boolean;
+  compact?: boolean;
+  draftKey?: string;
+  onQuickAction?: (
+    action: 'hint' | 'explain' | 'review' | 'derivation'
+  ) => void;
 }
 
 export const Composer: React.FC<ComposerProps> = ({
@@ -14,13 +26,32 @@ export const Composer: React.FC<ComposerProps> = ({
   isStreaming,
   onStopStreaming,
   onQuickAction,
+  codeIncluded = false,
+  compact = false,
+  draftKey,
 }) => {
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(() => {
+    try {
+      return draftKey ? localStorage.getItem(draftKey) || '' : '';
+    } catch {
+      return '';
+    }
+  });
+  useEffect(() => {
+    if (draftKey) {
+      try {
+        localStorage.setItem(draftKey, input);
+      } catch {}
+    }
+  }, [input, draftKey]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (!textareaRef.current) return;
     textareaRef.current.style.height = 'auto';
-    textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+    textareaRef.current.style.height = `${Math.min(
+      textareaRef.current.scrollHeight,
+      120
+    )}px`;
   }, [input]);
   const submit = () => {
     if (!input.trim() || isStreaming) return;
@@ -29,23 +60,31 @@ export const Composer: React.FC<ComposerProps> = ({
   };
   return (
     <div className="composer">
-      <div className="quick-actions" aria-label="Ask your coach">
-        <button onClick={() => onQuickAction?.('hint')} disabled={isStreaming}>
-          <Lightbulb size={13} />
-          Get a hint
-        </button>
-        <button onClick={() => onQuickAction?.('explain')} disabled={isStreaming}>
-          <BookOpen size={13} />
-          Explain this
-        </button>
-        <button onClick={() => onQuickAction?.('review')} disabled={isStreaming}>
-          <ScanLine size={13} />
-          Review code
-        </button>
-        <button onClick={() => onQuickAction?.('derivation')} disabled={isStreaming} className="text-sky-400">
-          🪜 Derivation
-        </button>
-      </div>
+      {!compact && (
+        <div className="quick-actions" aria-label="Ask your coach">
+          <button
+            onClick={() => onQuickAction?.('hint')}
+            disabled={isStreaming}
+          >
+            <Lightbulb size={13} />
+            Get a hint
+          </button>
+          <button
+            onClick={() => onQuickAction?.('explain')}
+            disabled={isStreaming}
+          >
+            <BookOpen size={13} />
+            Explain this
+          </button>
+          <button
+            onClick={() => onQuickAction?.('derivation')}
+            disabled={isStreaming}
+          >
+            <ListTree size={13} />
+            Derivation Ladder
+          </button>
+        </div>
+      )}
       <div className="composer-input">
         <textarea
           aria-label="Message your AI coach"
@@ -53,13 +92,21 @@ export const Composer: React.FC<ComposerProps> = ({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+            if (
+              e.key === 'Enter' &&
+              !e.shiftKey &&
+              !e.nativeEvent.isComposing
+            ) {
               e.preventDefault();
               submit();
             }
           }}
-          placeholder="Ask a question or share your thinking…"
-          rows={2}
+          placeholder={
+            compact
+              ? "Ask about this step…"
+              : "Ask about this step, or tell me what’s confusing…"
+          }
+          rows={compact ? 1 : 2}
         />
         {isStreaming ? (
           <button
@@ -81,7 +128,11 @@ export const Composer: React.FC<ComposerProps> = ({
         )}
       </div>
       <div className="composer-footnote">
-        <span>Your editor code is included for context</span>
+        <span>
+          {codeIncluded
+            ? 'Code workspace included for context'
+            : 'Ask at any time · your question stays saved'}
+        </span>
         <span>
           ↵ Send <span className="newline-hint">· ⇧↵ New line</span>
         </span>

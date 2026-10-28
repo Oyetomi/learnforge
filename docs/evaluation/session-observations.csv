@@ -1,0 +1,1 @@
+participant_id,session_id,app_version,app,app_order,task_set,subject,model,task,completed_without_help,seconds_to_next_action,feedback_recovery_scrolls,draft_preserved,help_used,first_answer_score,retry_score,fresh_transfer_score,delayed_score,grading_disputed,recovery_success,observation

@@ -1,192 +1,185 @@
-# LearnForge (Working Title)
-> An AI-native, hands-on learning harness built for software engineers, systems programmers, and technical masters.
+# LearnForge
+
+A local-first, Socratic learning harness for mastering complex subjects through active recall, first-principles derivation, and verifiable practice.
+
+![LearnForge Session Workspace](docs/images/hero-session.png)
 
 ---
 
-## 1. Executive Summary & Why This Exists
+## The Problem: The Illusion of Competence
 
-### The Problem with Existing AI Tutors (Including LearnHarness)
-Existing AI learning tools fall into two traps:
-1. **Passive Chatbots (ChatGPT / Claude chats)**: Great at explaining things, but you don't actually learn because you are passively reading text. You get the *illusion of competence*.
-2. **Rigid "Quiz Docks" (LearnHarness)**: Forcing active recall is the right philosophy, but:
-   - **Static Markdown Only**: In a coding lesson (like Golang interfaces or concurrency), questions are multiple-choice quizzes ("What does this print?"). You cannot edit, execute, or experiment with the code.
-   - **The Locked Composer Trap**: When a quiz appears, the UI locks the input box. You cannot ask a clarifying side-question without guessing an answer first.
-   - **Graph Bloat vs. Retention**: Extracting 500 atomic proposition nodes with D3 force layouts looks cool, but learners rarely browse a dense graph. What actually creates long-term memory is **deliberate coding challenges** and **scheduled spaced retrieval (FSRS)**.
-   - **Heavyweight Electron Overhead**: Multi-process Electron bundles running 400MB+ Next.js standalone servers prone to viewport overflow bugs on laptop displays.
+Learning complex technical and scientific subjects with standard generative AI chat suffers from a fundamental cognitive flaw: **passive reading creates an illusion of competence**.
 
-### The LearnForge Vision
-**LearnForge** is designed around how technical minds actually learn:
-> **"Hear and forget. See and remember. Build and understand."**
+1. **Passive Reading vs. Active Retrieval:** When an LLM explains quantum computing, Bayesian inference, monetary economics, or distributed consensus across several eloquent paragraphs, the learner experiences fluent comprehension. However, fluency during reading rarely translates into recall, synthesis, or problem-solving capability when facing an empty buffer.
+2. **The Fragility of Surface-Level Quizzes:** Traditional quiz interfaces test recognition rather than understanding. Multiple-choice distractors introduce deduction shortcuts, questions fail to evaluate multi-step reasoning, and interfaces lock down input so learners cannot explore tangential nuances.
+3. **The Absence of Multi-Modal Verification:** Abstract concepts require multi-modal verification: formal mathematical proofs, structural visual diagrams, step-by-step state derivations, and live computational execution.
 
-Instead of quizzing you on code trivia, LearnForge pairs **Socratic dialogue** with **live code execution**, **guided milestone builds**, and **FSRS spaced repetition**.
+LearnForge is built around a single principle: **True comprehension requires active retrieval, formal derivation, and empirical verification.**
 
 ---
 
-## 2. App Name Candidates
+## Architecture
 
-Pick the name that resonates most with your taste:
+```mermaid
+flowchart TD
+    subgraph DesktopShell["Desktop Shell (Tauri 2.0 / Rust)"]
+        UI["React 18 + TypeScript Workspace"]
+        FS["Local File System & SQLite WAL"]
+    end
 
-| Name | Vibe | Concept |
+    subgraph PedagogicalCore["Pedagogical Core"]
+        SM["Socratic Dialectic Engine"]
+        FSRS["FSRS-4.5 Spaced Repetition Engine"]
+        Diag["Diagnostic Placement Prober"]
+        Derive["Step-by-Step Derivation Engine"]
+    end
+
+    subgraph VerificationEngines["Multi-Modal Verification"]
+        Math["KaTeX Mathematical Typesetting"]
+        Visual["Inline SVG Architecture Generator"]
+        Wasm["Wasm & Container Sandboxes (Go, Rust, Python, TS)"]
+    end
+
+    subgraph MultiModel["Multi-Provider LLM Gateway"]
+        Ollama["Local Ollama / LM Studio"]
+        OpenAI["OpenAI (GPT-6, GPT-4o)"]
+        Gemini["Google Gemini (Gemini 4 Argon, 3.8 Flash)"]
+        Claude["Anthropic Claude (Opus 5.5, Sonnet 5)"]
+        Proxy["Custom OpenAI-Compatible Endpoints"]
+    end
+
+    UI --> PedagogicalCore
+    UI --> VerificationEngines
+    PedagogicalCore --> MultiModel
+    UI --> FS
+```
+
+---
+
+## Core Capabilities
+
+### 1. The Never-Locked Socratic Composer and Ephemeral `/btw` Queries
+
+In conventional educational software, once a problem or milestone is presented, the interface traps the learner into guessing an answer before permitting questions.
+
+LearnForge decouples challenge evaluation from dialectic exploration:
+- **Challenge Responses:** Submit answers, derivations, or code solutions directly for evaluation.
+- **Ephemeral Side Queries (`/btw`):** Ask conceptual tangents (e.g. `"/btw how does this invariant change under network partitions?"`) without abandoning the active milestone, modifying the curriculum sequence, or clearing draft work.
+
+![Socratic Side Question Drawer](docs/images/socratic-btw.png)
+
+### 2. First-Principles Derivation and Mathematical Rigor
+
+Complex domains cannot be mastered through casual prose alone:
+- **KaTeX Mathematical Typesetting:** Full LaTeX rendering for differential equations, matrix operations, statistical bounds, and algorithmic complexity expressions.
+- **Derivation Ladders:** Step-by-step reasoning chains that break down state transformations, mathematical proofs, and logical deductions before synthesis.
+
+### 3. Dynamic Visual Mental Models
+
+To anchor abstract principles into durable mental models, LearnForge generates dynamic inline SVG visualizers:
+- Flowcharts, state machine progressions, and data flow pipelines generated directly from topic context.
+- Clean vector rendering designed natively for dark-mode contrast.
+
+### 4. FSRS-4.5 Long-Term Cognitive Retention
+
+Mastering difficult material is wasted if forgotten within weeks. LearnForge embeds the modern **Free Spaced Repetition Scheduler (FSRS-4.5)**:
+- Calculates personalized memory stability and retrievability curves for every concept.
+- Daily review decks schedule targeted retrieval sessions at optimal intervals to ensure permanent retention.
+
+### 5. Grounding on Custom Syllabi, Notes, and Codebases
+
+Rather than relying solely on generic pre-baked tracks, LearnForge allows learners to ground curriculum generation directly in their own source material:
+- **Document Ingestion:** Drop lecture notes, research papers, textbook excerpts, or documentation (`.pdf`, `.md`, `.txt`).
+- **Codebase Ingestion:** Ground topics on real repository files (`.go`, `.rs`, `.py`, `.ts`).
+- **Diagnostic Probing:** 60-second placement probes gauge existing mastery to skip familiar material and target knowledge frontiers.
+
+![Diagnostic Placement and Topic Generation](docs/images/diagnostic-placement.png)
+
+### 6. Built-In WebAssembly Execution Sandboxes
+
+When studying computational, algorithmic, or systems topics, LearnForge eliminates setup friction with zero-install client-side sandboxes:
+- **Go:** WebAssembly compiler and concurrent execution simulator.
+- **Rust:** Native Rust playground integration with assertion verification.
+- **Python:** In-browser Pyodide runtime with standard library support.
+- **TypeScript & JavaScript:** Isolated worker environment with automated test harnesses.
+
+### 7. Multi-Model Telemetry and Complete Privacy
+
+LearnForge operates with a strict local-first architecture:
+- **Zero Third-Party Telemetry:** All data, notes, and progress logs are saved locally in SQLite/IndexedDB on your device.
+- **Context Fill Ring:** Live SVG gauge calibrated to each model family's context capacity (e.g. 500k for `gpt-6.1-sol`, 1M for `gemini-4-argon`, 200k for `claude-opus-5-5`).
+- **Token Accounting:** Real-time visibility into prompt and completion token consumption per device.
+
+![Multi-Model AI Connection Settings](docs/images/multi-model-settings.png)
+
+---
+
+## Supported AI Providers
+
+LearnForge connects directly from your machine with zero intermediate routing servers:
+
+| Provider | Supported Models | Configuration |
 | :--- | :--- | :--- |
-| **LearnForge** *(current default)* | Craft, Industry | Forging mental models through code execution and building. |
-| **Adept** | Mastery | Turning complex domains into fluent, second-nature skill. |
-| **Socrat** | Dialogue | Pure Socratic dialogue—guiding you to answers rather than lecturing. |
-| **Katas** | Martial Arts / Coding | Deliberate practice forms that build muscle memory for engineering concepts. |
-| **Loom** | Synthesis | Weaving threads of knowledge, code, and reasoning into understanding. |
-| **CogLab** | Scientific | A personal cognitive laboratory for mastering hard technical topics. |
+| **Ollama / LM Studio** | Any locally served GGUF model | Set endpoint to `http://localhost:11434/v1` (no API key required) |
+| **Google Gemini** | `gemini-4-argon`, `gemini-3.8-flash-high`, `gemini-3.8-flash` | Gemini API Key |
+| **OpenAI** | `gpt-6.1-sol`, `gpt-6-astra`, `gpt-6.1-terra`, `gpt-6-sol`, `gpt-4o-mini` | OpenAI API Key (`sk-...`) |
+| **Anthropic Claude** | `claude-opus-5-5`, `claude-sonnet-5`, `claude-haiku-5-5` | Anthropic API Key |
+| **OpenRouter** | Any OpenRouter model identifier | OpenRouter API Key |
+| **Custom Proxy** | Any OpenAI-compatible completion endpoint | Custom URL + optional bearer token |
 
 ---
 
-## 3. Core Architectural Pillars
+## Quickstart
 
-```
-┌────────────────────────────────────────────────────────┐
-│             User Interface (Tauri 2.0 / Web)           │
-│  - Split view: Socratic Chat + Interactive Sandbox     │
-│  - Never-locked composer (ask clarifying tangents)     │
-└───────────────────────────┬────────────────────────────┘
-                            │
-┌───────────────────────────┴────────────────────────────┐
-│                    Orchestrator                        │
-│  - Socratic State Machine (Assess -> Guide -> Test)    │
-│  - FSRS (Free Spaced Repetition Scheduler) Engine      │
-│  - Local Proxy Bridge (http://127.0.0.1:10532)         │
-└─────────────┬────────────────────────────┬─────────────┘
-              │                            │
-┌─────────────┴───────────┐    ┌───────────┴─────────────┐
-│    Execution Sandbox    │    │      Local Storage      │
-│  - WebAssembly Runner   │    │  - SQLite (WAL mode)    │
-│    (Go / Python / TS)   │    │  - Markdown note export │
-└─────────────────────────┘    └─────────────────────────┘
+### Prerequisites
+
+- Node.js 20 or higher
+- Rust 1.78 or higher (only required if compiling the native desktop binary)
+
+### Web Development Mode
+
+```bash
+# Clone repository
+git clone https://github.com/Oyetomi/learnforge.git
+cd learnforge
+
+# Install dependencies
+npm install
+
+# Start local development server
+npm run dev
 ```
 
-### Pillar 1: Dual-Pane Interface (Chat + Live Sandbox)
-- **Left Pane (50%)**: Socratic conversation stream. Markdown, KaTeX math, diagrams.
-- **Right Pane (50%)**: Live Monaco / CodeMirror code editor with:
-  - Editable starter code
-  - **Run** button ($\le 50\text{ms}$ execution via Wasm)
-  - Output / compiler error console
-  - Test runner output ("3/3 tests passed")
-- **Layout Safety**: Responsive flexbox layout with proper `min-h-0 overflow-y-auto` bounds. No absolute-bottom overlay traps that clip on 13" laptop screens.
+Open `http://localhost:5173` in your browser.
 
-### Pillar 2: The "Never-Locked" Composer
-- If a coding challenge or check is posed:
-  - You can write your solution in the code editor.
-  - **OR** you can type in the chat: *"Wait, explain why `var _ MyInterface = (*MyStruct)(nil)` is idiomatically used here?"*
-  - The AI answers your tangent, then smoothly brings you back to the challenge.
+### Native Desktop Application (Tauri 2.0)
 
-### Pillar 3: Milestone-Driven Projects vs. Abstract Quizzes
-Instead of arbitrary isolated questions, courses are structured around mini-projects:
-- **Example (Go Concurrency)**:
-  - *Milestone 1*: Build a worker pool with unbuffered channels.
-  - *Milestone 2*: Handle cancellation with `context.Context`.
-  - *Milestone 3*: Prevent goroutine leaks and race conditions (verified with `-race`).
+```bash
+# Run desktop application in development mode
+npm run tauri -- dev
 
-### Pillar 4: FSRS (Free Spaced Repetition Scheduler)
-- Uses modern **FSRS-4.5** (proven to reduce review workload by 20-30% compared to Anki's 1980s SM-2 algorithm).
-- Every concept or bug you struggle with is saved as a 3-minute review challenge scheduled at optimal retention decay intervals:
-  $$R(t) = \left(1 + \text{factor} \cdot \frac{t}{S}\right)^{-w}$$
-- Daily review queue: 5 minutes every morning to keep your Go, Rust, or Distributed Systems concepts rock-solid.
+# Build optimized release binaries (.app and .dmg on macOS)
+npm run tauri -- build
+```
 
-### Pillar 5: Lightweight Local-First Stack
-- **Desktop Shell**: **Tauri 2.0** (Rust backend + Webview frontend).
-  - Starts in $< 100\text{ms}$.
-  - Uses $\sim 35\text{MB}$ RAM (compared to Electron's $400\text{MB}+$).
-  - Zero port collisions or orphan node background processes.
-- **Local Database**: **SQLite3** via `rusqlite` or `better-sqlite3`. Everything is stored locally on your Mac in `~/Library/Application Support/LearnForge/learnforge.db`.
-- **LLM Integration**: Works out-of-the-box with your existing LaunchAgent background proxy (`http://127.0.0.1:10532`), giving you fast, free Gemini streaming, plus optional support for local Ollama / MLX models.
+Compiled desktop bundles are generated in `src-tauri/target/release/bundle/`.
 
 ---
 
-## 4. SQLite Data Schema
+## Test Suite
 
-```sql
--- Learning Sessions
-CREATE TABLE sessions (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    topic TEXT NOT NULL,
-    language TEXT NOT NULL, -- 'go', 'python', 'rust', 'ts'
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-);
+LearnForge includes comprehensive automated tests covering sandboxes, Socratic algorithms, FSRS scheduling, SVG sanitization, and model context telemetry:
 
--- Messages & Socratic Turns
-CREATE TABLE messages (
-    id TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    role TEXT NOT NULL, -- 'user', 'assistant', 'system'
-    content TEXT NOT NULL,
-    code_snippet TEXT,
-    created_at INTEGER NOT NULL
-);
+```bash
+# Run unit and integration tests
+npm test
 
--- Milestones & Challenges
-CREATE TABLE milestones (
-    id TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    prompt TEXT NOT NULL,
-    starter_code TEXT,
-    test_code TEXT,
-    solution_code TEXT,
-    status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'active', 'completed'
-    created_at INTEGER NOT NULL
-);
-
--- FSRS Spaced Repetition Cards
-CREATE TABLE srs_cards (
-    id TEXT PRIMARY KEY,
-    topic TEXT NOT NULL,
-    prompt TEXT NOT NULL,
-    target_code TEXT,
-    difficulty REAL NOT NULL DEFAULT 5.0,
-    stability REAL NOT NULL DEFAULT 1.0,
-    reps INTEGER NOT NULL DEFAULT 0,
-    lapses INTEGER NOT NULL DEFAULT 0,
-    last_review INTEGER,
-    due_date INTEGER NOT NULL
-);
+# Verify TypeScript compilation and production build
+npm run build
 ```
 
 ---
 
-## 5. Local Environment & Zero-Setup Infrastructure
+## License
 
-This project is already pre-configured to build and run on this Mac without needing any external paid API keys or cloud setup:
-
-| Resource | Value / Location | Notes |
-| :--- | :--- | :--- |
-| **Local Gemini API Proxy** | `http://127.0.0.1:10532/v1beta` | Managed by LaunchAgent `com.gemini.oauth.plist`. Free, permanent streaming with `gemini-2.5-flash` and `gemini-2.5-pro`. |
-| **Hardware / OS** | macOS (Apple Silicon M1 Pro, 2020) | Target platform for native Tauri 2.0 bundle and ARM64 binaries. |
-| **GitHub CLI** | `gh` authenticated as `Oyetomi` | Ready for automated repo creation, commits, and pushes. |
-| **Project Workspace** | `/Users/abbey/Desktop/learnforge` | Root directory for all source code, SQLite databases, and UI components. |
-
----
-
-## 6. Implementation Roadmap & Immediate Next Steps for a New Session
-
-When starting the new conversation, the agent can immediately pick up with:
-
-### Milestone 1: The Core Prototype (Immediate Objective)
-1. **Initialize Project Scaffold**:
-   - Set up Vite + React + TypeScript + Tailwind CSS inside `/Users/abbey/Desktop/learnforge` (configured with Tauri 2.0).
-2. **Wire Dual-Pane Layout**:
-   - Left: Socratic chat stream with markdown and KaTeX.
-   - Right: Monaco / CodeMirror code editor with Run & Reset buttons.
-3. **Connect Streaming AI Client**:
-   - Hook up streaming client to `http://127.0.0.1:10532/v1beta/models/gemini-2.5-flash:streamGenerateContent`.
-   - Inject the Socratic Tutor system prompt (assess knowledge $\to$ teach 1 concept $\to$ pose code challenge).
-4. **Embed Code Execution**:
-   - Integrate WebAssembly Go / Python execution engine so code runs instantly in-browser.
-
----
-
-## 7. Development Quickstart (Prompt for the New Chat)
-
-Copy and paste this one-liner into your new chat to instantly resume:
-
-```markdown
-I want to build LearnForge (a Socratic coding harness with dual-pane chat, live Wasm code sandbox, and FSRS spaced repetition). 
-Please read /Users/abbey/Desktop/learnforge/README.md for the full architecture, schema, and local proxy setup, and let's start Milestone 1.
-```
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

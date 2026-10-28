@@ -1,168 +1,274 @@
 /**
  * LearnForge Dynamic Curriculum Generator
  *
- * Generates custom, milestone-driven systems programming tracks on demand
+ * Generates subject-appropriate learning plans while preserving the learner’s intent
  * using the local AI proxy (Gemini 3.8 / Argon).
  */
 
-import { AI_CONFIG, CourseTrack } from './types';
-import { SupportedLanguage } from '../../types';
+import {
+  validateVisualExample,
+  visualForSubject,
+  VISUAL_INSTRUCTIONS,
+} from "../learning/visuals";
+import { loadLearningPreferences } from "../learning/preferences";
+import { CourseTrack } from "./types";
+import { aiFetch, loadAIConnection, recordUsage } from "./connection";
+import { SupportedLanguage } from "../../types";
+import { validPrerequisiteGraph } from "../learning/roadmap";
+import { validateLearningCheck } from "../learning/checks";
+import { FREE_RESPONSE_INSTRUCTIONS } from "../learning/freeResponse";
+import { createLearningReference, referenceContext, GROUNDING_INSTRUCTIONS } from "../learning/grounding";
 
 export interface GenerateTrackOptions {
   topic: string;
+  interest?: string;
+  signal?: AbortSignal;
   language?: SupportedLanguage;
-  level?: 'Beginner' | 'Intermediate' | 'Advanced';
+  level?: "Beginner" | "Intermediate" | "Advanced";
+  referenceMaterial?: {
+    name: string;
+    content: string;
+  };
 }
 
-function normalizeLanguage(lang: string | undefined): SupportedLanguage {
-  if (!lang) return 'go';
-  const l = lang.toLowerCase().trim();
-  if (l.includes('rust')) return 'rust';
-  if (l.includes('python') || l.includes('py')) return 'python';
-  if (l.includes('typescript') || l.includes('ts') || l.includes('javascript') || l.includes('js')) return 'typescript';
-  return 'go';
+function normalizeLanguage(lang: unknown): SupportedLanguage | null {
+  if (typeof lang !== "string") return null;
+  const aliases: Record<string, SupportedLanguage> = {
+    go: "go",
+    golang: "go",
+    rust: "rust",
+    python: "python",
+    typescript: "typescript",
+    javascript: "javascript",
+  };
+  return aliases[lang.toLowerCase().trim()] || null;
 }
 
 export async function generateCustomTrack(
   options: GenerateTrackOptions,
   onStatusUpdate?: (status: string) => void
 ): Promise<CourseTrack> {
-  const { topic, level = 'Intermediate' } = options;
+  const { topic, level = "Beginner" } = options;
+  const interest = options.interest?.trim() || topic;
+  const reference = options.referenceMaterial
+    ? createLearningReference(options.referenceMaterial.name, options.referenceMaterial.content) : null;
+  onStatusUpdate?.("Preparing your learning plan…");
 
-  // Auto-detect language if specified in topic
-  let detectedLanguage = options.language;
-  if (!detectedLanguage) {
-    const lower = topic.toLowerCase();
-    if (lower.includes('rust') || lower.includes('borrow') || lower.includes('tokio')) {
-      detectedLanguage = 'rust';
-    } else if (lower.includes('python') || lower.includes('asyncio') || lower.includes('django') || lower.includes('fastapi')) {
-      detectedLanguage = 'python';
-    } else if (lower.includes('typescript') || lower.includes('javascript') || lower.includes('node') || lower.includes('react')) {
-      detectedLanguage = 'typescript';
-    } else if (lower.includes('golang') || lower.includes(' go ') || lower.endsWith(' go') || lower.startsWith('go ')) {
-      detectedLanguage = 'go';
-    }
-  }
+  const systemPrompt = `You design LearnForge learning plans for ANY subject, at the learner's requested level and for their actual purpose.
 
-  onStatusUpdate?.('Analyzing topic & choosing optimal systems architecture…');
+${GROUNDING_INSTRUCTIONS}
 
-  const systemPrompt = `You are the LearnForge Curriculum Architect.
-You generate rigorous, milestone-driven systems programming courses for technical engineers based purely on their requested topic.
+PRESERVE INTENT
+The original interest is the source of truth. The selected goal narrows it; it must never replace its subject or purpose. Do not recast ordinary learning as engineering, programming, academic research, or professional analysis. Learning a spoken language means learning to understand and use that language, unless the learner explicitly asks for linguistics or speech technology. For example, learning Yoruba should begin with practical words, greetings or a tiny everyday exchange, not acoustic modeling, frequency extraction, Unicode engineering or software. Likewise, cooking means preparing food, not building a recipe application. Keep titles and questions understandable to the learner. Do not assume intermediate knowledge. Use a gentle first activity to find their starting point.
 
-Pedagogical Axiom: "Hear and forget. See and remember. Build and understand."
-Every milestone must be hands-on with:
-1. An atomic, focused mental model.
-2. Starter boilerplate code with a clear TODO.
-3. Automated test code that verifies invariants when executed.
+${FREE_RESPONSE_INSTRUCTIONS}
 
-Output strictly valid JSON (no markdown formatting, no code fences) with the exact structure:
+SUBJECT-APPROPRIATE PRACTICE
+Return practice_mode="general" and language=null for language learning, history, art, everyday skills and other goals that do not ask for coding. General lessons must have no starter_code or test_code. Only return practice_mode="coding" and a supported programming language when learning or writing code directly serves the stated goal. A technical topic does not automatically require code.
+For spoken languages, use accurate, natural phrases with translations and correct diacritics, then ask about meaning or use in a short exchange. Explain new terms in plain words. Do not claim to hear, evaluate pronunciation, or assess listening without actual audio; text questions establish written understanding only. Do not invent translations when uncertain.
+
+TEACHING AND STRUCTURE
+Each activity teaches one small idea with a short concrete example and an interactive check, then waits for the learner. Do not dump advanced terminology or reveal the answer key outside the check. Put substantial code, if relevant, in a fenced context block. The initial map is provisional, with 1–8 concepts suited to this goal. Each prerequisite_ids array references existing milestone ids; independent roots use [], dependencies must be real and acyclic.
+
+VISUAL SUPPORT
+Learner presentation preferences: ${JSON.stringify(loadLearningPreferences())}.
+When visuals=auto, optionally add a visual object to a milestone when a contrast, phrase breakdown, process or state change would clarify the idea. Use a different example from the assessment. Otherwise omit it. The object follows the schema below, but must be a JSON field named visual, not a fenced block in lesson. Do not force a visual onto every activity.
+${VISUAL_INSTRUCTIONS}
+
+Return valid JSON only, using this structure. The single milestone here is a schema example, not a required plan length:
 {
-  "title": "<Concise Course Title>",
-  "tagline": "<1-sentence summary of what the engineer will build>",
-  "language": "<One of: 'go', 'rust', 'python', 'typescript' - select the most idiomatic language for this topic>",
-  "difficulty": "${level}",
-  "estimatedHours": 4,
-  "description": "<2-3 sentence technical overview>",
-  "concepts": ["Concept 1", "Concept 2", "Concept 3"],
-  "initialPrompt": "<Welcome message introducing the first concept>",
-  "milestones": [
-    {
-      "id": "m1",
-      "title": "<Milestone 1 Title>",
-      "concept": "<Core invariant>",
-      "prompt": "<Detailed requirements and instructions for Milestone 1>",
-      "starter_code": "<Runnable boilerplate with TODO for the student>",
-      "test_code": "<Automated test suite asserting correctness>",
-      "hints": ["Hint 1", "Hint 2"]
-    },
-    {
-      "id": "m2",
-      "title": "<Milestone 2 Title>",
-      "concept": "<Core invariant>",
-      "prompt": "<Detailed requirements and instructions for Milestone 2>",
-      "starter_code": "<Runnable boilerplate with TODO for the student>",
-      "test_code": "<Automated test suite asserting correctness>",
-      "hints": ["Hint 1", "Hint 2"]
-    },
-    {
-      "id": "m3",
-      "title": "<Milestone 3 Title>",
-      "concept": "<Core invariant>",
-      "prompt": "<Detailed requirements and instructions for Milestone 3>",
-      "starter_code": "<Runnable boilerplate with TODO for the student>",
-      "test_code": "<Automated test suite asserting correctness>",
-      "hints": ["Hint 1", "Hint 2"]
-    }
-  ]
+ "title":"Plain, subject-appropriate course title",
+ "tagline":"What the learner will be able to do",
+ "practice_mode":"general or coding",
+ "language":null,
+ "difficulty":"${level}",
+ "estimatedHours":2,
+ "description":"Short learner-facing overview",
+ "concepts":["First idea"],
+ "initialPrompt":"A short welcome grounded in their goal",
+ "milestones":[{
+   "id":"m1", "prerequisite_ids":[],
+   "title":"One small skill", "concept":"The idea to understand",
+   "prompt":"A clear learning goal in this subject",
+   "lesson":"One plain-language explanation and a tiny concrete example",
+   "check":{
+     "question":"A short question about meaning, use, or an appropriate application",
+     "context":"Optional short example or dialogue",
+     "options":[{"id":"a","label":"Plausible answer"},{"id":"b","label":"Another answer"}],
+     "correctOptionIds":["b"], "multiple":false,
+     "explanation":"Plain explanation of the answer"
+   },
+   "starter_code":"", "test_code":"", "hints":["A helpful hint"]
+ }]
 }`;
-
-  onStatusUpdate?.('Designing milestones, starter code, and test suites…');
-
-  const userPrompt = `Topic to master: "${topic}".
-Skill level: ${level}.
-${detectedLanguage ? `Preferred programming language: ${detectedLanguage}.` : `Select the best suited programming language from ('go', 'rust', 'python', 'typescript') for this topic.`}
-Generate 3 progressive milestones leading to a working production component with complete runnable starter code and automated test assertions.`;
-
-  const payload = {
-    model: AI_CONFIG.DEFAULT_MODEL,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
-    temperature: 0.3,
-    response_format: { type: 'json_object' },
-  };
-
-  const response = await fetch(AI_CONFIG.DEFAULT_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
+  onStatusUpdate?.("Creating lessons and interactive questions…");
+  const hasReference = Boolean(options.referenceMaterial?.content?.trim());
+  const userPrompt = JSON.stringify({
+    originalInterest: interest,
+    selectedGoal: topic,
+    statedLevel:
+      options.level ||
+      "Not specified; start accessibly and diagnose through practice",
+    preferredProgrammingLanguage: options.language || null,
+    ...(hasReference
+      ? {
+          referenceMaterial: {
+            name: options.referenceMaterial!.name || "Uploaded reference",
+            excerpt: referenceContext(reference ? [reference] : [], topic, 8000),
+          },
+        }
+      : {}),
+    instruction: hasReference
+      ? "Preserve the original subject and practical purpose throughout the plan. Ground the milestones, lessons, and checks directly in the supplied referenceMaterial, referencing its specific sections, examples, or functions."
+      : "Preserve the original subject and practical purpose throughout the plan. Coding is only appropriate when it directly serves the goal.",
   });
 
+  const payload = {
+    model: loadAIConnection().model,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.3,
+    response_format: { type: "json_object" },
+  };
+
+  const response = await aiFetch(payload, { signal: options.signal });
+
   if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw new Error(`AI service returned HTTP ${response.status}: ${errorText || response.statusText}`);
+    const errorText = await response.text().catch(() => "");
+    throw new Error(
+      `AI service returned HTTP ${response.status}: ${
+        errorText || response.statusText
+      }`
+    );
   }
 
   const data = await response.json();
+  recordUsage(data?.usage);
   const rawContent = data.choices?.[0]?.message?.content;
   if (!rawContent) {
-    throw new Error('AI returned an empty curriculum response');
+    throw new Error("AI returned an empty curriculum response");
   }
 
-  onStatusUpdate?.('Finalizing course track…');
+  onStatusUpdate?.("Checking your learning plan…");
 
   // Strip any accidental markdown formatting
   let cleanJson = rawContent.trim();
-  if (cleanJson.startsWith('```json')) {
-    cleanJson = cleanJson.replace(/^```json/, '').replace(/```$/, '').trim();
-  } else if (cleanJson.startsWith('```')) {
-    cleanJson = cleanJson.replace(/^```/, '').replace(/```$/, '').trim();
+  if (cleanJson.startsWith("```json")) {
+    cleanJson = cleanJson
+      .replace(/^```json/, "")
+      .replace(/```$/, "")
+      .trim();
+  } else if (cleanJson.startsWith("```")) {
+    cleanJson = cleanJson.replace(/^```/, "").replace(/```$/, "").trim();
   }
 
-  const parsed = JSON.parse(cleanJson);
-  const trackId = `custom-${topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 32)}-${Date.now().toString(36)}`;
-  const chosenLanguage = normalizeLanguage(parsed.language || detectedLanguage);
+  let parsed;
+  try {
+    parsed = JSON.parse(cleanJson);
+  } catch {
+    throw new Error(
+      "The AI service returned an incomplete learning plan. Please try again."
+    );
+  }
+  if (
+    !parsed ||
+    !Array.isArray(parsed.milestones) ||
+    parsed.milestones.length < 1 ||
+    parsed.milestones.length > 8 ||
+    parsed.milestones.some(
+      (m: any) =>
+        !m ||
+        typeof m.prompt !== "string" ||
+        !m.prompt.trim() ||
+        (m.check != null && !validateLearningCheck(m.check)) ||
+        (!validateLearningCheck(m.check) &&
+          (parsed.practice_mode !== "coding" ||
+            !m.starter_code?.trim() ||
+            !m.test_code?.trim()))
+    )
+  ) {
+    throw new Error(
+      "The AI service did not return a complete learning plan. Please try again."
+    );
+  }
+  const sourceIds: string[] = parsed.milestones.map((m: any, index: number) =>
+    typeof m.id === "string" && m.id.trim() ? m.id.trim() : `m${index + 1}`
+  );
+  if (
+    !validPrerequisiteGraph(
+      parsed.milestones.map((m: any, index: number) => ({
+        id: sourceIds[index],
+        prerequisite_ids: m.prerequisite_ids,
+      }))
+    )
+  )
+    throw new Error(
+      "The learning plan contains invalid prerequisite connections. Please try again."
+    );
+  const trackId = `custom-${topic
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .slice(0, 32)}-${Date.now().toString(36)}`;
+  const practiceMode =
+    parsed.practice_mode === "coding" || options.language
+      ? "coding"
+      : "general";
+  const chosenLanguage =
+    practiceMode === "coding"
+      ? normalizeLanguage(parsed.language || options.language)
+      : null;
+  if (practiceMode === "coding" && !chosenLanguage)
+    throw new Error(
+      "The coding plan did not specify a supported programming language. Please try again."
+    );
 
   const track: CourseTrack = {
+    references: reference ? [reference] : undefined,
     id: trackId,
     title: parsed.title || topic,
     tagline: parsed.tagline || `Master ${topic}`,
     language: chosenLanguage,
+    learningIntent: {
+      interest,
+      goal: topic,
+      level: options.level,
+      practiceMode,
+      programmingLanguage: chosenLanguage || undefined,
+    },
     difficulty: parsed.difficulty || level,
     estimatedHours: parsed.estimatedHours || 4,
     description: parsed.description || `Hands-on guided track for ${topic}.`,
     concepts: Array.isArray(parsed.concepts) ? parsed.concepts : [topic],
-    initialPrompt: parsed.initialPrompt || `Welcome to **${parsed.title || topic}**! Let's get started with Milestone 1.`,
+    initialPrompt:
+      parsed.initialPrompt ||
+      `Welcome to **${
+        parsed.title || topic
+      }**! Let's get started with Milestone 1.`,
     milestones: (parsed.milestones || []).map((m: any, idx: number) => ({
       id: `${trackId}-m${idx + 1}`,
       title: m.title || `Milestone ${idx + 1}`,
       concept: m.concept || m.title,
-      prompt: m.prompt || 'Complete the exercise according to the tests.',
-      starter_code: m.starter_code || '// Starter code',
-      test_code: m.test_code || '// Tests',
+      prompt: m.prompt || "Complete the exercise according to the tests.",
+      starter_code:
+        practiceMode === "coding" && typeof m.starter_code === "string"
+          ? m.starter_code
+          : "",
+      test_code:
+        practiceMode === "coding" && typeof m.test_code === "string"
+          ? m.test_code
+          : "",
+      prerequisite_ids: Array.isArray(m.prerequisite_ids)
+        ? m.prerequisite_ids.map(
+            (id: string) => `${trackId}-m${sourceIds.indexOf(id) + 1}`
+          )
+        : undefined,
+      lesson: typeof m.lesson === "string" ? m.lesson : undefined,
+      check: validateLearningCheck(m.check) || undefined,
+      visual:
+        visualForSubject(validateVisualExample(m.visual), chosenLanguage) ||
+        undefined,
       hints: Array.isArray(m.hints) ? m.hints : [],
     })),
   };

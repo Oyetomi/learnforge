@@ -1,4 +1,6 @@
 import React from 'react';
+import { renderToString } from 'katex';
+import 'katex/dist/katex.min.css';
 
 export interface LadderStep {
   rule: string;
@@ -14,79 +16,55 @@ export interface DerivationLadderProps {
   result?: string;
 }
 
-const colorMap = {
-  orange: {
-    color: '#e58055',
-    border: 'border-[#e58055]',
-    text: 'text-[#e58055]',
-    bg: 'bg-[#e58055]/15',
-  },
-  blue: {
-    color: '#4ea8de',
-    border: 'border-[#4ea8de]',
-    text: 'text-[#4ea8de]',
-    bg: 'bg-[#4ea8de]/15',
-  },
-  green: {
-    color: '#52b788',
-    border: 'border-[#52b788]',
-    text: 'text-[#52b788]',
-    bg: 'bg-[#52b788]/15',
-  },
-  amber: {
-    color: '#e5aa72',
-    border: 'border-[#e5aa72]',
-    text: 'text-[#e5aa72]',
-    bg: 'bg-[#e5aa72]/15',
-  },
-  purple: {
-    color: '#b5838d',
-    border: 'border-[#b5838d]',
-    text: 'text-[#b5838d]',
-    bg: 'bg-[#b5838d]/15',
-  },
-  red: {
-    color: '#e63946',
-    border: 'border-[#e63946]',
-    text: 'text-[#e63946]',
-    bg: 'bg-[#e63946]/15',
-  },
+const highlightColors: Record<string, string> = {
+  orange: '#d18b70',
+  blue: '#78aed0',
+  green: '#8bbf92',
+  amber: '#d6b276',
+  purple: '#baa0d0',
+  red: '#d49b94',
 };
 
-/**
- * Parses state string to highlight `[term]:color` or `[term]` in colored rounded pills
- */
 function renderHighlightedState(raw: string) {
-  // Regex matches [content]:color or [content]
-  const regex = /\[([^\]]+)\](?::([a-z]+))?/g;
+  const pattern = /\[([^\]]+)\](?::([a-z]+))?/g;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
-
-  while ((match = regex.exec(raw)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(raw.substring(lastIndex, match.index));
-    }
-    const content = match[1];
-    const colorKey = (match[2] as keyof typeof colorMap) || 'blue';
-    const c = colorMap[colorKey] || colorMap.blue;
-
+  while ((match = pattern.exec(raw)) !== null) {
+    if (match.index > lastIndex) parts.push(raw.slice(lastIndex, match.index));
     parts.push(
-      <span
-        key={match.index}
-        className={`inline-block border-2 ${c.border} ${c.text} ${c.bg} px-1.5 py-0.5 rounded-md font-mono text-base mx-1 font-semibold`}
-      >
-        {content}
-      </span>
+      <mark key={match.index} style={{ color: highlightColors[match[2]] || highlightColors.blue }}>
+        {match[1]}
+      </mark>
     );
-    lastIndex = regex.lastIndex;
+    lastIndex = pattern.lastIndex;
   }
-
-  if (lastIndex < raw.length) {
-    parts.push(raw.substring(lastIndex));
-  }
-
+  if (lastIndex < raw.length) parts.push(raw.slice(lastIndex));
   return parts;
+}
+
+function renderState(raw: string) {
+  const text = raw.trim();
+  const math =
+    text.startsWith('$$') && text.endsWith('$$')
+      ? text.slice(2, -2)
+      : text.startsWith('$') && text.endsWith('$')
+        ? text.slice(1, -1)
+        : text.startsWith('\\(') && text.endsWith('\\)')
+          ? text.slice(2, -2)
+          : text.startsWith('\\[') && text.endsWith('\\]')
+            ? text.slice(2, -2)
+            : null;
+  if (math !== null) {
+    const html = renderToString(math, {
+      displayMode: true,
+      throwOnError: false,
+      trust: false,
+      strict: 'ignore',
+    });
+    return <div className="ladder-formula" dangerouslySetInnerHTML={{ __html: html }} />;
+  }
+  return <code className="ladder-state">{renderHighlightedState(raw)}</code>;
 }
 
 export const DerivationLadder: React.FC<DerivationLadderProps> = ({
@@ -94,120 +72,68 @@ export const DerivationLadder: React.FC<DerivationLadderProps> = ({
   initialState,
   steps,
   result,
-}) => {
-  return (
-    <div className="derivation-ladder my-3 p-5 rounded-xl bg-[#17191c] border border-[#2b2f36] text-[#e6e6e6] shadow-md select-text font-sans">
-      {/* Title Header */}
-      {title && (
-        <div className="font-semibold text-sky-400 text-sm tracking-wide mb-3 uppercase font-mono">
-          {title}
-        </div>
-      )}
-
-      {/* Initial Expression State */}
-      <div className="font-mono text-lg font-medium text-[#f0f0f0] tracking-wide mb-1 pl-1">
-        {renderHighlightedState(initialState)}
-      </div>
-
-      {/* Steps with Directed Vertical Connectors */}
-      <div className="space-y-0.5">
-        {steps.map((step, idx) => {
-          const colorKey = step.color || (['orange', 'blue', 'green', 'amber'][idx % 4] as keyof typeof colorMap);
-          const c = colorMap[colorKey] || colorMap.blue;
-
-          return (
-            <div key={idx} className="step-group flex flex-col">
-              {/* Connector Row: SVG vertical line with arrow and annotation */}
-              <div className="flex items-start gap-3 my-0.5">
-                {/* Vertical Arrow Indicator */}
-                <div className="flex flex-col items-center w-5 shrink-0 pt-0.5">
-                  <svg width="12" height="38" viewBox="0 0 12 38" className="overflow-visible">
-                    <line
-                      x1="6"
-                      y1="0"
-                      x2="6"
-                      y2="30"
-                      stroke={c.color}
-                      strokeWidth="2"
-                    />
-                    <polygon
-                      points="2,28 6,36 10,28"
-                      fill={c.color}
-                    />
-                  </svg>
-                </div>
-
-                {/* Step Annotation */}
-                <div className="flex-1 py-0.5">
-                  <div className="italic text-sm text-[#b0b0b0] font-serif leading-snug">
-                    {step.rule}
-                  </div>
-                  {step.evalText && (
-                    <div className="font-mono text-xs text-[#8d929b] mt-0.5 tracking-tight">
-                      {step.evalText}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* State After Transformation */}
-              <div className="font-mono text-lg font-medium text-[#f0f0f0] tracking-wide pl-1 py-1">
-                {renderHighlightedState(step.state)}
+}) => (
+  <section
+    className="derivation-ladder visual-ladder"
+    aria-label={title || 'Step-by-step explanation'}
+  >
+    <h4>{title || 'Step-by-step explanation'}</h4>
+    <div className="ladder-start">
+      <span>Starting state</span>
+      {renderState(initialState)}
+    </div>
+    <ol className="ladder-steps">
+      {steps.map((step, index) => {
+        const color =
+          highlightColors[step.color || ['orange', 'blue', 'green'][index % 3]] ||
+          highlightColors.blue;
+        return (
+          <li key={index}>
+            <div className="ladder-transition">
+              <span className="ladder-arrow" style={{ color }} aria-hidden="true">
+                <svg width="18" height="100%" viewBox="0 0 18 100" preserveAspectRatio="none">
+                  <line
+                    x1="9"
+                    y1="3"
+                    x2="9"
+                    y2="92"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                  />
+                  <polyline
+                    points="3,86 9,94 15,86"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+              <div className="ladder-annotation">
+                <h5>
+                  <span className="sr-only">Step {index + 1}: </span>
+                  {step.rule}
+                </h5>
+                {step.evalText && (
+                  <div className="ladder-evaluation">{renderState(step.evalText)}</div>
+                )}
               </div>
             </div>
-          );
-        })}
+            <div className="ladder-after">{renderState(step.state)}</div>
+          </li>
+        );
+      })}
+    </ol>
+    {result && (
+      <div className="ladder-result">
+        <span>Result</span>
+        {renderState(result)}
       </div>
-
-      {/* Result Footer */}
-      {result && (
-        <div className="mt-4 pt-3 border-t border-[#2a2e36]">
-          <div className="font-semibold text-sky-400 text-xs uppercase tracking-wider font-mono mb-1">
-            Result
-          </div>
-          <div className="font-mono text-xl font-bold text-emerald-400 pl-1">
-            {renderHighlightedState(result)}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-/**
- * Standard Presets for instant display & verification
- */
-export const MATH_SIMPLIFY_LADDER: DerivationLadderProps = {
-  title: 'Simplify expression',
-  initialState: '6 ÷ 2(1 + 2)',
-  steps: [
-    {
-      rule: 'Rewrite the expression in fractional form',
-      evalText: '6 ÷ 2(1 + 2) = 6 / 2(1 + 2)',
-      state: '6 / 2([1 + 2]:blue)',
-      color: 'orange',
-    },
-    {
-      rule: 'Add numbers',
-      evalText: '1 + 2 = 3',
-      state: '6 / (2 × [3]:blue)',
-      color: 'blue',
-    },
-    {
-      rule: 'Multiply numbers in the denominator',
-      evalText: '2 × 3 = 6',
-      state: '6 / [6]:green',
-      color: 'green',
-    },
-    {
-      rule: 'Dividing the same numbers equals 1',
-      evalText: '6 / 6 = 1',
-      state: '[1]:orange',
-      color: 'orange',
-    },
-  ],
-  result: '1',
-};
+    )}
+  </section>
+);
 
 export const GO_CHANNEL_LADDER: DerivationLadderProps = {
   title: 'Channel Synchronization Handoff',
@@ -232,7 +158,7 @@ export const GO_CHANNEL_LADDER: DerivationLadderProps = {
       color: 'green',
     },
   ],
-  result: 'Zero-copy synchronous transfer complete',
+  result: 'Sender and receiver resume after the handoff',
 };
 
 export const GO_WAITGROUP_LADDER: DerivationLadderProps = {
@@ -343,4 +269,15 @@ export function parseLadderMarkdown(rawText: string): DerivationLadderProps | nu
   }
 
   return null;
+}
+
+/** Read existing coach explanations without another AI request. */
+export function extractDerivationLadders(content: string): DerivationLadderProps[] {
+  const blocks = /^[ \t]*```[ \t]*(?:ladder|steps)[^\r\n]*\r?\n([\s\S]*?)^[ \t]*```[ \t]*$/gim;
+  const ladders: DerivationLadderProps[] = [];
+  for (const match of content.matchAll(blocks)) {
+    const ladder = parseLadderMarkdown(match[1]);
+    if (ladder) ladders.push(ladder);
+  }
+  return ladders;
 }

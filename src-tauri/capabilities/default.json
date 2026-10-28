@@ -1,0 +1,22 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "LearnForge main window. HTTP is limited to the supported AI providers and local services.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "http://localhost:*" },
+        { "url": "http://127.0.0.1:*" },
+        { "url": "https://api.openai.com/*" },
+        { "url": "https://generativelanguage.googleapis.com/*" },
+        { "url": "https://api.anthropic.com/*" },
+        { "url": "https://openrouter.ai/*" },
+        { "url": "https://play.rust-lang.org/*" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { eligibleRetentionCards, retentionRating } from "../retention";
+import { loadLearningPreferences, saveLearningPreferences } from "../preferences";
+import { learningEvidence } from "../checks";
+import { deleteTopicData } from "../topicDeletion";
+import type { CheckAttempt, LearningCheck, LearningSession, Milestone, SRSCard } from "../../../types";
+const now = 200000000;
+const session:LearningSession={id:"s",title:"Words",topic:"Greetings",language:null,created_at:0,updated_at:0};
+const milestone:Milestone={id:"m",session_id:"s",title:"Greeting",prompt:"Greet a friend",starter_code:"",status:"completed",created_at:0};
+const check:LearningCheck={id:"revisit",milestoneId:"m",question:"Which action fits?",options:[{id:"a",label:"A"},{id:"b",label:"B"}],correctOptionIds:["a"],multiple:false,explanation:"A fits."};
+const attempt:CheckAttempt={checkId:check.id,milestoneId:"m",selectedIds:["a"],dontKnow:false,thinking:"",confidence:null,correct:true,submittedAt:1};
+const card:SRSCard={id:"card",session_id:"s",milestone_id:"m",topic:"Words",prompt:"Earlier case",answer:"An idea",created_at:0,difficulty:5,stability:1,reps:0,lapses:0,last_review:null,due_date:1};
+beforeEach(()=>{const values=new Map<string,string>();vi.stubGlobal("localStorage",{getItem:(k:string)=>values.get(k)??null,setItem:(k:string,v:string)=>values.set(k,v),removeItem:(k:string)=>values.delete(k),key:(i:number)=>[...values.keys()][i]??null,get length(){return values.size;}});});
+afterEach(()=>vi.unstubAllGlobals());
+it("is off by default and persists explicit opt-in",()=>{expect(loadLearningPreferences().retention).toBe(false);saveLearningPreferences({retention:true});expect(loadLearningPreferences().retention).toBe(true);});
+it("offers only due, older, topic-owned cards with an existing concept",()=>{
+  expect(eligibleRetentionCards([card,{...card,id:"other",session_id:"another"},{...card,id:"new",created_at:now},{...card,id:"later",due_date:now+1},{...card,id:"gone",milestone_id:"deleted"}],session,[milestone],now)).toEqual([card]);
+});
+it("uses recorded performance and support, never a caller's correct flag, for scheduling",()=>{
+  expect(retentionRating(check,attempt)).toBe(3);
+  expect(retentionRating(check,{...attempt,assisted:true})).toBe(2);
+  expect(retentionRating(check,{...attempt,selectedIds:["b"],correct:true})).toBe(1);
+  expect(retentionRating(check,{...attempt,dontKnow:true})).toBe(1);
+  expect(retentionRating(check,{...attempt,checkId:"other"})).toBeNull();
+  expect(retentionRating(check,{...attempt,grading:{status:"uncertain",feedback:"Unclear",criteria:[]}})).toBeNull();
+});
+it("keeps revisit outcomes out of mastery, finalizes scheduling once, and deletes their drafts with the topic",async()=>{
+  const {LocalDatabase}=await import("../../db/storage");const db=new LocalDatabase();
+  const s=db.createSession({title:"Words",topic:"Greeting",language:null,track_id:"words"});
+  const m=db.createMilestone({...milestone,session_id:s.id});
+  const c=db.createCard({...card,session_id:s.id,milestone_id:m.id});
+  const q={...check,milestoneId:m.id};const a={...attempt,milestoneId:m.id};
+  const message=db.addMessage({session_id:s.id,role:"user",content:"Revisit",retention_review:{cardId:c.id,check:q,attempt:a}});
+  expect(learningEvidence(db.getMessages(s.id),m.id).independentCorrect).toBe(0);
+  expect(db.finishRetentionReview(s.id,message.id)).toBe(true);
+  const due=db.getAllCards()[0].due_date;
+  expect(db.finishRetentionReview(s.id,message.id)).toBe(false);
+  expect(db.getAllCards()[0].due_date).toBe(due);
+  localStorage.setItem(`learnforge:check-draft:${q.id}`,"private response");localStorage.setItem(`learnforge:retention-dismissed:${s.id}`,"today");
+  deleteTopicData(db,{id:"words",title:"Words"});
+  expect(new LocalDatabase().getAllCards()).toEqual([]);
+  expect(localStorage.getItem(`learnforge:check-draft:${q.id}`)).toBeNull();expect(localStorage.getItem(`learnforge:retention-dismissed:${s.id}`)).toBeNull();
+});
+it("does not schedule uncertain or disputed feedback when a revisit finishes",async()=>{
+  const {LocalDatabase}=await import("../../db/storage");const db=new LocalDatabase();const s=db.createSession({title:"Words",topic:"Greetings",language:null});
+  const c=db.createCard({...card,session_id:s.id});
+  const a={...attempt,grading:{status:"correct" as const,feedback:"Accepted",criteria:[{id:"meaning",met:true}]}};
+  const message=db.addMessage({session_id:s.id,role:"user",content:"Revisit",retention_review:{cardId:c.id,check,attempt:a}});
+  const disputed=db.disputeRetentionReview(s.id,message.id)!;
+  expect(disputed.attempt.grading?.status).toBe("uncertain");
+  db.finishRetentionReview(s.id,message.id);
+  expect(db.getAllCards()[0].reps).toBe(0);
+});

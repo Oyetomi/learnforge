@@ -3,6 +3,10 @@
 Date: 26 October 2026  
 Scope: the existing React/Tauri learning workspace, learning path, AI coaching, code execution feedback, and daily review.
 
+**Latest product direction:** see [Product design and learning experience research](product-experience-research.md). It supersedes the editor-first and separate teaching-mode recommendations below.
+
+This document records successive design passes. The integration-pass section at the end reflects the latest app, including custom tracks, step-by-step explanations, and the added Rust runner.
+
 ## Design goal
 
 Make it obvious what to work on and how to check the result. The default screen should show the current challenge and its code. Coaching, instructions, and review should appear when needed.
@@ -147,7 +151,7 @@ Verification:
 - Go execution failure: diagnostic output appears without discarding code.
 - Reduced-motion handling is implemented in CSS and editor options. A full assistive-technology and accessibility-conformance audit has not been performed.
 
-## Remaining product issues
+## Product issues recorded during the first pass
 
 - The existing built-in Go simulator reports `Unexpected reserved word` for the seeded worker-pool example. The UI now displays that failure clearly. Supporting full Go semantics requires separate runtime work.
 - Rust execution is not implemented. Editing and coaching remain available; Run code is disabled with an explanation.
@@ -216,3 +220,61 @@ No animated cursor effects, parallax, ambient pulsing, glassmorphism, ornamental
 ## Review of supplied screenshots
 
 The supplied images identified a harsh square focus outline on the track selector and a visually separate review dialog. The selector now uses a rounded, subdued focus treatment. Review uses the workspace’s typography, neutral surfaces, and consistent controls. Topic labels no longer introduce a separate blue accent, rating choices no longer compete with four different color systems, questions render inline code properly, and the answer has one surface instead of nested cards. Revealing an answer focuses the answer region for reading, rather than automatically highlighting a rating choice.
+
+## Integration pass: custom tracks and step-by-step explanations
+
+The next implementation added custom curriculum generation, a Rust runner, and visual derivation blocks. This pass preserves those capabilities and integrates them into the existing design system.
+
+### Findings and changes
+
+| Finding in the updated app                                                                                    | Resulting change                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The header displayed the same course in both a heading and dropdown. Topic creation appeared in three places. | One labeled track selector and one New topic action, available at desktop and mobile widths.                                                                                    |
+| Opening the lesson auto-scrolled past its brief to the welcome message.                                       | Challenge opens as its own stable view. Coach conversation scrolls independently and keeps the selected challenge in a small context bar.                                       |
+| Every language showed hard-coded Go derivations, with an unrelated arithmetic demo.                           | Walk-through requests use the actual challenge and editor code. Existing AI-generated ladder blocks still render; preset demos are not substituted for the selected curriculum. |
+| Derivations introduced oversized colored boxes, emoji buttons, and serif annotations.                         | Compact numbered steps, restrained highlights, monospace states, and shared interface typography.                                                                               |
+| An empty output area consumed much of the editor before the first run.                                        | Output starts collapsed, opens automatically when code runs, and remains accessible through its tabs.                                                                           |
+| Topic generation trapped users in a modal with no cancellation, timeout, or focus containment.                | Native dialog with Escape, focus restoration, a live loading status, cancellation via AbortController, and a 60-second timeout. The topic stays available after an error.       |
+| Malformed or empty AI curricula could lead to an empty workspace.                                             | Validate three complete milestones before adding a track. Return a useful retry message instead of raw JSON parsing errors.                                                     |
+| Successful Rust compiler output on stderr could be reported as failure.                                       | Exit status and actual failed tests determine success. Diagnostic text alone does not prevent completion. Rust execution is labeled Rust Playground · online.                   |
+
+### Validation
+
+- Browser inspection covers the default challenge, coach view, topic dialog, and responsive navigation.
+- Unit coverage verifies valid topic generation, cancellation propagation, incomplete plans, and invalid JSON without calling a live AI service.
+- Existing sandbox and spaced-review tests remain part of verification.
+- No custom track is generated during browser inspection; request cancellation and invalid-response behavior are verified with mocked fetch responses.
+
+The earlier Rust-unavailable note describes the initial implementation. The updated runner submits Rust code to Rust Playground, so the current interface identifies the remote runtime. These changes do not establish full Rust language coverage or a complete accessibility certification.
+
+### Track-picker follow-up
+
+The supplied macOS screenshot exposed the platform select menu’s poor fit for long custom-track names. Track switching now uses an in-app popover with search, a bounded scrolling list, wrapping titles, language labels, and a selected checkmark. The popover is constrained to the viewport, supports arrow keys and Enter, closes on Escape or outside interaction, and restores focus after selection. No native blue selection style or oversized platform menu is involved.
+
+Verification for this pass: production compilation passes; 28 tests across 7 files cover the existing runners, curriculum cancellation/validation, and semantic rendering of visual explanations. Browser checks include track search/selection, empty search, keyboard behavior, topic suggestions and modal dismissal, responsive navigation, and collapsed output. AI curriculum and walk-through generation are not called during visual checks.
+
+Latest screenshots:
+
+![Refined desktop workspace](design/workspace-refined.png)
+
+![Searchable track picker](design/track-picker.png)
+
+![Topic creation using the shared modal style](design/new-topic.png)
+
+![Track picker constrained to a 390px viewport](design/track-picker-mobile.png)
+
+The mobile picker was measured at 366px wide with 12px margins inside a 390px viewport. Keyboard Tab exits to the next header action. An unfinished coach message was also verified to survive Challenge/Coach switching without being sent.
+
+## Derivation Ladder discoverability and overflow correction
+
+The user could no longer find the ladder after it was folded into a generic Walk through action. Derivation Ladder now has a named desktop tab, a Ladder mobile view, and a direct link from the challenge. Opening it reads existing `ladder` and legacy `steps` blocks from the current track’s coach history; it does not require another AI request. Users can move between saved explanations or explicitly generate one for the current challenge.
+
+The supplied Raft screenshot also exposed horizontal scrolling. A global inline-code rule was overriding the ladder’s wrapping behavior. Ladder state strings, evaluation text, and highlighted terms now wrap within the pane, including long unbroken identifiers.
+
+The repository has no live application-preview feature to restore. The main workspace and code editor remain available; this change does not add a separate application builder.
+
+### Visual-reference correction
+
+The arithmetic image was a visual reference, not a request for unrelated course content. The temporary Worked example source was removed from the app. The reference now informs only the presentation: a subtle graph-paper canvas, colored transition arrows, highlighted state terms, explanatory annotations, and typeset formulas when real derivations contain math. Arithmetic data remains only in rendering-test fixtures.
+
+Verification uses a separate, ignored layout fixture based on the supplied Raft explanation, so the check does not modify learning history. At a 390px viewport, page width and scroll width are both 390px; the ladder canvas width and scroll width are both 321px, including a deliberately long unbroken state identifier. Existing `ladder` and legacy `steps` blocks are recovered from saved coach messages without an AI request. The main application exposes Derivation Ladder directly beside Challenge and Coach, and under Ladder on narrow screens.

@@ -10,8 +10,23 @@
  * - Zero external dependencies.
  */
 
-import { AI_CONFIG, type ChatMessage, type Milestone, type StreamOptions } from './types';
-import { buildSocraticSystemPrompt, formatConversationMessages } from './prompts';
+import {
+  AI_CONFIG,
+  type ChatMessage,
+  type Milestone,
+  type StreamOptions,
+} from "./types";
+import {
+  buildSocraticSystemPrompt,
+  expandMultimodalMessageContent,
+  formatConversationMessages,
+} from "./prompts";
+import {
+  AIConnectionError,
+  aiFetch,
+  loadAIConnection,
+  recordUsage,
+} from "./connection";
 
 /**
  * Custom error class for AI client errors with status and model metadata
@@ -21,9 +36,14 @@ export class AIClientError extends Error {
   readonly model: string;
   readonly isFallbackAttempt: boolean;
 
-  constructor(message: string, model: string, status?: number, isFallbackAttempt = false) {
+  constructor(
+    message: string,
+    model: string,
+    status?: number,
+    isFallbackAttempt = false
+  ) {
     super(message);
-    this.name = 'AIClientError';
+    this.name = "AIClientError";
     this.model = model;
     this.status = status;
     this.isFallbackAttempt = isFallbackAttempt;
@@ -36,34 +56,37 @@ export class AIClientError extends Error {
 async function streamSingleModelAttempt(
   apiUrl: string,
   model: string,
-  formattedMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+  formattedMessages: Array<{
+    role: "system" | "user" | "assistant";
+    content: string;
+  }>,
   options?: StreamOptions
 ): Promise<string> {
   const signal = options?.abortSignal;
   if (signal?.aborted) {
-    throw new DOMException('Request aborted by user', 'AbortError');
+    throw new DOMException("Request aborted by user", "AbortError");
   }
 
   const payload = {
     model,
-    messages: formattedMessages,
+    messages: formattedMessages.map((m) =>
+      m.role === "user"
+        ? { role: m.role, content: expandMultimodalMessageContent(m.content) }
+        : m
+    ),
     stream: true,
     temperature: options?.temperature ?? AI_CONFIG.DEFAULT_TEMPERATURE,
     ...(options?.maxTokens ? { max_tokens: options.maxTokens } : {}),
   };
 
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-    },
-    body: JSON.stringify(payload),
+  const response = await aiFetch(payload, {
     signal,
+    stream: true,
+    connection: { ...loadAIConnection(), url: apiUrl },
   });
 
   if (!response.ok) {
-    let errorDetails = '';
+    let errorDetails = "";
     try {
       const errBody = await response.text();
       errorDetails = `: ${errBody}`;
@@ -71,20 +94,25 @@ async function streamSingleModelAttempt(
       // Ignore text read error
     }
     throw new AIClientError(
-      `Proxy request failed with HTTP ${response.status} (${response.statusText})${errorDetails}`,
+      `AI request failed with HTTP ${response.status} (${response.statusText})${errorDetails}`,
       model,
       response.status
     );
   }
 
   if (!response.body) {
-    throw new AIClientError('ReadableStream not supported by environment or response body is empty', model);
+    throw new AIClientError(
+      "ReadableStream not supported by environment or response body is empty",
+      model
+    );
   }
 
   const reader = response.body.getReader();
-  const decoder = new TextDecoder('utf-8');
-  let accumulatedText = '';
-  let lineBuffer = '';
+  const decoder = new TextDecoder("utf-8");
+  let accumulatedText = "";
+  let lineBuffer = "";
+  let streamUsage: { prompt_tokens?: number; completion_tokens?: number } | null =
+    null;
 
   try {
     while (true) {
@@ -94,36 +122,37 @@ async function streamSingleModelAttempt(
         } catch {
           // Ignore cancellation errors
         }
-        throw new DOMException('Request aborted by user', 'AbortError');
+        throw new DOMException("Request aborted by user", "AbortError");
       }
 
       const { done, value } = await reader.read();
       if (done) break;
 
       lineBuffer += decoder.decode(value, { stream: true });
-      const lines = lineBuffer.split('\n');
-      lineBuffer = lines.pop() ?? ''; // keep trailing partial line
+      const lines = lineBuffer.split("\n");
+      lineBuffer = lines.pop() ?? ""; // keep trailing partial line
 
       for (const line of lines) {
         const trimmed = line.trim();
         // Ignore empty lines and SSE ping comments
-        if (!trimmed || trimmed.startsWith(':')) continue;
+        if (!trimmed || trimmed.startsWith(":")) continue;
 
-        if (trimmed === 'data: [DONE]') {
+        if (trimmed === "data: [DONE]") {
           // Stream successfully terminated by server
           break;
         }
 
-        if (trimmed.startsWith('data: ')) {
+        if (trimmed.startsWith("data: ")) {
           const jsonStr = trimmed.slice(6).trim();
           if (!jsonStr) continue;
 
           try {
             const parsed = JSON.parse(jsonStr);
+            if (parsed.usage) streamUsage = parsed.usage;
             const delta =
               parsed.choices?.[0]?.delta?.content ??
               parsed.choices?.[0]?.text ??
-              '';
+              "";
 
             if (delta) {
               accumulatedText += delta;
@@ -137,12 +166,12 @@ async function streamSingleModelAttempt(
     }
 
     // Process any residual content in buffer
-    if (lineBuffer.trim().startsWith('data: ')) {
+    if (lineBuffer.trim().startsWith("data: ")) {
       const jsonStr = lineBuffer.trim().slice(6).trim();
-      if (jsonStr && jsonStr !== '[DONE]') {
+      if (jsonStr && jsonStr !== "[DONE]") {
         try {
           const parsed = JSON.parse(jsonStr);
-          const delta = parsed.choices?.[0]?.delta?.content ?? '';
+          const delta = parsed.choices?.[0]?.delta?.content ?? "";
           if (delta) {
             accumulatedText += delta;
             options?.onChunk?.(delta);
@@ -153,6 +182,12 @@ async function streamSingleModelAttempt(
       }
     }
 
+    recordUsage(streamUsage, {
+      prompt: formattedMessages
+        .map((m) => m.content.replace(/data:image\/[^)\s]+/g, "[image]"))
+        .join("\n"),
+      completion: accumulatedText,
+    });
     return accumulatedText;
   } finally {
     reader.releaseLock();
@@ -175,15 +210,18 @@ export async function streamSocraticChat(
   currentCode?: string,
   options?: StreamOptions
 ): Promise<string> {
-  const apiUrl = options?.apiUrl ?? AI_CONFIG.DEFAULT_API_URL;
-  const primaryModel = options?.model ?? AI_CONFIG.DEFAULT_MODEL;
-  const fallbackModel = options?.fallbackModel ?? AI_CONFIG.FALLBACK_MODEL;
+  const connection = loadAIConnection();
+  const apiUrl = options?.apiUrl ?? connection.url;
+  const primaryModel = options?.model ?? connection.model;
+  const fallbackModel = options?.fallbackModel ?? connection.fallbackModel;
 
   // Build Socratic prompt with active milestone context & student's current code
   const systemPrompt = buildSocraticSystemPrompt(
     activeMilestone,
     currentCode,
-    activeMilestone ? undefined : undefined
+    undefined,
+    options?.activeCheck,
+    [...messages].reverse().find((message) => message.role === "user")?.content || ""
   );
   const formattedMessages = formatConversationMessages(messages, systemPrompt);
 
@@ -198,17 +236,27 @@ export async function streamSocraticChat(
 
   try {
     // Attempt 1: Primary Model
-    const result = await streamSingleModelAttempt(apiUrl, primaryModel, formattedMessages, wrappedOptions);
+    const result = await streamSingleModelAttempt(
+      apiUrl,
+      primaryModel,
+      formattedMessages,
+      wrappedOptions
+    );
     options?.onComplete?.(result);
     return result;
   } catch (err: unknown) {
     // Check if user cancelled request
-    if (err instanceof DOMException && err.name === 'AbortError') {
+    if (err instanceof DOMException && err.name === "AbortError") {
       throw err;
     }
 
-    // If we already sent chunks to the UI or if primary and fallback are identical, cannot cleanly fallback
-    if (streamedAnyChunk || primaryModel === fallbackModel) {
+    // If we already sent chunks to the UI, the provider itself is unreachable/misconfigured,
+    // or primary and fallback are identical, we cannot cleanly fallback
+    if (
+      streamedAnyChunk ||
+      primaryModel === fallbackModel ||
+      err instanceof AIConnectionError
+    ) {
       const errorObj = err instanceof Error ? err : new Error(String(err));
       options?.onError?.(errorObj);
       throw errorObj;
@@ -216,7 +264,9 @@ export async function streamSocraticChat(
 
     // Attempt 2: Fallback Model
     console.warn(
-      `[LearnForge AI] Primary model ${primaryModel} failed (${(err as Error).message}). Falling back to ${fallbackModel}...`
+      `[LearnForge AI] Primary model ${primaryModel} failed (${
+        (err as Error).message
+      }). Falling back to ${fallbackModel}...`
     );
 
     try {
@@ -229,10 +279,16 @@ export async function streamSocraticChat(
       options?.onComplete?.(fallbackResult);
       return fallbackResult;
     } catch (fallbackErr: unknown) {
-      if (fallbackErr instanceof DOMException && fallbackErr.name === 'AbortError') {
+      if (
+        fallbackErr instanceof DOMException &&
+        fallbackErr.name === "AbortError"
+      ) {
         throw fallbackErr;
       }
-      const errorObj = fallbackErr instanceof Error ? fallbackErr : new Error(String(fallbackErr));
+      const errorObj =
+        fallbackErr instanceof Error
+          ? fallbackErr
+          : new Error(String(fallbackErr));
       options?.onError?.(errorObj);
       throw errorObj;
     }
@@ -246,7 +302,7 @@ export async function sendSocraticChat(
   messages: ChatMessage[],
   activeMilestone?: Milestone,
   currentCode?: string,
-  options?: Omit<StreamOptions, 'onChunk'>
+  options?: Omit<StreamOptions, "onChunk">
 ): Promise<string> {
   return streamSocraticChat(messages, activeMilestone, currentCode, options);
 }

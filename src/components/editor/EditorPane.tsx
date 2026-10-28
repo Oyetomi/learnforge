@@ -31,6 +31,7 @@ interface EditorPaneProps {
   draftStatus: 'saved' | 'saving' | 'memory';
   milestoneId?: string;
   onNextMilestone?: () => void;
+  onClose?: () => void;
 }
 
 const fileNames: Record<SupportedLanguage, string> = {
@@ -60,6 +61,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   draftStatus,
   milestoneId,
   onNextMilestone,
+  onClose,
 }) => {
   const [reducedMotion, setReducedMotion] = useState(
     () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -70,8 +72,10 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     preference.addEventListener('change', update);
     return () => preference.removeEventListener('change', update);
   }, []);
-  const [activeBottomTab, setActiveBottomTab] = useState<'console' | 'tests'>('console');
-  const [outputOpen, setOutputOpen] = useState(true);
+  const [activeBottomTab, setActiveBottomTab] = useState<'console' | 'tests'>(
+    'console'
+  );
+  const [outputOpen, setOutputOpen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetUndo, setResetUndo] = useState<string | null>(null);
   const resetFocus = useRef(false);
@@ -88,15 +92,19 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   }, [confirmReset, resetUndo]);
   const runtimeAvailable = true;
   const testsCount = executionResult?.testResults?.length || 0;
-  const passedTests = executionResult?.testResults?.filter((t) => t.passed).length || 0;
+  const passedTests =
+    executionResult?.testResults?.filter((t) => t.passed).length || 0;
   const failed =
     executionResult &&
-    (executionResult.exitCode !== 0 || !!executionResult.error || !!executionResult.stderr);
+    (executionResult.exitCode !== 0 ||
+      !!executionResult.error ||
+      !!executionResult.testResults?.some((test) => !test.passed));
   useEffect(() => {
     resetFocus.current = false;
     setConfirmReset(false);
     setResetUndo(null);
     setActiveBottomTab('console');
+    setOutputOpen(false);
   }, [milestoneId, language]);
   useEffect(() => {
     if (isRunning) {
@@ -105,7 +113,9 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     }
     if (executionResult) {
       setOutputOpen(true);
-      setActiveBottomTab(executionResult.testResults?.length && !failed ? 'tests' : 'console');
+      setActiveBottomTab(
+        executionResult.testResults?.length && !failed ? 'tests' : 'console'
+      );
     }
   }, [executionResult, isRunning]);
   useEffect(() => {
@@ -123,13 +133,25 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     return () => window.removeEventListener('keydown', handleKey);
   }, [onRunCode, isRunning, runtimeAvailable]);
   return (
-    <section className="editor-pane workspace-panel" aria-label="Code workspace">
+    <section
+      className="editor-pane workspace-panel"
+      aria-label="Code workspace"
+    >
       <div className="editor-toolbar">
         <span className="editor-heading">
           <Code2 size={16} />
           Code workspace
         </span>
         <div className="editor-actions">
+          {onClose && (
+            <button
+              className="icon-button"
+              onClick={onClose}
+              aria-label="Close code workspace"
+            >
+              <X size={15} />
+            </button>
+          )}
           {confirmReset ? (
             <div className="reset-confirm">
               <span>Discard edits?</span>
@@ -144,7 +166,10 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
               >
                 <Check size={15} />
               </button>
-              <button onClick={() => setConfirmReset(false)} aria-label="Cancel reset">
+              <button
+                onClick={() => setConfirmReset(false)}
+                aria-label="Cancel reset"
+              >
                 <X size={15} />
               </button>
             </div>
@@ -201,10 +226,10 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             {language === 'go'
               ? 'GO'
               : language === 'python'
-                ? 'PY'
-                : language === 'rust'
-                  ? 'RS'
-                  : 'JS'}
+              ? 'PY'
+              : language === 'rust'
+              ? 'RS'
+              : 'JS'}
           </span>
           {fileNames[language]}
           <span
@@ -213,8 +238,8 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
               draftStatus === 'saved'
                 ? 'Saved on this device'
                 : draftStatus === 'saving'
-                  ? 'Saving changes'
-                  : 'In-memory draft'
+                ? 'Saving changes'
+                : 'In-memory draft'
             }
           />
         </span>
@@ -223,7 +248,10 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       {!runtimeAvailable && (
         <div className="runtime-notice">
           <AlertCircle size={15} />
-          <span>You can edit and discuss Rust code here. Running Rust isn’t supported yet.</span>
+          <span>
+            You can edit and discuss Rust code here. Running Rust isn’t
+            supported yet.
+          </span>
         </div>
       )}
       <div className="monaco-container">
@@ -262,7 +290,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             minimap: { enabled: false },
             fontSize: 13,
             lineHeight: 22,
-            fontFamily: "'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace",
+            fontFamily: "'JetBrains Mono', ui-monospace, monospace",
             tabSize: 4,
             automaticLayout: true,
             scrollBeyondLastLine: false,
@@ -290,27 +318,35 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       <div className="editor-statusbar">
         <span role="status" aria-live="polite">
           <span
-            className={`tiny-dot ${isRunning || draftStatus === 'saving' ? 'running-dot' : ''}`}
+            className={`tiny-dot ${
+              isRunning || draftStatus === 'saving' ? 'running-dot' : ''
+            }`}
           />
           {isRunning
             ? 'Executing code'
             : draftStatus === 'saving'
-              ? 'Saving changes…'
-              : draftStatus === 'saved'
-                ? 'Saved on this device'
-                : 'Device storage unavailable'}
+            ? 'Saving changes…'
+            : draftStatus === 'saved'
+            ? 'Saved on this device'
+            : 'Device storage unavailable'}
         </span>
         <span>
           {language === 'go'
             ? 'Go simulator'
+            : language === 'rust'
+            ? 'Rust Playground · online'
             : runtimeAvailable
-              ? languageNames[language]
-              : 'Editor only'}
+            ? languageNames[language]
+            : 'Editor only'}
         </span>
       </div>
       <div className={`output-section ${outputOpen ? 'is-open' : ''}`}>
         <div className="output-tabs">
-          <div role="tablist" aria-label="Code output" onKeyDown={handleTabNavigation}>
+          <div
+            role="tablist"
+            aria-label="Code output"
+            onKeyDown={handleTabNavigation}
+          >
             <button
               role="tab"
               id="console-tab"
@@ -339,7 +375,11 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
               <CheckCircle2 size={14} />
               Tests
               {testsCount > 0 && (
-                <span className={`test-count ${passedTests === testsCount ? 'passing' : ''}`}>
+                <span
+                  className={`test-count ${
+                    passedTests === testsCount ? 'passing' : ''
+                  }`}
+                >
                   {passedTests}/{testsCount}
                 </span>
               )}
@@ -359,7 +399,9 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             className="output-content"
             role="tabpanel"
             id={activeBottomTab === 'console' ? 'console-panel' : 'tests-panel'}
-            aria-labelledby={activeBottomTab === 'console' ? 'console-tab' : 'tests-tab'}
+            aria-labelledby={
+              activeBottomTab === 'console' ? 'console-tab' : 'tests-tab'
+            }
           >
             {activeBottomTab === 'console' ? (
               <OutputConsole
@@ -392,12 +434,12 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
         {isRunning
           ? 'Running code'
           : executionResult
-            ? failed
-              ? 'Execution failed. See output for details.'
-              : testsCount
-                ? `${passedTests} of ${testsCount} tests passed.`
-                : 'Execution complete.'
-            : ''}
+          ? failed
+            ? 'Execution failed. See output for details.'
+            : testsCount
+            ? `${passedTests} of ${testsCount} tests passed.`
+            : 'Execution complete.'
+          : ''}
       </span>
     </section>
   );

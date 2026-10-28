@@ -3,17 +3,33 @@
  * Strict TypeScript types for streaming client, challenge parser, and curriculum tracks.
  */
 
-import type { ChatMessage, Milestone, SupportedLanguage, LearningSession } from '../../types';
+import type { VisualExample } from "../learning/visuals";
+import type {
+  ChatMessage,
+  Milestone,
+  SupportedLanguage,
+  LearningSession,
+  LearningCheckSpec,
+  LearningIntent,
+  PlacementPlan,
+  LearningReference,
+} from "../../types";
 
-export type { ChatMessage, Milestone, SupportedLanguage, LearningSession };
+export type {
+  ChatMessage,
+  Milestone,
+  SupportedLanguage,
+  LearningSession,
+  LearningCheckSpec,
+};
 
 /**
  * Standard configuration defaults for the local AI proxy
  */
 export const AI_CONFIG = {
-  DEFAULT_API_URL: 'http://127.0.0.1:10532/v1/chat/completions',
-  DEFAULT_MODEL: 'gemini-3.8-flash-high',
-  FALLBACK_MODEL: 'gemini-4-argon',
+  DEFAULT_API_URL: "http://127.0.0.1:10532/v1/chat/completions",
+  DEFAULT_MODEL: "gemini-3.8-flash-high",
+  FALLBACK_MODEL: "gemini-4-argon",
   DEFAULT_TEMPERATURE: 0.65,
   REQUEST_TIMEOUT_MS: 45000,
 } as const;
@@ -48,6 +64,7 @@ export interface ParsedChallengeResult {
  * Options for the Socratic streaming chat client
  */
 export interface StreamOptions {
+  activeCheck?: LearningCheckSpec;
   /** Invoked for each incremental text delta streamed from the LLM */
   onChunk?: (text: string) => void;
   /** Invoked once when the full stream completes successfully */
@@ -79,17 +96,24 @@ export interface CourseMilestoneTemplate {
   starter_code: string;
   test_code: string;
   hints?: string[];
+  prerequisite_ids?: string[];
+  lesson?: string;
+  visual?: VisualExample;
+  check?: LearningCheckSpec;
 }
 
 /**
  * Full curriculum track definition
  */
 export interface CourseTrack {
+  references?: LearningReference[];
   id: string;
   title: string;
   tagline: string;
-  language: SupportedLanguage;
-  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
+  language: SupportedLanguage | null;
+  learningIntent?: LearningIntent;
+  placement?: PlacementPlan;
+  difficulty: "Beginner" | "Intermediate" | "Advanced";
   estimatedHours: number;
   description: string;
   concepts: string[];

@@ -33,10 +33,10 @@ export const OutputConsole: React.FC<OutputConsoleProps> = ({
         </div>
       ) : hasResult ? (
         <>
-          <div className={`execution-summary ${exitCode !== 0 || stderr ? 'has-error' : ''}`}>
+          <div className={`execution-summary ${exitCode !== 0 ? 'has-error' : ''}`}>
             <span>
-              {exitCode === 0 && !stderr ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
-              {exitCode === 0 && !stderr ? 'Execution complete' : 'Execution failed'}
+              {exitCode === 0 ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
+              {exitCode === 0 ? 'Execution complete' : 'Execution failed'}
               {durationMs !== undefined && <small>{durationMs.toFixed(0)} ms</small>}
             </span>
             <button onClick={onClear} className="icon-button" aria-label="Clear output">
@@ -47,8 +47,12 @@ export const OutputConsole: React.FC<OutputConsoleProps> = ({
             {stdout && <pre>{stdout}</pre>}
             {stderr && (
               <>
-                {errorGuidance && <p className="output-guidance">{errorGuidance}</p>}
-                <pre className="console-error">{stderr}</pre>
+                {exitCode !== 0 && errorGuidance && (
+                  <p className="output-guidance">{errorGuidance}</p>
+                )}
+                <pre className={exitCode === 0 ? 'console-diagnostic' : 'console-error'}>
+                  {stderr}
+                </pre>
               </>
             )}
             {!stdout && !stderr && (
