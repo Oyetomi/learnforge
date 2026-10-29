@@ -1,0 +1,20 @@
+.retention-session > header h2 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  font-weight: 500;
+  color: var(--heading, #edf0f4);
+}
+.retention-session > header h2:focus-visible {
+  outline: 2px solid var(--accent, #e5aa72);
+  outline-offset: 4px;
+}
+.retention-session > header > div {
+  min-width: 0;
+}
+.retention-session > header {
+  flex-shrink: 0;
+}
+.retention-offer button {
+  min-height: 36px;
+}

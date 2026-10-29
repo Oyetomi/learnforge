@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from "react";
-import { Code2, BookOpen } from "lucide-react";
+import { Code2, BookOpen, Route, Loader2 } from "lucide-react";
 import { handleTabNavigation } from "./components/layout/keyboard";
 import { Header } from "./components/layout/Header";
 import { MilestoneSidebar } from "./components/milestones/MilestoneSidebar";
@@ -22,6 +22,9 @@ import { isAcceptedFreeResponseGrade } from "./services/learning/freeResponse";
 import { RetentionFlow } from "./components/learning/RetentionFlow";
 import { deleteTopicData } from "./services/learning/topicDeletion";
 import { topicsInWorkspace, savedTopicIds } from "./services/learning/topics";
+import { CurriculumWorkspace } from "./components/curriculum/CurriculumWorkspace";
+import { curriculumForTrack, curriculumUnits } from "./services/learning/curriculumPlan";
+import { prepareCurriculumUnit } from "./services/ai/curriculumOutline";
 import { NewTopicModal } from "./components/curriculum/NewTopicModal";
 import {
   LearningSession,
@@ -35,6 +38,7 @@ import {
 } from "./types";
 import { db } from "./services/db";
 import { planAdaptiveRepair } from "./services/learning/planner";
+import { answerTutoring, answerTutoringPrompt, tutoringAttemptKey } from "./services/learning/tutoring";
 import {
   acceptsReadiness,
   approvedLessonIds,
@@ -97,6 +101,12 @@ export default function App() {
     } catch {}
     return visibleTracks[0]?.id || "";
   });
+  const [workspaceView, setWorkspaceView] = useState<"session" | "curriculum">("session");
+  const [unitPreparation, setUnitPreparation] = useState<{ id: string; state: "loading" | "error" | "cancelled"; error?: string } | null>(null);
+  const [preparationRetry, setPreparationRetry] = useState(0);
+  const [diagnosticFor, setDiagnosticFor] = useState<string | null>(null);
+  const unitController = useRef<AbortController | null>(null);
+  const selectedTrack = tracks.find(t => t.id === currentTrackId);
   const [isNewTopicModalOpen, setIsNewTopicModalOpen] = useState(false);
   const [isManageTopicsOpen, setIsManageTopicsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -301,10 +311,17 @@ export default function App() {
 
     // Seed an existing empty session as well as a newly created session.
     if (db.getMilestones(session.id).length === 0) {
-      // Populate track milestones into db
-      const createdMilestones = track.milestones.map((m) => {
-        return db.createMilestone({
-          session_id: session!.id,
+      db.seedMilestonePlan(session.id, track.milestones.map(m => ({
+          sourceId: m.id,
+          curriculum_unit_id: m.id,
+          curriculum_module_id: track.curriculum?.modules.find(module => module.units.some(u => u.id === m.id))?.id,
+          content_status: m.contentStatus,
+          curriculum_context: track.curriculum ? {
+            goal: track.curriculum.originalGoal, destination: track.curriculum.destination,
+            module: track.curriculum.modules.find(module => module.units.some(u => u.id === m.id))?.title || "",
+            assessment: curriculumUnits(track.curriculum).find(u => u.id === m.id)?.assessment || "",
+            version: track.curriculum.version,
+          } : undefined,
           learning_intent: session!.learning_intent,
           references: session!.references,
           title: m.title,
@@ -314,22 +331,8 @@ export default function App() {
           lesson: m.lesson,
           visual: m.visual,
           ...plannedMilestoneFields(track, m.id),
-        });
-      });
-      track.milestones.forEach((template, index) => {
-        if (template.prerequisite_ids)
-          db.updateMilestonePrerequisites(
-            createdMilestones[index].id,
-            template.prerequisite_ids
-              .map(
-                (id) =>
-                  createdMilestones[
-                    track.milestones.findIndex((item) => item.id === id)
-                  ]?.id
-              )
-              .filter((id): id is string => !!id)
-          );
-      });
+          prerequisite_ids: m.prerequisite_ids,
+      })));
     }
 
     setCurrentSession(session);
@@ -394,21 +397,13 @@ export default function App() {
 
   // Handle new custom track created dynamically by AI
   const handleTrackCreated = (newTrack: CourseTrack) => {
-    setTracks((prev) => {
-      const updated = [...prev, newTrack];
-      try {
-        const customOnly = updated.filter(
-          (t) => !STARTER_TRACKS.some((st) => st.id === t.id)
-        );
-        localStorage.setItem(
-          "learnforge:custom-tracks",
-          JSON.stringify(customOnly)
-        );
-      } catch {}
-      return updated;
-    });
+    const updated = [...tracks, newTrack];
+    // Persist the approved outline before committing the UI. Quota errors leave review open.
+    localStorage.setItem("learnforge:custom-tracks", JSON.stringify(updated.filter(t => !STARTER_TRACKS.some(st => st.id === t.id))));
+    setTracks(updated);
 
     handleSelectTrack(newTrack.id);
+    if (newTrack.curriculum) setWorkspaceView("curriculum");
   };
 
   // Handle Track Selection
@@ -420,6 +415,9 @@ export default function App() {
     setExecutionResult(null);
     setIsRunningCode(false);
     setCurrentTrackId(trackId);
+    setWorkspaceView("session");
+    setDiagnosticFor(null);
+    setUnitPreparation(null);
     setMobilePane("lesson");
     try {
       localStorage.setItem("learnforge:active-track", trackId);
@@ -472,6 +470,7 @@ export default function App() {
   };
 
   const handleSelectMilestone = (m: Milestone) => {
+    if (m.id === activeMilestone?.id) { setWorkspaceView("session"); return; }
     if (
       m.id === activeMilestone?.id ||
       !isLessonUnlocked(m, milestones, approvedLessonIds(messages))
@@ -479,6 +478,8 @@ export default function App() {
       return;
     handleStopStreaming();
     persistDrafts();
+    setWorkspaceView("session");
+    setDiagnosticFor(null);
     setActiveMilestone(m);
     executionId.current += 1;
     setIsRunningCode(false);
@@ -501,6 +502,8 @@ export default function App() {
       visual?: boolean;
       teachOnly?: boolean;
       independent?: boolean;
+      answerTutoringFor?: string;
+      tutoringAttemptKey?: string;
       /** Instruction sent to the AI for this turn instead of the visible text. */
       prompt?: string;
     }
@@ -514,6 +517,8 @@ export default function App() {
       content: userText,
       milestone_id: activeMilestone?.id,
       internal: options?.internal,
+      tutoring_for_check_id: options?.answerTutoringFor,
+      tutoring_attempt_key: options?.tutoringAttemptKey,
       code_snippet:
         isCodeWorkspaceOpen && editorCode.trim() ? editorCode : undefined,
     });
@@ -601,7 +606,7 @@ export default function App() {
             const { challenge, conversationalText, hasChallenge } =
               extractCleanResponse(fullText);
 
-            const visual = options?.independent
+            const visual = options?.independent || options?.answerTutoringFor
               ? null
               : visualForSubject(
                   extractVisualExample(conversationalText),
@@ -652,6 +657,9 @@ export default function App() {
             const botMsg = db.addMessage({
               session_id: currentSession.id,
               role: "assistant",
+              tutoring_for_check_id: options?.answerTutoringFor,
+              tutoring_attempt_key: options?.tutoringAttemptKey,
+              generation_error: options?.answerTutoringFor && !checkResult.text.trim() ? true : undefined,
               content:
                 checkResult.hasBlock && !learningCheck && !options?.teachOnly
                   ? `${checkResult.text}\n\nThis question could not be displayed. Ask for a new knowledge check.`
@@ -754,6 +762,8 @@ export default function App() {
                 session_id: currentSession.id,
                 role: "assistant",
                 generation_error: true,
+                tutoring_for_check_id: options?.answerTutoringFor,
+                tutoring_attempt_key: options?.tutoringAttemptKey,
                 milestone_id: activeMilestone?.id,
                 content: `**Your coach couldn’t connect.** Check your AI provider in **Settings** (⚙ in the top bar), then try your message again. Your answers and drafts are saved.\n\nConnection details: ${err.message}`,
               });
@@ -820,13 +830,15 @@ export default function App() {
         result.confidence ? `\nConfidence: ${result.confidence}` : ""
       }\nHelp used on this question: ${assisted ? "yes" : "no"}`,
     });
-    // Save feedback only. Continue explicitly starts the next teaching request.
+    // Preserve the answer while a separate teaching turn is prepared automatically.
     const history = [...messages, answerMessage];
     setMessages(history);
+    startAnswerTutoring(check, result, history);
   };
 
   const handleDisputeCheck = (check: LearningCheck) => {
-    if (!currentSession || isStreaming || check.id !== activeCheck?.id) return;
+    if (!currentSession || check.id !== activeCheck?.id) return;
+    if (isStreaming) handleStopStreaming();
     if (!db.disputeWrittenAttempt(currentSession.id, check.id)) return;
     if (activeMilestone?.status === "completed") {
       db.updateMilestoneStatus(activeMilestone.id, "active");
@@ -848,7 +860,19 @@ export default function App() {
       (message) => message.check_attempt?.checkId === check.id
     )?.check_attempt;
     if (!result) return;
+    if (!answerTutoring(messages, check.id, result)) {
+      startAnswerTutoring(check, result, messages);
+      return;
+    }
     startFollowUp(check, result, messages);
+  };
+
+  const startAnswerTutoring = (check: LearningCheck, result: CheckAttempt, history: ChatMessage[]) => {
+    void handleSendMessage("Work through my submitted answer.", {
+      history, internal: true, teachOnly: true, answerTutoringFor: check.id,
+      tutoringAttemptKey: tutoringAttemptKey(result),
+      prompt: answerTutoringPrompt(check, result),
+    });
   };
 
   const startFollowUp = (
@@ -867,7 +891,7 @@ export default function App() {
       ? "Acknowledge the correct answer without claiming mastery. Ask ONE different application of this idea in a forge-check JSON block to verify independent understanding without the same scaffolding."
       : "Acknowledge the correct reasoning briefly. Ask ONE different application of this idea in a forge-check JSON block, slightly extending the situation. Do not mark the lesson mastered after one selection.";
     void handleSendMessage(
-      `Continue tutoring from the submitted attempt. ${direction} Keep pre-question prose concise, and keep answer keys and explanations inside the question block until submission.`,
+      `The learner has reviewed the post-answer teaching and explicitly chosen to practise again. ${direction} Do not repeat the worked explanation they just read. Keep pre-question prose concise, and keep answer keys and explanations inside the question block until submission.`,
       {
         history,
         internal: true,
@@ -897,6 +921,7 @@ export default function App() {
 
   // Stop Streaming
   const handleStopStreaming = () => {
+    unitController.current?.abort();
     checkRequestId.current += 1;
     setIsRequestingCheck(false);
     if (abortControllerRef.current) {
@@ -904,11 +929,15 @@ export default function App() {
       abortControllerRef.current = null;
     }
     setIsStreaming(false);
-    if (streamingContent.trim() && currentSession) {
+    const tutoringRequest = isStreaming ? [...messages].reverse().find((m) => m.role === "user") : undefined;
+    if ((streamingContent.trim() || tutoringRequest?.tutoring_for_check_id) && currentSession) {
       const partialMsg = db.addMessage({
         session_id: currentSession.id,
         role: "assistant",
         milestone_id: activeMilestone?.id,
+        tutoring_for_check_id: tutoringRequest?.tutoring_for_check_id,
+        tutoring_attempt_key: tutoringRequest?.tutoring_attempt_key,
+        generation_error: tutoringRequest?.tutoring_for_check_id ? true : undefined,
         content:
           hideLearningCheckBlocks(streamingContent) +
           "\n\n*(Generation stopped)*",
@@ -1106,9 +1135,44 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    if (workspaceView !== "session" || !selectedTrack?.curriculum || !activeMilestone || activeMilestone.content_status !== "outline") return;
+    const controller = new AbortController(); unitController.current = controller;
+    const runtimeId = activeMilestone.id, sessionId = activeMilestone.session_id;
+    const templateId = activeMilestone.curriculum_unit_id;
+    if (!templateId) return;
+    setUnitPreparation({id:runtimeId,state:"loading"});
+    let timeout = false;
+    const timer = setTimeout(() => { timeout=true; controller.abort(); }, 240000);
+    void prepareCurriculumUnit(selectedTrack, templateId, controller.signal).then(content => {
+      if (controller.signal.aborted || !db.getSession(sessionId)) return;
+      const prepared = db.prepareMilestone(runtimeId, {lesson:content.lesson,check:content.check,visual:content.visual,
+        starter_code:content.starter_code,test_code:content.test_code});
+      if (!prepared) return;
+      setMilestones(db.getMilestones(sessionId));
+      setActiveMilestone(current => current?.id===runtimeId?prepared:current);
+      setEditorCode(drafts.current![runtimeId] ?? prepared.starter_code);
+      setUnitPreparation(null);
+    }).catch(error => {
+      if (!controller.signal.aborted || timeout) setUnitPreparation({id:runtimeId,state:"error",
+        error:timeout?"Preparation took longer than expected. Your approved plan is safe; try again.":"This lesson could not be prepared. Your approved path is saved. Try again, or check your AI connection in Settings."});
+    }).finally(() => clearTimeout(timer));
+    return () => {clearTimeout(timer);controller.abort();if(unitController.current===controller)unitController.current=null;};
+  }, [workspaceView, selectedTrack?.id, activeMilestone?.id, activeMilestone?.content_status, preparationRetry]);
+
+  // A readiness challenge goes to an available foundation and uses fresh evidence;
+  // it never marks the future unit or its prerequisites completed.
+  useEffect(() => {
+    if (!diagnosticFor || workspaceView!=="session" || activeMilestone?.id!==diagnosticFor ||
+        activeMilestone.content_status==="outline" || isStreaming) return;
+    setDiagnosticFor(null);
+    void handleRequestCheck();
+  }, [diagnosticFor, workspaceView, activeMilestone?.id, activeMilestone?.content_status, isStreaming]);
+
   const requestedLessons = useRef(new Set<string>());
   useEffect(() => {
     if (
+      diagnosticFor || workspaceView !== "session" || activeMilestone?.content_status === "outline" ||
       !activeMilestone ||
       !currentSession ||
       activeMilestone.session_id !== currentSession.id ||
@@ -1135,11 +1199,13 @@ export default function App() {
     if (requestedLessons.current.has(key)) return;
     requestedLessons.current.add(key);
     void handleRequestCheck();
-  }, [activeMilestone?.id, activeCheck?.id, isStreaming, currentSession?.id]);
+  }, [activeMilestone?.id, activeCheck?.id, isStreaming, currentSession?.id, workspaceView]);
 
   return (
     <div className="app-shell">
+      <a className="app-skip-link" href="#main-content" onClick={() => document.getElementById("main-content")?.focus()}>Skip to learning workspace</a>
       <Header
+        curriculumVisible={selectedTrack?.curriculum ? workspaceView === "curriculum" : undefined}
         currentTrackId={currentTrackId}
         onSelectTrack={handleSelectTrack}
         tracks={visibleTracks.map((t) => ({
@@ -1159,7 +1225,11 @@ export default function App() {
           setIsSettingsOpen(true);
         }}
         onToggleSidebar={() => {
-          if (currentSession) setIsSidebarOpen((v) => !v);
+          if (currentSession && selectedTrack?.curriculum) {
+            handleStopStreaming();
+            setWorkspaceView(v=>v==="curriculum"?"session":"curriculum");
+            setIsSidebarOpen(false);
+          } else if (currentSession) setIsSidebarOpen((v) => !v);
         }}
         isSidebarOpen={isSidebarOpen}
         onOpenNewTopic={() => {
@@ -1168,7 +1238,7 @@ export default function App() {
         }}
       />
       <div className="app-body">
-        {isSidebarOpen && currentSession && (
+        {isSidebarOpen && currentSession && workspaceView === "session" && !selectedTrack?.curriculum && (
           <>
             <button
               className="sidebar-backdrop"
@@ -1184,15 +1254,15 @@ export default function App() {
             />
           </>
         )}
-        <main className="main-workspace" id="main-content">
+        <main className="main-workspace" id="main-content" tabIndex={-1}>
           {!currentSession ? (
             <div className="empty-workspace">
               <BookOpen size={26} />
               <h1>What are you interested in?</h1>
               <p>
-                Tell LearnForge what you’re curious about. Get topic suggestions
-                shaped around your interests, then learn through questions and
-                explanations.
+                Start with a goal. Review a full curriculum for a broad subject,
+                or take a focused lesson for one question. Learn through examples,
+                practice and tutoring shaped by your answers.
               </p>
               <button
                 className="dialog-primary-button"
@@ -1209,9 +1279,14 @@ export default function App() {
                 </button>
               )}
             </div>
+          ) : workspaceView === "curriculum" && selectedTrack ? (
+            <CurriculumWorkspace key={selectedTrack.id} track={selectedTrack} milestones={milestones} messages={messages} active={activeMilestone}
+              onSelect={handleSelectMilestone} onResume={()=>setWorkspaceView("session")}
+              onDiagnostic={milestone=>{handleSelectMilestone(milestone);setDiagnosticFor(milestone.id);}} />
           ) : (
             <>
-              <div
+              {selectedTrack && <div className="curriculum-session-context"><button onClick={()=>{handleStopStreaming();setWorkspaceView("curriculum");setIsSidebarOpen(false);}}><Route size={14}/> {selectedTrack.curriculum?"Curriculum":"Learning plan"}</button><span>{selectedTrack.curriculum?.modules.find(module=>module.id===activeMilestone?.curriculum_module_id)?.title || selectedTrack.title}</span><small>{activeMilestone?.adaptive?"Repair step · return planned":"One unit at a time"}</small></div>}
+              {currentSession.language && <div
                 className="mobile-workspace-tabs"
                 role="tablist"
                 aria-label="Workspace view"
@@ -1244,7 +1319,7 @@ export default function App() {
                     Code practice
                   </button>
                 )}
-              </div>
+              </div>}
               <div
                 className={`workspace-panes ${
                   isCodeWorkspaceOpen ? "with-code" : "lesson-only"
@@ -1259,7 +1334,11 @@ export default function App() {
                   <RetentionFlow key={currentSession.id} session={currentSession} milestones={milestones} cards={dueCards} database={db}
                     onActiveChange={setRetentionActive} onSaved={() => { setDueCards(db.getDueCardsList()); setMessages([...db.getMessages(currentSession.id)]); }} />
                   <div className="session-slot" hidden={retentionActive}>
-                  <ChatPane
+                  {activeMilestone?.content_status === "outline" ? <section className="curriculum-preparing" aria-labelledby="preparing-unit-title">
+                    <span className="curriculum-eyebrow">Approved unit · preparing on demand</span><h1 id="preparing-unit-title">{activeMilestone.title}</h1><p>{activeMilestone.prompt}</p>
+                    {unitPreparation?.id===activeMilestone.id && unitPreparation.state==="loading" ? <><p role="status"><Loader2 size={16} className="animate-spin"/> Preparing a small explanation, example and check…</p><button className="dialog-secondary-button" onClick={()=>{unitController.current?.abort();setUnitPreparation({id:activeMilestone.id,state:"cancelled"});}}>Cancel preparation</button></>:<><p role={unitPreparation?.state==="error"?"alert":"status"}>{unitPreparation?.error || "Preparation is paused. Your approved outline and progress are unchanged."}</p><button className="dialog-primary-button" onClick={()=>setPreparationRetry(n=>n+1)}>Prepare this lesson</button></>}
+                    <button className="check-coach-button" onClick={()=>setWorkspaceView("curriculum")}>Back to curriculum</button>
+                  </section> : <ChatPane
                     trackId={currentTrackId}
                     language={currentSession?.language || undefined}
                     allowCoding={!!currentSession?.language}
@@ -1303,7 +1382,7 @@ export default function App() {
                       setSettingsSection("connection");
                       setIsSettingsOpen(true);
                     }}
-                  />
+                  />}
                   </div>
                 </div>
                 {isCodeWorkspaceOpen && (
@@ -1327,6 +1406,7 @@ export default function App() {
                         onRunCode={handleRunCode}
                         onResetCode={handleResetCode}
                         isRunning={isRunningCode}
+                        canAdvance={activeMilestone?.status === "completed" && approvedLessonIds(messages).has(activeMilestone.id)}
                         executionResult={executionResult}
                         onClearConsole={() => setExecutionResult(null)}
                         draftStatus={draftStatus}

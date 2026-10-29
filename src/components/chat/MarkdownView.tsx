@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { MATH_RENDER_OPTIONS } from "../../services/learning/math";
+import { LearningTable } from "../learning/LearningTable";
 import { CodeBlock, highlightSource } from "./CodeBlock";
 import { DerivationLadder, parseLadderMarkdown } from "./DerivationLadder";
 import {
@@ -30,6 +31,8 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[[rehypeKatex, MATH_RENDER_OPTIONS]]}
         components={{
+          table: ({ children }) => <LearningTable>{children}</LearningTable>,
+          th: ({ children, style }) => <th scope="col" style={style}>{children}</th>,
           pre: ({ children }) => {
             const element = React.Children.toArray(children).find((child) =>
               React.isValidElement(child)

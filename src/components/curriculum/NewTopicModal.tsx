@@ -1,182 +1,309 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, ArrowRight, Loader2, Compass, FileText, Upload } from "lucide-react";
+import {
+  X,
+  ArrowRight,
+  Loader2,
+  Compass,
+  FileText,
+  Upload,
+} from "lucide-react";
 import { generateCustomTrack } from "../../services/ai/curriculum";
 import {
-  suggestTopics,
-  type TopicSuggestion,
-} from "../../services/ai/interests";
+  generateCurriculumOutline,
+  proposeLearningScope,
+  type ScopeProposal,
+} from "../../services/ai/curriculumOutline";
+import type { LearningScope } from "../../services/learning/curriculumPlan";
 import { extractTextFromFile } from "../../services/learning/fileExtractor";
 import type { CourseTrack } from "../../services/ai/types";
 import { PlanApproval } from "./PlanApproval";
+import { CurriculumApproval } from "./CurriculumApproval";
+import "./curriculum.css";
 
-interface NewTopicModalProps {
+const draftKey = "learnforge:goal-draft";
+const startingPoints = [
+  "I’m not sure — help me find my starting point",
+  "I’m starting from the beginning",
+  "I know the basics and want to apply them",
+  "I have experience and want to deepen it",
+];
+function savedDraft(): {
+  interest?: string;
+  destination?: string;
+  startingPoint?: string;
+} {
+  try {
+    const d = JSON.parse(localStorage.getItem(draftKey) || "{}");
+    return d && typeof d === "object"
+      ? {
+          interest:
+            typeof d.interest === "string" ? d.interest.slice(0, 400) : "",
+          destination:
+            typeof d.destination === "string"
+              ? d.destination.slice(0, 800)
+              : "",
+          startingPoint: startingPoints.includes(d.startingPoint)
+            ? d.startingPoint
+            : startingPoints[0],
+        }
+      : {};
+  } catch {
+    return {};
+  }
+}
+interface Props {
   isOpen: boolean;
   onClose: () => void;
   onTrackCreated: (track: CourseTrack) => void;
 }
-export const NewTopicModal: React.FC<NewTopicModalProps> = ({
+export const NewTopicModal: React.FC<Props> = ({
   isOpen,
   onClose,
   onTrackCreated,
 }) => {
-  const [interest, setInterest] = useState("");
-  const [referenceName, setReferenceName] = useState("");
-  const [referenceContent, setReferenceContent] = useState("");
-  const [suggestions, setSuggestions] = useState<TopicSuggestion[]>([]);
-  const [task, setTask] = useState<"idle" | "suggesting" | "creating">("idle");
-  const [status, setStatus] = useState("");
-  const [selectedGoal, setSelectedGoal] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [interest, setInterest] = useState(() => savedDraft().interest || "");
+  const [destination, setDestination] = useState(
+    () => savedDraft().destination || ""
+  );
+  const [startingPoint, setStartingPoint] = useState(
+    () =>
+      savedDraft().startingPoint ||
+      "I’m not sure — help me find my starting point"
+  );
+  const [referenceName, setReferenceName] = useState(""),
+    [referenceContent, setReferenceContent] = useState("");
+  const [proposal, setProposal] = useState<ScopeProposal | null>(null),
+    [scope, setScope] = useState<LearningScope>("curriculum");
+  const [task, setTask] = useState<"idle" | "scoping" | "creating">("idle");
+  const [status, setStatus] = useState(""),
+    [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [isReadingFile, setIsReadingFile] = useState(false);
+  const busy = task !== "idle" || isReadingFile;
   const [draftTrack, setDraftTrack] = useState<CourseTrack | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null),
     formRef = useRef<HTMLFormElement>(null),
     statusRef = useRef<HTMLDivElement>(null),
     inputRef = useRef<HTMLInputElement>(null),
+    headingRef = useRef<HTMLHeadingElement>(null),
+    fileRef = useRef<HTMLInputElement>(null),
     requestRef = useRef<AbortController | null>(null),
+    errorRef = useRef<HTMLDivElement>(null),
+    readSequence = useRef(0),
+    readingFile = useRef(false),
     mounted = useRef(false);
   useEffect(() => {
-    if (task === "idle") return;
-    const frame = requestAnimationFrame(() => {
-      const form = formRef.current;
-      const status = statusRef.current;
-      if (!form || !status) return;
-      const top = form.scrollTop + status.getBoundingClientRect().top - form.getBoundingClientRect().top
-        - Math.max(16, (form.clientHeight - status.clientHeight) / 2);
-      form.scrollTo({ top: Math.max(0, top), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-    });
-    return () => cancelAnimationFrame(frame);
-    // Scroll once when a request starts, not on each streamed status update.
-  }, [task]);
+    try {
+      localStorage.setItem(
+        draftKey,
+        JSON.stringify({ interest, destination, startingPoint })
+      );
+    } catch {}
+  }, [interest, destination, startingPoint]);
   useEffect(() => {
     mounted.current = true;
     const previous = document.activeElement as HTMLElement | null;
-    const dialog = dialogRef.current;
     if (isOpen) {
-      dialog?.showModal();
+      dialogRef.current?.showModal();
       inputRef.current?.focus();
     }
     return () => {
       mounted.current = false;
       requestRef.current?.abort();
-      dialog?.close();
+      readSequence.current += 1;
+      readingFile.current = false;
+      dialogRef.current?.close();
       if (previous?.isConnected) previous.focus();
     };
   }, [isOpen]);
+  useEffect(() => {
+    if (proposal) {
+      headingRef.current?.focus();
+      formRef.current?.scrollTo({ top: 0 });
+    }
+  }, [proposal]);
+  useEffect(() => {
+    if (!error) return;
+    errorRef.current?.focus({ preventScroll: true });
+    errorRef.current?.scrollIntoView({ block: "nearest" });
+  }, [error]);
+  useEffect(() => {
+    if (draftTrack || !proposal) return;
+    headingRef.current?.focus({ preventScroll: true });
+    formRef.current?.scrollTo({ top: 0 });
+  }, [draftTrack]);
+  useEffect(() => {
+    if (task === "idle" && !isReadingFile) return;
+    const frame = requestAnimationFrame(() => {
+      const form = formRef.current,
+        status = statusRef.current;
+      if (!form || !status) return;
+      form.scrollTo({
+        top: Math.max(
+          0,
+          form.scrollTop +
+            status.getBoundingClientRect().top -
+            form.getBoundingClientRect().top -
+            30
+        ),
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [task, isReadingFile]);
   const close = () => {
     requestRef.current?.abort();
     onClose();
   };
-  const run = async (goal?: string) => {
-    const effectiveInterest =
+  const cancel = () => {
+    requestRef.current?.abort();
+    readSequence.current += 1;
+    readingFile.current = false;
+    setIsReadingFile(false);
+    setNotice(
+      "Preparation cancelled. Your goal is still here; continue when you’re ready."
+    );
+  };
+  const run = async () => {
+    const goal =
       interest.trim() ||
       (referenceContent.trim()
-        ? `Teach me the key concepts in ${referenceName || "the attached material"}`
+        ? `Teach me the key concepts in ${referenceName || "my reference"}`
         : "");
-    if (task !== "idle" || (!goal && !effectiveInterest)) return;
+    if (task !== "idle" || requestRef.current || readingFile.current || !goal)
+      return;
     const controller = new AbortController();
     requestRef.current = controller;
-    setTask(goal ? "creating" : "suggesting");
-    setSelectedGoal(goal || "");
-    setError(null);
+    setTask(proposal ? "creating" : "scoping");
+    setError("");
+    setNotice("");
+    const updateStatus = (text: string) => {
+      if (
+        mounted.current &&
+        requestRef.current === controller &&
+        !controller.signal.aborted
+      )
+        setStatus(text);
+    };
     setStatus(
-      goal
-        ? "Preparing your first learning steps…"
-        : "Finding directions from your interests…"
+      proposal
+        ? "Preparing the scope and outcomes…"
+        : "Understanding the scope of your goal…"
     );
     let timedOut = false;
-    // Full learning plans from reasoning models (e.g. ChatGPT / Codex) can take
-    // 1–3 minutes; suggestions are short and keep the tighter limit.
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-    }, goal ? 240_000 : 60_000);
-    const startedAt = Date.now();
-    const elapsedTicker = goal
-      ? setInterval(() => {
-          if (!mounted.current || controller.signal.aborted) return;
-          const secs = Math.round((Date.now() - startedAt) / 1000);
-          if (secs >= 20)
-            setStatus(
-              `Still building your plan · ${secs}s (larger models can take 1–3 minutes)`
-            );
-        }, 5_000)
-      : null;
-    const refPayload = referenceContent.trim()
-      ? {
-          name: referenceName || "Reference notes",
-          content: referenceContent,
-        }
-      : undefined;
+    const timeout = setTimeout(
+      () => {
+        timedOut = true;
+        controller.abort();
+      },
+      proposal ? 240000 : 60000
+    );
     try {
-      if (goal) {
-        const track = await generateCustomTrack(
-          {
-            topic: goal,
-            interest: effectiveInterest,
-            signal: controller.signal,
-            referenceMaterial: refPayload,
-          },
-          (text) => {
-            if (mounted.current && !controller.signal.aborted) setStatus(text);
-          }
-        );
+      if (!proposal) {
+        const proposed = await proposeLearningScope(goal, controller.signal);
+        if (!mounted.current || controller.signal.aborted) return;
+        setScope(proposed.scope);
+        setProposal(proposed);
+      } else {
+        const options = {
+          topic: goal,
+          interest: goal,
+          signal: controller.signal,
+          referenceMaterial: referenceContent.trim()
+            ? {
+                name: referenceName || "Reference notes",
+                content: referenceContent,
+              }
+            : undefined,
+        };
+        const track =
+          scope === "curriculum"
+            ? await generateCurriculumOutline(
+                {
+                  ...options,
+                  destination: destination.trim() || goal,
+                  startingPoint,
+                },
+                updateStatus
+              )
+            : await generateCustomTrack(
+                {
+                  ...options,
+                  topic: destination.trim() || goal,
+                  unitContext: JSON.stringify({
+                    scope: "focused",
+                    originalGoal: goal,
+                    desiredAbility: destination.trim() || goal,
+                    startingPoint,
+                    instruction:
+                      "Prepare exactly one focused lesson, not a full path.",
+                  }),
+                },
+                updateStatus
+              );
         if (!mounted.current || controller.signal.aborted) return;
         setDraftTrack(track);
-      } else {
-        const topics = await suggestTopics(
-          effectiveInterest,
-          controller.signal,
-          refPayload
-        );
-        if (!mounted.current || controller.signal.aborted) return;
-        setSuggestions(topics);
       }
-    } catch (reason) {
+    } catch (e) {
       if (mounted.current && (!controller.signal.aborted || timedOut))
         setError(
           timedOut
-            ? "This is taking longer than expected. Your interest is still here; try again."
-            : reason instanceof Error
-            ? reason.message
-            : "This could not be prepared. Please try again."
+            ? "This is taking longer than expected. Your goal is saved; try again."
+            : e instanceof Error
+            ? e.message
+            : "This could not be prepared. Try again."
         );
     } finally {
       clearTimeout(timeout);
-      if (elapsedTicker) clearInterval(elapsedTicker);
       if (mounted.current) setTask("idle");
+      if (requestRef.current === controller) requestRef.current = null;
     }
   };
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const processFile = async (file: File) => {
-    setError(null);
+    if (task !== "idle" || readingFile.current) return;
+    const sequence = ++readSequence.current;
+    readingFile.current = true;
+    setIsReadingFile(true);
+    setError("");
+    setNotice("");
     try {
-      const extracted = await extractTextFromFile(file);
+      const content = await extractTextFromFile(file);
+      if (!mounted.current || readSequence.current !== sequence) return;
       setReferenceName(file.name);
-      setReferenceContent(extracted);
+      setReferenceContent(content);
       setInterest((prev) =>
         prev.trim() ? prev : `Teach me the key concepts in ${file.name}`
       );
-      setSuggestions([]);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Could not read that file. Try a text, Markdown, code, or selectable PDF file."
-      );
+      setProposal(null);
+      setNotice(`Added ${file.name}. Review your goal before continuing.`);
+    } catch (e) {
+      if (mounted.current && readSequence.current === sequence)
+        setError(e instanceof Error ? e.message : "Could not read that file.");
+    } finally {
+      if (readSequence.current === sequence) {
+        readingFile.current = false;
+        if (mounted.current) setIsReadingFile(false);
+      }
     }
   };
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) void processFile(file);
-    event.target.value = "";
+  const approve = (track: CourseTrack) => {
+    onTrackCreated(track);
+    try {
+      localStorage.removeItem(draftKey);
+    } catch {}
+    onClose();
   };
   return (
     <dialog
       ref={dialogRef}
-      className="review-dialog new-topic-dialog"
+      className={`review-dialog new-topic-dialog ${
+        draftTrack?.curriculum ? "curriculum-review-dialog" : ""
+      }`}
       aria-labelledby="new-topic-title"
-      onCancel={(event) => {
-        event.preventDefault();
+      onCancel={(e) => {
+        e.preventDefault();
         close();
       }}
     >
@@ -185,7 +312,9 @@ export const NewTopicModal: React.FC<NewTopicModalProps> = ({
           <div>
             <Compass size={18} />
             <h2 id="new-topic-title">
-              {draftTrack ? "Review your learning plan" : "Explore an interest"}
+              {draftTrack
+                ? "Review your learning plan"
+                : "What would you like to learn?"}
             </h2>
           </div>
           <button
@@ -197,214 +326,241 @@ export const NewTopicModal: React.FC<NewTopicModalProps> = ({
           </button>
         </header>
         {draftTrack ? (
-          <PlanApproval
-            key={draftTrack.id}
-            track={draftTrack}
-            onRevise={() => setDraftTrack(null)}
-            onApprove={(track) => {
-              onTrackCreated(track);
-              onClose();
-            }}
-          />
+          draftTrack.curriculum ? (
+            <CurriculumApproval
+              track={draftTrack}
+              onApprove={approve}
+              onRevise={() => setDraftTrack(null)}
+            />
+          ) : (
+            <PlanApproval
+              track={draftTrack}
+              onApprove={approve}
+              onRevise={() => setDraftTrack(null)}
+            />
+          )
         ) : (
           <form
             ref={formRef}
             className="new-topic-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void run(selectedGoal && error ? selectedGoal : undefined);
+            onSubmit={(e) => {
+              e.preventDefault();
+              void run();
             }}
           >
             <div className="new-topic-intro">
-              <h3>What are you curious about?</h3>
+              <h3 ref={headingRef} tabIndex={-1}>
+                {proposal
+                  ? "Shape the path around your goal"
+                  : "Start with what you want to understand"}
+              </h3>
               <p>
-                Tell LearnForge what interests you. We’ll suggest a few concrete
-                topics, then shape the learning path from your answers.
+                {proposal
+                  ? proposal.reason
+                  : "A broad goal becomes a curriculum. A precise question becomes a focused lesson. You can adjust the scope before starting."}
               </p>
             </div>
-            <label htmlFor="topic-input">Your interests</label>
+            <label htmlFor="topic-input">Your learning goal</label>
             <input
               ref={inputRef}
               id="topic-input"
               value={interest}
-              onChange={(event) => {
-                setInterest(event.target.value);
-                setSuggestions([]);
-                setSelectedGoal("");
-                setError(null);
+              onChange={(e) => {
+                setInterest(e.target.value);
+                setProposal(null);
+                setError("");
               }}
-              disabled={task !== "idle"}
+              disabled={busy}
               maxLength={400}
               required={!referenceContent.trim()}
               autoComplete="off"
-              placeholder="An idea, a question, or something you want to understand…"
+              placeholder="What would you like to be able to do?"
             />
-            <div
-              className={`new-topic-reference ${
-                referenceContent.trim() ? "has-file" : ""
-              }`}
+            {proposal && (
+              <section className="curriculum-brief" aria-label="Learning scope">
+                <div className="curriculum-scope-options">
+                  {(["curriculum", "focused"] as const).map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={scope === value}
+                      disabled={busy}
+                      onClick={() => setScope(value)}
+                    >
+                      {value === "curriculum"
+                        ? "Full curriculum"
+                        : "Focused lesson"}
+                    </button>
+                  ))}
+                </div>
+                <p>
+                  {scope === "curriculum"
+                    ? "A complete outline for an agreed goal, taught one unit at a time."
+                    : "One small question or skill, with explanation, practice and feedback."}
+                </p>
+                <label htmlFor="goal-destination">
+                  What do you want to be able to do? <span>(optional)</span>
+                </label>
+                <input
+                  id="goal-destination"
+                  value={destination}
+                  onChange={(e) => setDestination(e.target.value)}
+                  maxLength={800}
+                  disabled={busy}
+                  placeholder="A practical outcome, or leave blank to use your goal"
+                />
+                <label htmlFor="goal-starting-point">
+                  Where are you starting?
+                </label>
+                <select
+                  id="goal-starting-point"
+                  value={startingPoint}
+                  onChange={(e) => setStartingPoint(e.target.value)}
+                  disabled={busy}
+                >
+                  {startingPoints.map((point) => (
+                    <option key={point}>{point}</option>
+                  ))}
+                </select>
+                <small>
+                  Placement is optional. The plan is reviewed before anything is
+                  added.
+                </small>
+              </section>
+            )}
+            <details
+              className="new-topic-reference"
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault();
-                const file = e.dataTransfer.files?.[0];
-                if (file && task === "idle") void processFile(file);
+                if (!busy && e.dataTransfer.files[0])
+                  void processFile(e.dataTransfer.files[0]);
               }}
             >
-              <div className="new-topic-reference-header">
-                <FileText size={14} />
-                <span>
-                  Teach from a local file, notes, or code snippet
-                </span>
+              <summary>
+                <FileText size={14} /> Teach from my own material{" "}
+                {referenceContent.trim() && <em>Attached</em>}
+              </summary>
+              <div className="new-topic-reference-body">
                 <input
-                  ref={fileInputRef}
+                  ref={fileRef}
                   type="file"
-                  accept=".md,.txt,.pdf,.go,.rs,.py,.ts,.tsx,.js,.jsx,.json,.csv,.html,.sql,.sh,.yaml,.yml,.toml,.c,.cpp,.h,.java"
-                  onChange={handleFileUpload}
-                  disabled={task !== "idle"}
+                  hidden
                   aria-label="Upload reference file or code"
-                  style={{ display: "none" }}
+                  accept=".md,.txt,.pdf,.go,.rs,.py,.ts,.tsx,.js,.jsx,.json,.csv,.html,.sql,.sh,.yaml,.yml,.toml,.c,.cpp,.h,.java"
+                  disabled={busy}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void processFile(file);
+                    e.target.value = "";
+                  }}
                 />
                 <button
                   type="button"
                   className="check-coach-button"
-                  disabled={task !== "idle"}
-                  onClick={() => fileInputRef.current?.click()}
+                  disabled={busy}
+                  onClick={() => fileRef.current?.click()}
                 >
-                  <Upload size={12} /> Choose file
+                  <Upload size={13} /> Choose file
                 </button>
-              </div>
-              {referenceName && referenceContent.trim() && (
-                <div className="reference-attached-pill">
-                  <span>
-                    Attached: <strong>{referenceName}</strong> (
-                    {Math.max(1, Math.round(referenceContent.length / 1000))}k
-                    chars)
-                  </span>
-                  <div>
-                    <button
-                      type="button"
-                      className="dialog-primary-button reference-direct-build"
-                      disabled={task !== "idle"}
-                      onClick={() =>
-                        void run(
-                          interest.trim() ||
-                            `Learn the core concepts in ${referenceName}`
-                        )
-                      }
-                    >
-                      Build course from file
-                      <ArrowRight size={13} />
-                    </button>
-                    <button
-                      type="button"
-                      className="check-coach-button"
-                      disabled={task !== "idle"}
-                      onClick={() => {
-                        setReferenceName("");
-                        setReferenceContent("");
-                      }}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              )}
-              <div className="new-topic-reference-body">
+                {referenceName && <small>{referenceName}</small>}
                 <textarea
-                  rows={2}
+                  rows={3}
+                  aria-label="Reference notes"
                   value={referenceContent}
+                  disabled={busy}
                   onChange={(e) => {
-                    const val = e.target.value;
-                    setReferenceContent(val);
-                    if (val.trim() && !referenceName) {
-                      setReferenceName("Pasted notes");
-                    }
+                    setReferenceContent(e.target.value);
+                    if (!referenceName) setReferenceName("Pasted notes");
                   }}
-                  disabled={task !== "idle"}
-                  placeholder="Drop a file (.md, .txt, .pdf, .go, .rs, .py, .ts) above, or paste lecture notes / source code here…"
+                  placeholder="Paste notes or selectable source text…"
                 />
+                {referenceContent && (
+                  <button
+                    type="button"
+                    className="check-coach-button"
+                    disabled={busy}
+                    onClick={() => {
+                      setReferenceName("");
+                      setReferenceContent("");
+                    }}
+                  >
+                    Remove reference
+                  </button>
+                )}
               </div>
-            </div>
-          {suggestions.length > 0 && (
-            <section
-              className="interest-results"
-              aria-label="Topics suggested for your interests"
-            >
-              <h4>A few directions you could take</h4>
-              {suggestions.map((topic) => (
-                <button
-                  type="button"
-                  className="interest-topic"
-                  key={topic.title}
-                  onClick={() => void run(topic.goal)}
-                  disabled={task !== "idle"}
-                >
-                  <span>
-                    <strong>{topic.title}</strong>
-                    <small>{topic.why}</small>
-                  </span>
-                  <ArrowRight size={16} />
-                </button>
-              ))}
-              <button
-                className="interest-own-topic"
-                type="button"
-                disabled={task !== "idle"}
-                onClick={() => void run(interest)}
+            </details>
+            {busy && (
+              <div
+                ref={statusRef}
+                className="topic-generation-status"
+                role="status"
               >
-                Use my original interest instead
-                <ArrowRight size={13} />
-              </button>
-            </section>
-          )}
-          {task !== "idle" && (
-            <div ref={statusRef} className="topic-generation-status" role="status">
-              <Loader2 size={15} className="animate-spin" />
-              <div>
-                <strong>
-                  {task === "suggesting"
-                    ? "Finding your next topic"
-                    : "Preparing your learning path"}
-                </strong>
-                <p>{status}</p>
-                <small>You can cancel at any time.</small>
+                <Loader2 size={15} className="animate-spin" />
+                <div>
+                  <strong>
+                    {isReadingFile
+                      ? "Reading your material"
+                      : task === "scoping"
+                      ? "Finding the right scope"
+                      : scope === "curriculum"
+                      ? "Preparing the curriculum outline"
+                      : "Preparing a focused lesson"}
+                  </strong>
+                  <p>
+                    {isReadingFile
+                      ? "Extracting the text before planning. Your material stays attached to this goal."
+                      : status}
+                  </p>
+                  <small>You can cancel. Your goal stays saved.</small>
+                </div>
               </div>
-            </div>
-          )}
-          {error && (
-            <div className="topic-error" role="alert">
-              {error}
-            </div>
-          )}
-          <footer className="new-topic-footer">
-            <button
-              className="dialog-secondary-button"
-              type="button"
-              onClick={close}
-            >
-              {task === "idle" ? "Cancel" : "Cancel request"}
-            </button>
-            <button
-              className="dialog-primary-button"
-              type="submit"
-              disabled={
-                task !== "idle" ||
-                (!interest.trim() && !referenceContent.trim())
-              }
-            >
-              {task !== "idle" ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <ArrowRight size={14} />
-              )}{" "}
-              {error
-                ? "Try again"
-                : suggestions.length
-                ? "Suggest other directions"
-                : "Suggest topics"}
-            </button>
-          </footer>
-        </form>
+            )}
+            {error && (
+              <div
+                ref={errorRef}
+                tabIndex={-1}
+                className="topic-error"
+                role="alert"
+              >
+                {error}
+              </div>
+            )}
+            {notice && (
+              <p className="curriculum-notice" role="status">
+                {notice}
+              </p>
+            )}
+            <footer className="new-topic-footer">
+              <button
+                className="dialog-secondary-button"
+                type="button"
+                onClick={busy ? cancel : close}
+              >
+                {busy ? "Cancel preparation" : "Cancel"}
+              </button>
+              <button
+                className="dialog-primary-button"
+                type="submit"
+                disabled={
+                  busy || (!interest.trim() && !referenceContent.trim())
+                }
+              >
+                {busy ? (
+                  <Loader2 className="animate-spin" size={14} />
+                ) : (
+                  <ArrowRight size={14} />
+                )}
+                {error
+                  ? "Try again"
+                  : proposal
+                  ? scope === "curriculum"
+                    ? "Prepare curriculum outline"
+                    : "Prepare focused lesson"
+                  : "Shape my learning goal"}
+              </button>
+            </footer>
+          </form>
         )}
       </div>
     </dialog>

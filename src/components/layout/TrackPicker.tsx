@@ -59,7 +59,7 @@ export const TrackPicker: React.FC<TrackPickerProps> = ({
       left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)),
       top,
       width,
-      maxHeight: Math.min(480, window.innerHeight - top - 16),
+      maxHeight: Math.max(160, Math.min(480, window.innerHeight - top - 16)),
     });
   };
   const show = () => {
@@ -147,13 +147,49 @@ export const TrackPicker: React.FC<TrackPickerProps> = ({
             style={position}
             role="dialog"
             aria-label="Choose learning track"
+            onBlur={(event) => {
+              if (
+                event.relatedTarget &&
+                !event.currentTarget.contains(event.relatedTarget as Node)
+              )
+                setOpen(false);
+            }}
             onKeyDown={(event) => {
               if (event.key === "Escape") {
                 event.preventDefault();
                 event.stopPropagation();
                 close();
               }
-              if (event.key === "Tab") close();
+              if (event.key === "Tab") {
+                const focusable = Array.from(
+                  popupRef.current?.querySelectorAll<HTMLElement>(
+                    'input, button:not([tabindex="-1"])'
+                  ) || []
+                );
+                const first = focusable[0],
+                  last = focusable[focusable.length - 1];
+                if (
+                  (!event.shiftKey && document.activeElement === last) ||
+                  (event.shiftKey && document.activeElement === first)
+                ) {
+                  event.preventDefault();
+                  const pageControls = Array.from(
+                    document.querySelectorAll<HTMLElement>(
+                      'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]'
+                    )
+                  ).filter(
+                    (element) =>
+                      element.tabIndex >= 0 &&
+                      !popupRef.current?.contains(element) &&
+                      !element.closest("[inert]") &&
+                      element.getClientRects().length > 0
+                  );
+                  const index = pageControls.indexOf(triggerRef.current!);
+                  const next = pageControls[index + (event.shiftKey ? -1 : 1)];
+                  setOpen(false);
+                  (next || triggerRef.current)?.focus();
+                }
+              }
             }}
           >
             <div className="track-picker-search">
@@ -250,7 +286,7 @@ export const TrackPicker: React.FC<TrackPickerProps> = ({
                   <p>
                     {tracks.length
                       ? "Try another topic or language."
-                      : "Create a topic, or add a starter course in Manage topics."}
+                      : "Choose New topic to start with your own learning goal."}
                   </p>
                 </div>
               )}

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from "react";
 import {
   ArrowUp,
   Lightbulb,
@@ -6,7 +6,7 @@ import {
   BookOpen,
   Square,
   ListTree,
-} from 'lucide-react';
+} from "lucide-react";
 
 interface ComposerProps {
   onSendMessage: (message: string) => void;
@@ -15,9 +15,10 @@ interface ComposerProps {
   activeMilestoneTitle?: string;
   codeIncluded?: boolean;
   compact?: boolean;
+  sideQuestion?: boolean;
   draftKey?: string;
   onQuickAction?: (
-    action: 'hint' | 'explain' | 'review' | 'derivation'
+    action: "hint" | "explain" | "review" | "derivation"
   ) => void;
 }
 
@@ -28,13 +29,14 @@ export const Composer: React.FC<ComposerProps> = ({
   onQuickAction,
   codeIncluded = false,
   compact = false,
+  sideQuestion = false,
   draftKey,
 }) => {
   const [input, setInput] = useState(() => {
     try {
-      return draftKey ? localStorage.getItem(draftKey) || '' : '';
+      return draftKey ? localStorage.getItem(draftKey) || "" : "";
     } catch {
-      return '';
+      return "";
     }
   });
   useEffect(() => {
@@ -47,7 +49,7 @@ export const Composer: React.FC<ComposerProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (!textareaRef.current) return;
-    textareaRef.current.style.height = 'auto';
+    textareaRef.current.style.height = "auto";
     textareaRef.current.style.height = `${Math.min(
       textareaRef.current.scrollHeight,
       120
@@ -56,28 +58,28 @@ export const Composer: React.FC<ComposerProps> = ({
   const submit = () => {
     if (!input.trim() || isStreaming) return;
     onSendMessage(input.trim());
-    setInput('');
+    setInput("");
   };
   return (
     <div className="composer">
       {!compact && (
         <div className="quick-actions" aria-label="Ask your coach">
           <button
-            onClick={() => onQuickAction?.('hint')}
+            onClick={() => onQuickAction?.("hint")}
             disabled={isStreaming}
           >
             <Lightbulb size={13} />
             Get a hint
           </button>
           <button
-            onClick={() => onQuickAction?.('explain')}
+            onClick={() => onQuickAction?.("explain")}
             disabled={isStreaming}
           >
             <BookOpen size={13} />
             Explain this
           </button>
           <button
-            onClick={() => onQuickAction?.('derivation')}
+            onClick={() => onQuickAction?.("derivation")}
             disabled={isStreaming}
           >
             <ListTree size={13} />
@@ -93,7 +95,7 @@ export const Composer: React.FC<ComposerProps> = ({
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
             if (
-              e.key === 'Enter' &&
+              e.key === "Enter" &&
               !e.shiftKey &&
               !e.nativeEvent.isComposing
             ) {
@@ -102,7 +104,9 @@ export const Composer: React.FC<ComposerProps> = ({
             }
           }}
           placeholder={
-            compact
+            sideQuestion
+              ? "Ask a quick side question…"
+              : compact
               ? "Ask about this step…"
               : "Ask about this step, or tell me what’s confusing…"
           }
@@ -129,12 +133,17 @@ export const Composer: React.FC<ComposerProps> = ({
       </div>
       <div className="composer-footnote">
         <span>
-          {codeIncluded
-            ? 'Code workspace included for context'
-            : 'Ask at any time · your question stays saved'}
+          {isStreaming
+            ? "Your draft stays saved while the tutor responds"
+            : sideQuestion || /^\/btw\b/i.test(input)
+            ? "Side questions stay separate from your current step"
+            : codeIncluded
+            ? "Code workspace included for context"
+            : "Your question draft is saved on this device"}
         </span>
         <span>
-          ↵ Send <span className="newline-hint">· ⇧↵ New line</span>
+          {isStreaming ? "Stop to send" : "↵ Send"}{" "}
+          <span className="newline-hint">· ⇧↵ New line</span>
         </span>
       </div>
     </div>

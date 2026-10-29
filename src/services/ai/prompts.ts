@@ -2,7 +2,7 @@ import { VISUAL_INSTRUCTIONS } from "../learning/visuals";
 import { loadLearningPreferences } from "../learning/preferences";
 import { referenceContext, GROUNDING_INSTRUCTIONS } from "../learning/grounding";
 import { FREE_RESPONSE_INSTRUCTIONS } from "../learning/freeResponse";
-import { ILLUSTRATION_INSTRUCTIONS, MATH_INSTRUCTIONS } from "../learning/visualContract";
+import { ILLUSTRATION_INSTRUCTIONS, MATH_INSTRUCTIONS, TABLE_INSTRUCTIONS } from "../learning/visualContract";
 /**
  * LearnForge Socratic AI Tutoring Prompts & Orchestrator
  *
@@ -17,6 +17,7 @@ import { ILLUSTRATION_INSTRUCTIONS, MATH_INSTRUCTIONS } from "../learning/visual
 import type { ChatMessage, Milestone } from "./types";
 import type { LearningCheckSpec } from "../../types";
 import { hideLearningCheckBlocks } from "../learning/checks";
+import { tutoringMatchesAttempt } from "../learning/tutoring";
 
 /**
  * Base system instructions defining the Socratic Engineering Coach persona.
@@ -154,7 +155,7 @@ export function buildSocraticSystemPrompt(
   activeCheck?: LearningCheckSpec,
   referenceQuery = ""
 ): string {
-  const sections: string[] = [SOCRATIC_CORE_INSTRUCTIONS, VISUAL_INSTRUCTIONS, ILLUSTRATION_INSTRUCTIONS, MATH_INSTRUCTIONS, FREE_RESPONSE_INSTRUCTIONS];
+  const sections: string[] = [SOCRATIC_CORE_INSTRUCTIONS, VISUAL_INSTRUCTIONS, ILLUSTRATION_INSTRUCTIONS, MATH_INSTRUCTIONS, TABLE_INSTRUCTIONS, FREE_RESPONSE_INSTRUCTIONS];
   const reference = referenceContext(activeMilestone?.references, referenceQuery || activeMilestone?.title);
   if (reference) sections.push(`${GROUNDING_INSTRUCTIONS}\n${reference}`);
   const preferences = loadLearningPreferences();
@@ -180,6 +181,8 @@ export function buildSocraticSystemPrompt(
         : undefined;
     if (intent.practiceMode === "general") currentCode = undefined;
   }
+
+  if (activeMilestone?.curriculum_context) sections.push(`\n## APPROVED CURRICULUM CONTEXT\n${JSON.stringify(activeMilestone.curriculum_context)}\nTeach this unit's outcome toward the original destination. Choose a small next activity from the learner's actual evidence. Do not silently expand the approved scope. Repair one distinction at a time and return to the original task; never build an unbounded prerequisite chain. A content outline or preview is not competency evidence. Current assessment modalities are text, choices and supported code execution. Do not claim to have seen a drawing, heard pronunciation or verified physical performance from textual answers; assess conceptual understanding and disclose the limits.`);
 
   // Milestone Context
   if (activeMilestone) {
@@ -264,6 +267,9 @@ export function formatConversationMessages(
     if (msg.role === "system") continue;
 
     let content = hideLearningCheckBlocks(msg.content);
+    if (msg.tutoring_for_check_id && !tutoringMatchesAttempt(msg,
+      messages.find((message) => message.check_attempt?.checkId === msg.tutoring_for_check_id)?.check_attempt
+    )) content = `Earlier tutoring based on feedback that has since changed. Its judgment is unresolved:\n${content}`;
     if (msg.code_snippet && msg.code_snippet.trim().length > 0) {
       content = `${content}\n\n\`\`\`\n${msg.code_snippet}\n\`\`\``;
     }

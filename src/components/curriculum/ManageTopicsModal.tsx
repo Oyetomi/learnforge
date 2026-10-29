@@ -18,7 +18,9 @@ export function ManageTopicsModal({
 }: Props) {
   const dialog = useRef<HTMLDialogElement>(null),
     cancel = useRef<HTMLButtonElement>(null),
-    status = useRef<HTMLParagraphElement>(null);
+    status = useRef<HTMLParagraphElement>(null),
+    returnFocus = useRef<string | null>(null),
+    deleteTriggers = useRef(new Map<string, HTMLButtonElement>());
   const [pending, setPending] = useState<string[] | null>(null),
     [deleted, setDeleted] = useState(""),
     [error, setError] = useState("");
@@ -32,13 +34,18 @@ export function ManageTopicsModal({
   }, []);
   useEffect(() => {
     if (pending) cancel.current?.focus();
-    else if (deleted) status.current?.focus();
+    else if (returnFocus.current) {
+      deleteTriggers.current.get(returnFocus.current)?.focus();
+      returnFocus.current = null;
+    } else if (deleted) status.current?.focus();
   }, [pending, deleted]);
   const visible = tracks.filter((t) => visibleIds.includes(t.id));
   const titles = (pending || [])
     .map((id) => tracks.find((t) => t.id === id)?.title)
     .filter(Boolean);
-  const startDelete = (ids: string[]) => {
+  const startDelete = (ids: string[], triggerKey: string) => {
+    // Confirmation replaces the list, so resolve its newly mounted trigger on return.
+    returnFocus.current = triggerKey;
     setError("");
     setPending(ids);
   };
@@ -46,6 +53,7 @@ export function ManageTopicsModal({
     if (!pending) return;
     try {
       onDelete(pending);
+      returnFocus.current = null;
       setDeleted(
         pending.length === 1
           ? `Deleted “${titles[0] || "topic"}”.`
@@ -138,13 +146,24 @@ export function ManageTopicsModal({
                               <LanguageLogo language={t.language} size={12} />
                             )}{" "}
                             {t.language ? languageName(t.language) : "Learning"}{" "}
-                            · {t.milestones.length} lessons
+                            ·{" "}
+                            {t.curriculum
+                              ? `${t.curriculum.modules.length} modules · ${t.milestones.length} outcomes`
+                              : `${t.milestones.length} ${
+                                  t.milestones.length === 1
+                                    ? "lesson"
+                                    : "lessons"
+                                }`}
                           </small>
                         </div>
                         <button
                           className="topic-delete-button"
                           aria-label={`Delete topic: ${t.title}`}
-                          onClick={() => startDelete([t.id])}
+                          ref={(node) => {
+                            if (node) deleteTriggers.current.set(`topic:${t.id}`, node);
+                            else deleteTriggers.current.delete(`topic:${t.id}`);
+                          }}
+                          onClick={() => startDelete([t.id], `topic:${t.id}`)}
                         >
                           <Trash2 size={14} />
                           Delete
@@ -167,7 +186,11 @@ export function ManageTopicsModal({
                   </p>
                   <button
                     className="topic-delete-button"
-                    onClick={() => startDelete(removedIds)}
+                    ref={(node) => {
+                      if (node) deleteTriggers.current.set("removed", node);
+                      else deleteTriggers.current.delete("removed");
+                    }}
+                    onClick={() => startDelete(removedIds, "removed")}
                   >
                     Clear permanently
                   </button>

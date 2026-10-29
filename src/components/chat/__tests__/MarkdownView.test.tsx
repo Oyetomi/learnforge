@@ -57,6 +57,13 @@ describe("code reading", () => {
     expect(html).toContain('aria-hidden="true"');
     expect(html).toContain("Code example");
   });
+  it("highlights language families beyond the original starter courses", () => {
+    for (const [language, source] of [["java", 'public class Example { String name = "Ada"; }'], ["csharp", 'public string Name = "Ada";'], ["ruby", 'def greet(name)\n  puts "Hello"\nend'], ["swift", 'let greeting = "Hello"']]) {
+      const html = renderToStaticMarkup(<MarkdownView content={"```" + language + "\n" + source + "\n```"} />);
+      expect(html).toContain("hljs-keyword");
+      expect(html).toContain("hljs-string");
+    }
+  });
   it("keeps unlabelled single-line fences as blocks, with the course language as a hint", () => {
     const html = renderToStaticMarkup(
       <MarkdownView languageHint="rust" content={"```\nlet count = 3;\n```"} />
@@ -146,5 +153,18 @@ describe("universal visuals and multi-discipline illustrations", () => {
         image_url: { url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==" },
       },
     ]);
+  });
+
+  it("renders comparisons as semantic tables with safe formatted cells", () => {
+    const html = renderToStaticMarkup(<MarkdownView content={[
+      "| Choice | Consequence |", "| --- | --- |",
+      "| `buffer` | Stores **text** |", "| `file` | Saves text |",
+    ].join("\n")} />);
+    expect(html).toContain('class="learning-table-scroll"');
+    expect(html).toContain('<th scope="col">Choice</th>');
+    expect(html).toContain('<tbody>');
+    expect(html).toContain('inline-code');
+    expect(html).toContain('<strong>text</strong>');
+    expect(html).not.toContain('tabindex="0"'); // Added only after real layout overflows.
   });
 });

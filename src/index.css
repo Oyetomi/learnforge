@@ -3717,7 +3717,7 @@ button:active:not(:disabled) {
 .prose .snippet pre code, .snippet pre code {
   display: block; margin: 0; padding: 0; border: 0; background: none;
   white-space: pre; overflow-wrap: normal; word-break: normal; color: #d4dce8;
-  font: 400 13.5px/1.8 var(--font-ui); font-variant-ligatures: none;
+  font: 400 13.5px/1.8 var(--font-code); font-variant-ligatures: none;
 }
 :is(.snippet, .inline-code) .hljs-keyword, :is(.snippet, .inline-code) .hljs-selector-tag, :is(.snippet, .inline-code) .hljs-literal { color: #c5a5e9; }
 :is(.snippet, .inline-code) .hljs-string, :is(.snippet, .inline-code) .hljs-regexp, :is(.snippet, .inline-code) .hljs-meta .hljs-string { color: #b0d596; }
@@ -3726,7 +3726,7 @@ button:active:not(:disabled) {
 :is(.snippet, .inline-code) .hljs-number, :is(.snippet, .inline-code) .hljs-symbol { color: #edae8b; }
 :is(.snippet, .inline-code) .hljs-comment, :is(.snippet, .inline-code) .hljs-quote { color: #91a0b5; font-style: italic; }
 :is(.snippet, .inline-code) .hljs-meta, :is(.snippet, .inline-code) .hljs-variable { color: #b9bfdc; }
-.prose code.inline-code { padding: 1px 4px; border: 0; border-radius: 3px; background: #ffffff05; color: #cbb9a7; font: 400 .92em/1.5 var(--font-ui); white-space: break-spaces; overflow-wrap: anywhere; }
+.prose code.inline-code { padding: 1px 4px; border: 0; border-radius: 3px; background: #ffffff05; color: #cbb9a7; font: 400 .92em/1.5 var(--font-code); white-space: break-spaces; overflow-wrap: anywhere; }
 @media (max-width: 600px) {
   .snippet-toolbar { padding: 0 10px; }
   .snippet-toolbar > div { gap: 10px; }
@@ -3817,10 +3817,14 @@ button:active:not(:disabled) {
 .readiness-review p { color: #bcc8d8; font-size: 13px; line-height: 1.8; margin-top: 8px; }
 @font-face { font-family: 'JetBrains Mono'; src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2'); font-style: normal; font-weight: 400; font-display: swap; }
 @font-face { font-family: 'JetBrains Mono'; src: url('/fonts/JetBrainsMono-Medium.woff2') format('woff2'); font-style: normal; font-weight: 500 700; font-display: swap; }
-:root { --font-ui: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace; font-family: var(--font-ui); }
+@font-face { font-family: 'Google Sans Code'; src: url('/fonts/GoogleSansCode-Variable.ttf') format('truetype'); font-style: normal; font-weight: 300 800; font-display: swap; }
+@font-face { font-family: 'Google Sans Code'; src: url('/fonts/GoogleSansCode-Italic-Variable.ttf') format('truetype'); font-style: italic; font-weight: 300 800; font-display: swap; }
+:root { --font-ui: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace; --font-code: 'Google Sans Code', monospace; --font-mono: var(--font-code); font-family: var(--font-ui); }
 .app-shell, .app-shell :where(button,input,textarea,summary,h1,h2,h3,h4,h5,p,span,small,strong,code,pre,figcaption,div):not(.katex):not(.katex *) { font-family: var(--font-ui); }
 .roadmap-edge text { font-family: var(--font-ui); }
-.snippet pre code, .prose .snippet pre code { font-family: var(--font-ui); }
+.app-shell :is(pre,code,.snippet-gutter):not(.katex):not(.katex *),
+.app-shell :is(pre,code,.snippet-gutter) span:not(.katex):not(.katex *),
+.app-shell .monaco-editor :is(.view-line span,.line-numbers):not(.codicon):not(.codicon *) { font-family: var(--font-code); }
 .interest-results { margin-top: 24px; }
 .interest-results h4 { color: #a9b8cb; font-size: 11px; font-weight: 400; margin: 0 0 8px; }
 .interest-topic { display: flex; align-items: center; gap: 16px; width: 100%; text-align: left; border: 0; border-bottom: 1px solid #333b47; padding: 16px 0; background: transparent; color: #cbd5e2; }
@@ -5103,3 +5107,38 @@ dialog.review-dialog { overflow: hidden; max-height: calc(100dvh - 40px); }
   min-width: 30px;
   justify-content: center;
 }
+
+/* Shared ergonomics: visible keyboard focus, readable prose, and compact chrome. */
+.app-skip-link { position:fixed; top:8px; left:12px; z-index:1000; transform:translateY(-150%); padding:10px 14px; border:1px solid var(--accent); border-radius:6px; background:var(--panel); color:var(--heading); font-size:12px; }
+.app-skip-link:focus { transform:none; }
+#main-content:focus { outline:none; }
+:is(input,summary,[tabindex="0"]):focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.review-header h2 { overflow-wrap:anywhere; }
+.review-header .icon-button { flex-shrink:0; }
+.review-dialog :is(input,textarea,select) { font-family:inherit; }
+.focused-session .lesson-reading .prose { font-size:14px; line-height:1.85; }
+.focused-session .lesson-heading h1 { font-size:21px; line-height:1.5; letter-spacing:-.5px; }
+.focused-session .lesson-position { font-size:10px; letter-spacing:1px; }
+.snippet-toolbar button { min-height:32px; }
+.snippet pre:focus-visible { outline:2px solid var(--accent); outline-offset:-3px; }
+.snippet-tab,.snippet-toolbar>div { min-width:0; }
+.snippet-language { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.empty-workspace p { line-height:1.85; max-width:56ch; }
+@media(max-width:600px) {
+  .focused-session .lesson-heading h1 { font-size:19px; }
+  .focused-session .session-composer-row { flex-wrap:wrap; }
+  .focused-session .session-composer-row .composer { flex:1 1 100%; max-width:none; }
+  .focused-session .session-composer-row .session-help-actions { justify-content:flex-start; flex-wrap:wrap; width:100%; }
+  .focused-session .session-help-actions button { min-height:34px; }
+  .session-telemetry-bar { align-items:flex-start; }
+  .telemetry-model-pill { max-width:100%; min-width:0; }
+  .telemetry-model-pill strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .telemetry-context { white-space:normal; }
+}
+@media(prefers-reduced-motion:reduce) {
+  *,*::before,*::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+}
+.curriculum-session-context button { flex-shrink:0; white-space:nowrap; }
+@media(max-width:600px) { .curriculum-session-context>span { display:none; } }
+.study-sheet-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.study-sheet-actions .check-coach-button { border:1px solid var(--border); border-radius:6px; padding:8px 11px; min-height:36px; }

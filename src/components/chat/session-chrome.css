@@ -1,0 +1,118 @@
+/* Keep operational details available without competing with the learning task. */
+.focused-session .session-telemetry-bar {
+  gap: 8px 16px;
+  min-height: 34px;
+}
+.focused-session .telemetry-model-pill {
+  max-width: min(72%, 440px);
+  min-height: 30px;
+  border-radius: 5px;
+  font-size: 11px;
+}
+.telemetry-model-pill strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-usage-details {
+  position: relative;
+  margin-left: auto;
+  font-size: 11px;
+}
+.session-usage-details > summary {
+  cursor: pointer;
+  padding: 8px 3px;
+  color: var(--muted, #a2aab6);
+  white-space: nowrap;
+}
+.session-usage-details > summary:focus-visible {
+  outline: 2px solid var(--accent, #e5aa72);
+  outline-offset: 2px;
+}
+.session-usage-panel {
+  position: absolute;
+  z-index: 15;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: min(340px, calc(100vw - 48px));
+  border: 1px solid var(--border, #34383f);
+  border-radius: 7px;
+  padding: 16px;
+  background: var(--panel, #191b1e);
+  color: var(--heading, #edf0f4);
+  box-shadow: 0 8px 24px #0005;
+}
+.session-usage-panel dl {
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+.session-usage-panel dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+.session-usage-panel dt {
+  color: var(--muted, #a2aab6);
+}
+.session-usage-panel dd {
+  margin: 0;
+  text-align: right;
+}
+.session-usage-panel p {
+  color: var(--muted, #a2aab6);
+  font-size: 11px;
+  line-height: 1.6;
+  margin: 15px 0 0;
+}
+.focused-session .btw-popover {
+  flex: 0 1 auto;
+  max-height: min(52dvh, 420px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.btw-popover .btw-popover-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.btw-popover .btw-popover-header {
+  flex-shrink: 0;
+}
+.study-sheet-copy-error {
+  color: rgb(var(--color-danger, 229 164 155));
+  font-size: 12px;
+  line-height: 1.65;
+}
+.study-sheet-copy-status {
+  color: rgb(var(--color-success, 164 206 177));
+  font-size: 12px;
+}
+.check-retry-banner:focus-visible {
+  outline: 2px solid var(--accent, #e5aa72);
+  outline-offset: 3px;
+}
+@media (max-width: 560px) {
+  .focused-session .telemetry-model-pill {
+    max-width: calc(100% - 110px);
+  }
+  .session-usage-panel dl > div {
+    display: block;
+  }
+  .session-usage-panel dd {
+    margin-top: 4px;
+    text-align: left;
+  }
+}
+@media (max-width: 720px) {
+  .focused-session .mastery-marks {
+    display: none;
+  }
+  .focused-session .mastery-status {
+    display: inline;
+    font-size: 10px;
+    white-space: normal;
+    max-width: 130px;
+  }
+}

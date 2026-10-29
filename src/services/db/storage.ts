@@ -253,6 +253,19 @@ export class LocalDatabase {
     return fullM;
   }
 
+  /** Seed an approved outline in one storage snapshot, with all runtime edges mapped. */
+  seedMilestonePlan(sessionId: string, templates: (Omit<Milestone, "id" | "session_id" | "created_at"> & { sourceId: string })[]): Milestone[] {
+    if ((this.milestones.get(sessionId) || []).length) return this.getMilestones(sessionId);
+    const ids = new Map(templates.map(t => [t.sourceId, `m-${crypto.randomUUID()}`]));
+    const list: Milestone[] = templates.map(({ sourceId, ...t }) => ({ ...t,
+      id: ids.get(sourceId)!, session_id: sessionId, created_at: Date.now(),
+      prerequisite_ids: t.prerequisite_ids?.map(id => ids.get(id)!).filter(Boolean),
+    }));
+    this.milestones.set(sessionId, list);
+    this.persistAll();
+    return this.getMilestones(sessionId);
+  }
+
   addRepairMilestone(
     parentId: string,
     input: {
@@ -266,10 +279,14 @@ export class LocalDatabase {
       const index = list.findIndex((m) => m.id === parentId);
       if (index < 0) continue;
       const parent = list[index];
+      if (parent.adaptive || list.some(m => m.adaptive && m.status !== "completed") ||
+          list.filter(m => m.adaptive && m.return_to_milestone_id === parent.id).length >= 2) return null;
       const repair: Milestone = {
         id: `repair-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         session_id: parent.session_id,
         learning_intent: parent.learning_intent,
+        curriculum_module_id: parent.curriculum_module_id,
+        curriculum_context: parent.curriculum_context,
         references: parent.references,
         title: input.title,
         prompt: input.lesson,
@@ -289,6 +306,18 @@ export class LocalDatabase {
       list.splice(index, 0, repair);
       this.persistAll();
       return { ...repair };
+    }
+    return null;
+  }
+
+  /** Fill an approved outline unit without changing its identity, graph or evidence. */
+  prepareMilestone(id: string, content: Pick<Milestone, "lesson" | "check" | "visual" | "starter_code" | "test_code">): Milestone | null {
+    for (const list of this.milestones.values()) {
+      const unit = list.find(m => m.id === id);
+      if (!unit || unit.content_status !== "outline") continue;
+      Object.assign(unit, content, { content_status: "ready" });
+      this.persistAll();
+      return { ...unit };
     }
     return null;
   }

@@ -55,6 +55,9 @@ export interface ChatMessage {
   milestone_id?: string;
   internal?: boolean;
   generation_error?: boolean;
+  /** Connects a teaching request/reply to the already submitted answer. */
+  tutoring_for_check_id?: string;
+  tutoring_attempt_key?: string;
   competency_assessment?: CompetencyAssessment;
   roadmap_change?: {
     addedMilestoneId: string;
@@ -71,6 +74,10 @@ export interface ChatMessage {
 }
 
 export interface Milestone {
+  curriculum_unit_id?: string;
+  curriculum_module_id?: string;
+  content_status?: "outline" | "ready";
+  curriculum_context?: { goal: string; destination: string; module: string; assessment: string; version: number };
   references?: LearningReference[];
   visual?: VisualExample;
   learning_intent?: LearningIntent;

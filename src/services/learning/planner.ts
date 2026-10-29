@@ -14,6 +14,8 @@ export async function planAdaptiveRepair(
   const last = messages
     .filter((message) => message.check_attempt?.milestoneId === current.id)
     .slice(-1)[0]?.check_attempt;
+  if (current.adaptive || milestones.some(m=>m.adaptive&&m.status!=='completed') ||
+      milestones.filter(m=>m.adaptive&&m.return_to_milestone_id===current.id).length>=2) return null;
   if (!last || last.grading?.status === "uncertain" || (last.correct && last.confidence !== "unsure")) return null;
   const controller = new AbortController();
   const abort = () => controller.abort();

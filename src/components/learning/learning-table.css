@@ -1,0 +1,22 @@
+.prose figure.learning-table {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 18px 0;
+  color: #d6dee8;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.learning-table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid #3c444f; border-radius: 8px; scrollbar-width: thin; scrollbar-color: #5a6574 #171b20; }
+.learning-table-scroll:focus-visible { outline: 2px solid #c6a381; outline-offset: 3px; }
+.prose .learning-table table { width: 100%; margin: 0; border-collapse: separate; border-spacing: 0; text-align: left; font-size: inherit; line-height: inherit; }
+.prose .learning-table :is(th,td) { min-width: 9rem; padding: 12px 15px; border: 0; border-bottom: 1px solid #343c47; vertical-align: top; text-align: left; overflow-wrap: break-word; }
+.prose .learning-table th { background: #252b33; color: #eef1f5; font-weight: 500; font-size: 12px; }
+.prose .learning-table td { background: #171c22; color: #cad4e0; }
+.prose .learning-table td + td, .prose .learning-table th + th { border-left: 1px solid #ffffff08; }
+.prose .learning-table tbody tr:nth-child(even) td { background: #1b2027; }
+.prose .learning-table tbody tr:hover td { background: #242c35; }
+.prose .learning-table tbody tr:last-child td { border-bottom: 0; }
+.prose .learning-table :is(th,td) code.inline-code { color: #d1bfae; background: #ffffff06; font-size: .95em; }
+.prose .learning-table figcaption { margin-top: 8px; color: #96a5b8; font-size: 11px; }
+@media (max-width: 600px) { .prose .learning-table :is(th,td) { padding: 10px 12px; } }

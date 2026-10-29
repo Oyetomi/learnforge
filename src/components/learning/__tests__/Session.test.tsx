@@ -230,17 +230,61 @@ it("restores the saved answer review rather than reopening an earlier visual", (
 
 it("restores saved feedback after a failed follow-up instead of replacing it with an error reply", () => {
   const check = {
-    id: "q-failure", milestoneId: "m1", question: "Which action fits?",
-    options: [{ id: "a", label: "Wait for a receiver" }, { id: "b", label: "Drop the value" }],
-    correctOptionIds: ["a"], multiple: false, explanation: "The sender waits for a receiver.",
+    id: "q-failure",
+    milestoneId: "m1",
+    question: "Which action fits?",
+    options: [
+      { id: "a", label: "Wait for a receiver" },
+      { id: "b", label: "Drop the value" },
+    ],
+    correctOptionIds: ["a"],
+    multiple: false,
+    explanation: "The sender waits for a receiver.",
   };
-  const html = renderToStaticMarkup(<ChatPane {...props} onOpenSettings={vi.fn()} messages={[
-    { id: "question", role: "assistant", session_id: "s1", milestone_id: "m1", created_at: 1, content: "Previous teaching.", learning_check: check },
-    { id: "attempt", role: "user", session_id: "s1", milestone_id: "m1", created_at: 2, content: "My answer", check_attempt: {
-      checkId: check.id, milestoneId: "m1", selectedIds: ["a"], dontKnow: false, thinking: "", confidence: null, correct: true, submittedAt: 2,
-    } },
-    { id: "error", role: "assistant", session_id: "s1", milestone_id: "m1", created_at: 3, content: "Connection details should stay in history.", generation_error: true },
-  ]} />);
+  const html = renderToStaticMarkup(
+    <ChatPane
+      {...props}
+      onOpenSettings={vi.fn()}
+      messages={[
+        {
+          id: "question",
+          role: "assistant",
+          session_id: "s1",
+          milestone_id: "m1",
+          created_at: 1,
+          content: "Previous teaching.",
+          learning_check: check,
+        },
+        {
+          id: "attempt",
+          role: "user",
+          session_id: "s1",
+          milestone_id: "m1",
+          created_at: 2,
+          content: "My answer",
+          check_attempt: {
+            checkId: check.id,
+            milestoneId: "m1",
+            selectedIds: ["a"],
+            dontKnow: false,
+            thinking: "",
+            confidence: null,
+            correct: true,
+            submittedAt: 2,
+          },
+        },
+        {
+          id: "error",
+          role: "assistant",
+          session_id: "s1",
+          milestone_id: "m1",
+          created_at: 3,
+          content: "Connection details should stay in history.",
+          generation_error: true,
+        },
+      ]}
+    />
+  );
   expect(html).toContain("Review your answer");
   expect(html).toContain("Your answer is saved. Try Continue again.");
   expect(html).toContain("Check AI connection");
@@ -248,4 +292,94 @@ it("restores saved feedback after a failed follow-up instead of replacing it wit
   expect(html).toContain("The sender waits for a receiver.");
   expect(html).not.toContain("Previous teaching.");
   expect(html).not.toContain("Connection details should stay in history.");
+});
+
+it("keeps short post-answer teaching in the answer panel rather than bypassing it for a question", () => {
+  const check = {
+    id: "q-tutor",
+    milestoneId: "m1",
+    question: "Which action fits?",
+    options: [
+      { id: "a", label: "Wait" },
+      { id: "b", label: "Discard" },
+    ],
+    correctOptionIds: ["a"],
+    multiple: false,
+    explanation: "A matching operation is needed.",
+  };
+  const html = renderToStaticMarkup(
+    <ChatPane
+      {...props}
+      messages={[
+        {
+          id: "question",
+          role: "assistant",
+          session_id: "s1",
+          milestone_id: "m1",
+          created_at: 1,
+          content: "Try this question.",
+          learning_check: check,
+        },
+        {
+          id: "answer",
+          role: "user",
+          session_id: "s1",
+          milestone_id: "m1",
+          created_at: 2,
+          content: "My answer",
+          check_attempt: {
+            checkId: check.id,
+            milestoneId: "m1",
+            selectedIds: ["a"],
+            dontKnow: false,
+            thinking: "",
+            confidence: null,
+            correct: true,
+            submittedAt: 2,
+          },
+        },
+        {
+          id: "teaching",
+          role: "assistant",
+          session_id: "s1",
+          milestone_id: "m1",
+          created_at: 3,
+          tutoring_for_check_id: check.id,
+          content:
+            "### Why it waits\n\nAn exchange needs both sides. Think of passing a note directly to another person.",
+        },
+      ]}
+    />
+  );
+  expect(html).toContain("Review your answer");
+  expect(html).toContain("Your answer");
+  expect(html).toContain("passing a note directly");
+  expect(html).toContain("Practise with a fresh case");
+  expect(html).not.toContain("Preparing the next question");
+});
+
+it("keeps usage details collapsed and does not imply a verified live connection", () => {
+  const html = renderToStaticMarkup(
+    <ChatPane
+      trackId="a"
+      activeMilestone={{ ...milestone, lesson: "One explanation." }}
+      milestoneIndex={0}
+      milestoneCount={1}
+      messages={[]}
+      isRequestingCheck={false}
+      isStreaming={false}
+      isCodeWorkspaceOpen={false}
+      onToggleCode={vi.fn()}
+      onRequestCheck={vi.fn()}
+      onSubmitCheck={vi.fn()}
+      onContinueCheck={vi.fn()}
+      onSendMessage={vi.fn()}
+      onStopStreaming={vi.fn()}
+      onOpenEditor={vi.fn()}
+    />
+  );
+  expect(html).toContain('<details class="session-usage-details">');
+  expect(html).toContain("Usage details");
+  expect(html).not.toContain("telemetry-status-dot is-ok");
+  expect(html).toContain("not a live provider measurement");
 });

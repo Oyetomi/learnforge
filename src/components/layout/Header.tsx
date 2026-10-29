@@ -1,9 +1,11 @@
 import React from "react";
 import { Download, PanelLeft, Plus, Settings } from "lucide-react";
 import { SupportedLanguage } from "../../types";
+import "./tools-surfaces.css";
 import { TrackPicker } from "./TrackPicker";
 
 interface HeaderProps {
+  curriculumVisible?: boolean;
   currentTrackId: string;
   onSelectTrack: (trackId: string) => void;
   tracks: { id: string; title: string; language: SupportedLanguage | null }[];
@@ -18,6 +20,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
+  curriculumVisible,
   currentTrackId,
   onSelectTrack,
   tracks,
@@ -36,10 +39,24 @@ export const Header: React.FC<HeaderProps> = ({
           event.currentTarget.focus();
           onToggleSidebar();
         }}
-        aria-label={isSidebarOpen ? "Hide learning path" : "Show learning path"}
+        aria-label={
+          curriculumVisible !== undefined
+            ? curriculumVisible
+              ? "Return to learning session"
+              : "Show curriculum"
+            : isSidebarOpen
+            ? "Hide learning path"
+            : "Show learning path"
+        }
         disabled={!tracks.length}
-        aria-expanded={isSidebarOpen && !!tracks.length}
-        aria-controls="learning-path"
+        aria-expanded={curriculumVisible ?? (isSidebarOpen && !!tracks.length)}
+        aria-controls={
+          curriculumVisible !== undefined
+            ? "main-content"
+            : isSidebarOpen
+            ? "learning-path"
+            : undefined
+        }
       >
         <PanelLeft size={18} />
       </button>

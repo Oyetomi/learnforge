@@ -13,8 +13,9 @@
     "windows": [
       {
         "title": "LearnForge",
-        "width": 1280,
-        "height": 840,
+        "width": 1440,
+        "height": 960,
+        "maximized": true,
         "minWidth": 900,
         "minHeight": 600,
         "resizable": true,

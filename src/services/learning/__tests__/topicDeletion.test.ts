@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { deleteTopicData } from "../topicDeletion";
+import { tutoringReadingKey } from "../tutoring";
 let Database: typeof import("../../db/storage").LocalDatabase;
 beforeEach(async () => {
   const values = new Map<string, string>();
@@ -44,7 +45,7 @@ it("permanently deletes owned records, drafts, progress and review cards while p
     starter_code: "",
     status: "active",
   });
-  db.addMessage({
+  const ownedMessage = db.addMessage({
     session_id: a.id,
     milestone_id: m.id,
     role: "user",
@@ -60,7 +61,7 @@ it("permanently deletes owned records, drafts, progress and review cards while p
       submittedAt: 0,
     },
   });
-  db.addMessage({
+  const otherMessage = db.addMessage({
     session_id: b.id,
     role: "user",
     content: "Keep this message.",
@@ -87,8 +88,10 @@ it("permanently deletes owned records, drafts, progress and review cards while p
     "learnforge:check-draft:q-a",
     "learnforge:visual-support:q-a",
     `learnforge:composer-draft:a:${m.id}`,
+    tutoringReadingKey(ownedMessage.id),
   ];
   for (const key of keys) localStorage.setItem(key, "private data");
+  localStorage.setItem(tutoringReadingKey(otherMessage.id), "keep this reading position");
   localStorage.setItem(
     "learnforge:code-drafts",
     JSON.stringify({ [m.id]: "delete", [other.id]: "keep" })
@@ -112,6 +115,7 @@ it("permanently deletes owned records, drafts, progress and review cards while p
   expect(localStorage.getItem("learnforge:learning-preferences")).toBe(
     "keep preferences"
   );
+  expect(localStorage.getItem(tutoringReadingKey(otherMessage.id))).toBe("keep this reading position");
 });
 it("does not delete a different track with the same display title or its owned review cards", () => {
   const db = new Database();

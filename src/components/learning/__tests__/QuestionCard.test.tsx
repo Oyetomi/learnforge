@@ -40,15 +40,33 @@ const attempt: CheckAttempt = {
 };
 describe("question disclosure and feedback", () => {
   it("keeps partly correct multi-select choices editable during a supported retry", () => {
-    const html = renderToStaticMarkup(<QuestionCard check={{ ...check, multiple: true,
-      correctOptionIds: ["a", "b"], options: [...check.options, { id: "c", label: "Drops it" }] }}
-      initialRetryIds={["a", "c"]} isBusy={false} onSubmit={vi.fn()} onAskCoach={vi.fn()} onNewQuestion={vi.fn()} />);
+    const html = renderToStaticMarkup(
+      <QuestionCard
+        check={{
+          ...check,
+          multiple: true,
+          correctOptionIds: ["a", "b"],
+          options: [...check.options, { id: "c", label: "Drops it" }],
+        }}
+        initialRetryIds={["a", "c"]}
+        isBusy={false}
+        onSubmit={vi.fn()}
+        onAskCoach={vi.fn()}
+        onNewQuestion={vi.fn()}
+      />
+    );
     expect(html).toContain("That combination");
     expect(html).not.toContain("is-eliminated");
     expect(html).toContain("Supported practice");
   });
   it("keeps the first answer and corrected retry distinct in saved feedback", () => {
-    const html = render({ ...attempt, selectedIds: ["a"], retriedOptionIds: ["b"], correct: true, assisted: true });
+    const html = render({
+      ...attempt,
+      selectedIds: ["a"],
+      retriedOptionIds: ["b"],
+      correct: true,
+      assisted: true,
+    });
     expect(html).toContain("Your first answer");
     expect(html).toContain("Your retry · supported practice");
     expect(html).toContain("Stores the value");
@@ -178,7 +196,7 @@ describe("question disclosure and feedback", () => {
       />
     );
     expect(html).toContain("check-retry-banner");
-    expect(html).toContain("Repair your choice before seeing the committed answer");
+    expect(html).toContain("Try the choice again");
     expect(html).toContain(
       "Check whether any concurrent receiver is waiting on the channel."
     );
@@ -202,7 +220,7 @@ describe("question disclosure and feedback", () => {
       />
     );
     expect(closedBookHtml).toContain("is-closed-book");
-    expect(closedBookHtml).toContain("Closed-book · mastery eligible");
+    expect(closedBookHtml).toContain("Independent practice");
 
     const recallHtml = renderToStaticMarkup(
       <QuestionCard
@@ -227,7 +245,8 @@ describe("question disclosure and feedback", () => {
       <QuestionCard
         check={{
           ...check,
-          context: '```go\npackage main\nimport "fmt"\nfunc main() { fmt.Println(42) }\n```',
+          context:
+            '```go\npackage main\nimport "fmt"\nfunc main() { fmt.Println(42) }\n```',
         }}
         language="go"
         isBusy={false}
@@ -240,4 +259,56 @@ describe("question disclosure and feedback", () => {
     expect(html).toContain("Predict &amp; run snippet in sandbox");
     expect(html).toContain("Run snippet");
   });
+});
+
+it("locks the pending answer controls while a request is busy", () => {
+  const html = renderToStaticMarkup(
+    <QuestionCard
+      check={check}
+      isBusy
+      onSubmit={vi.fn()}
+      onAskCoach={vi.fn()}
+      onNewQuestion={vi.fn()}
+    />
+  );
+  expect(html).toMatch(/<fieldset[^>]*class="check-options"[^>]*disabled=""/);
+  expect(html).not.toContain("mastery eligible");
+});
+
+it("retains the original reference context when reviewing a written answer", () => {
+  const written: LearningCheck = {
+    ...check,
+    id: "written-q",
+    kind: "free-response",
+    context: "The original reference describes a buffered handoff.",
+    question: "Explain the handoff.",
+    options: [],
+    correctOptionIds: [],
+    rubric: [{ id: "r", criterion: "Distinguishes storage from waiting" }],
+    expectedAnswer: "A buffer stores one pending value.",
+  };
+  const html = renderToStaticMarkup(
+    <QuestionCard
+      check={written}
+      attempt={{
+        ...attempt,
+        checkId: written.id,
+        response: "It stores a value.",
+        grading: {
+          status: "uncertain",
+          feedback: "Let's check that distinction.",
+          criteria: [{ id: "r", met: false }],
+        },
+      }}
+      isBusy={false}
+      onSubmit={vi.fn()}
+      onAskCoach={vi.fn()}
+      onNewQuestion={vi.fn()}
+    />
+  );
+  expect(html).toContain(
+    "The original reference describes a buffered handoff."
+  );
+  expect(html).toContain("It stores a value.");
+  expect(html).toContain("Unresolved");
 });

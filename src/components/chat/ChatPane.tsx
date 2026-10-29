@@ -27,7 +27,8 @@ import {
   presetFor,
   readUsage,
 } from "../../services/ai/connection";
-import { ContextRing } from "./ContextRing";
+import { handleTabNavigation } from "../layout/keyboard";
+import "./session-chrome.css";
 import {
   hideLearningCheckBlocks,
   learningEvidence,
@@ -59,6 +60,12 @@ import {
   questionPresentation,
 } from "../learning/questionPresentation";
 import { QuestionCard } from "../learning/QuestionCard";
+import { AnswerTutoring } from "../learning/AnswerTutoring";
+import "../learning/question-focus.css";
+import {
+  answerTutoring,
+  tutoringMatchesAttempt,
+} from "../../services/learning/tutoring";
 import { MasteryMeter } from "../learning/MasteryMeter";
 import { Composer } from "./Composer";
 import { cleanMilestoneTitle } from "../milestones/MilestoneSidebar";
@@ -152,8 +159,19 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   const composerRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<HTMLDialogElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [historyTab, setHistoryTab] = useState<"timeline" | "sheet">("timeline");
+  const [historyTab, setHistoryTab] = useState<"timeline" | "sheet">(
+    "timeline"
+  );
   const [copiedSheet, setCopiedSheet] = useState(false);
+  const [copyingSheet, setCopyingSheet] = useState(false);
+  const [copyError, setCopyError] = useState("");
+  const copyReset = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(
+    () => () => {
+      if (copyReset.current) clearTimeout(copyReset.current);
+    },
+    []
+  );
   const [btwMode, setBtwMode] = useState(false);
   const [aiConn, setAiConn] = useState(() => loadAIConnection());
   const [usage, setUsage] = useState(() => readUsage());
@@ -164,8 +182,6 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   const [contextWindow, setContextWindow] = useState(() =>
     contextWindowFor(loadAIConnection().model)
   );
-  const [tokensBumped, setTokensBumped] = useState(false);
-  const lastTokenTotal = useRef(0);
 
   useEffect(() => {
     const syncTelemetry = () => {
@@ -173,6 +189,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
       setAiConn(conn);
       setUsage(readUsage());
       setContextWindow(contextWindowFor(conn.model));
+      setAiStatus({ ok: true, message: "" });
     };
     const onStatus = (e: Event) =>
       setAiStatus((e as CustomEvent<AIStatusDetail>).detail);
@@ -215,18 +232,6 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
     (m) => m.role !== "system" && !m.internal
   ).length;
   const totalUsedTokens = usage.prompt + usage.completion;
-  useEffect(() => {
-    if (lastTokenTotal.current && totalUsedTokens > lastTokenTotal.current) {
-      setTokensBumped(true);
-      const t = window.setTimeout(() => setTokensBumped(false), 320);
-      lastTokenTotal.current = totalUsedTokens;
-      return () => window.clearTimeout(t);
-    }
-    lastTokenTotal.current = totalUsedTokens;
-  }, [totalUsedTokens]);
-  const contextRatio = Math.min(1, contextTokens / Math.max(1, contextWindow));
-  const inShare =
-    totalUsedTokens > 0 ? (usage.prompt / totalUsedTokens) * 100 : 0;
   const providerLabel = presetFor(aiConn.provider).label.replace(
     /\s*\(.*?\)\s*/g,
     ""
@@ -258,7 +263,12 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
       const checkId = pendingBtwCheck.current;
       setBtwMode(false);
       setBtwState({ question: cleanQ, loading: true });
-      void askBtwQuestion(cleanQ, activeMilestone, latest || null, controller.signal)
+      void askBtwQuestion(
+        cleanQ,
+        activeMilestone,
+        latest || null,
+        controller.signal
+      )
         .then((answer) => {
           if (controller.signal.aborted) return;
           if (checkId && pendingBtwCheck.current === checkId)
@@ -275,6 +285,10 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
         });
       return;
     }
+    // A direct question intentionally leaves the feedback hold. /btw stays in place.
+    holdCheck(null);
+    continuationRequested.current = false;
+    setActivity("reply");
     onSendMessage(text);
   };
   const relevant = messages.filter(
@@ -285,10 +299,29 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   );
   const lastReply = [...relevant]
     .reverse()
-    .find((m) => m.role === "assistant" && !m.internal && !m.roadmap_change && !m.generation_error && !m.content.startsWith("**Your coach couldn’t connect.**"));
-  const lastError = [...relevant].reverse().find((m) => m.generation_error || m.content.startsWith("**Your coach couldn’t connect.**"));
-  const continuationError = lastError && messages.indexOf(lastError) > messages.findIndex((m) => m.id === lastReply?.id)
-    ? lastError : undefined;
+    .find(
+      (m) =>
+        m.role === "assistant" &&
+        !m.internal &&
+        !m.tutoring_for_check_id &&
+        !m.roadmap_change &&
+        !m.generation_error &&
+        !m.content.startsWith("**Your coach couldn’t connect.**")
+    );
+  const lastError = [...relevant]
+    .reverse()
+    .find(
+      (m) =>
+        m.generation_error ||
+        m.content.startsWith("**Your coach couldn’t connect.**")
+    );
+  const continuationError =
+    lastError &&
+    !lastError.tutoring_for_check_id &&
+    messages.indexOf(lastError) >
+      messages.findIndex((m) => m.id === lastReply?.id)
+      ? lastError
+      : undefined;
   const starter = activeMilestone
     ? starterLearningCheck(trackId, activeMilestone, milestoneIndex)
     : null;
@@ -360,9 +393,12 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   const visual = lessonVisual
     ? activeMilestone?.visual
     : lastReply?.visual_example;
-  const availableVisual =
-    lastReply?.visual_example || activeMilestone?.visual;
+  const availableVisual = lastReply?.visual_example || activeMilestone?.visual;
   const busy = isStreaming || isRequestingCheck;
+  const tutoringRequest = [...relevant]
+    .reverse()
+    .find((m) => m.role === "user");
+  const tutoringBusy = isStreaming && !!tutoringRequest?.tutoring_for_check_id;
   const ask = () => composerRef.current?.querySelector("textarea")?.focus();
   const lastSeenReply = useRef(lastReply?.id);
   // After an answer, keep that question's feedback on screen (even while the
@@ -371,6 +407,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   // Mirrors the hold synchronously so effects in the same commit see it.
   const heldRef = useRef(false);
   const continuationRequested = useRef(false);
+  const continuationReplyBaseline = useRef<string>();
   const holdCheck = (check: LearningCheck | null) => {
     heldRef.current = !!check;
     setHeldCheck(check);
@@ -392,6 +429,18 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   }, [activity]);
   const reviewCheck = heldCheck || latest;
   const reviewAttempt = reviewCheck ? attemptFor(reviewCheck) : undefined;
+  const teaching = reviewCheck
+    ? answerTutoring(relevant, reviewCheck.id, reviewAttempt)
+    : undefined;
+  const tutoringFailed =
+    !!reviewCheck &&
+    relevant.some(
+      (m) =>
+        m.role === "assistant" &&
+        m.tutoring_for_check_id === reviewCheck.id &&
+        m.generation_error &&
+        tutoringMatchesAttempt(m, reviewAttempt)
+    );
   const held = !!heldCheck;
   useEffect(() => {
     setStepIndex(readLessonStep(activeMilestone?.id));
@@ -408,8 +457,9 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
     [preferences.pace]
   );
   const showLatestReply = () => {
-    if (isStreaming) setActivity("reply");
-    else if (lastReply?.id && lastReply.id !== lastSeenReply.current) {
+    if (isStreaming) {
+      if (!tutoringBusy) setActivity("reply");
+    } else if (lastReply?.id && lastReply.id !== lastSeenReply.current) {
       lastSeenReply.current = lastReply.id;
       setReplyIndex(0);
       setLessonVisual(false);
@@ -426,32 +476,33 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
     if (!heldRef.current) showLatestReply();
   }, [isStreaming, lastReply?.id]);
   const continueFromFeedback = (check: LearningCheck) => {
-    const answeredAt = messages.findIndex(
-      (m) => m.check_attempt?.checkId === check.id
-    );
-    const prepared =
-      isStreaming ||
-      (!!lastReply && messages.indexOf(lastReply) > answeredAt);
     if (busy) return;
-    if (prepared) {
-      holdCheck(null);
-      showLatestReply();
-    } else {
-      continuationRequested.current = true;
-      holdCheck(check);
-      onContinueCheck(check);
-    }
+    // A side-question reply after the answer is not a prepared continuation.
+    // The explicit practice action always requests its own fresh application.
+    continuationRequested.current = true;
+    continuationReplyBaseline.current = lastReply?.id;
+    holdCheck(check);
+    onContinueCheck(check);
   };
   useEffect(() => {
     if (!continuationRequested.current || busy) return;
-    const answeredAt = messages.findIndex((m) => m.check_attempt?.checkId === reviewCheck?.id);
-    if (lastReply && messages.indexOf(lastReply) > answeredAt) {
+    const answeredAt = messages.findIndex(
+      (m) => m.check_attempt?.checkId === reviewCheck?.id
+    );
+    if (
+      lastReply &&
+      lastReply.id !== continuationReplyBaseline.current &&
+      messages.indexOf(lastReply) > answeredAt
+    ) {
       continuationRequested.current = false;
       holdCheck(null);
       showLatestReply();
     } else if (continuationError) {
       continuationRequested.current = false;
       setActivity("check");
+    } else {
+      // Stopped requests keep the existing answer/teaching available for another try.
+      continuationRequested.current = false;
     }
   }, [busy, lastReply?.id, continuationError?.id]);
   useEffect(() => {
@@ -476,6 +527,20 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
     reviewCheck?.id,
   ]);
   useEffect(() => {
+    if (
+      activity !== "check" ||
+      reviewAttempt ||
+      busy ||
+      !reviewCheck ||
+      document.querySelector("dialog[open]")
+    )
+      return;
+    const question =
+      document.getElementById(`question-${reviewCheck.id}`) ||
+      document.getElementById(`written-question-${reviewCheck.id}`);
+    question?.focus({ preventScroll: true });
+  }, [activity, reviewCheck?.id, busy]);
+  useEffect(() => {
     if (!historyOpen) return;
     const previous = document.activeElement as HTMLElement | null;
     const dialog = historyRef.current;
@@ -490,12 +555,16 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
     else onRequestCheck();
   };
   const openVisualCompanion = () => {
-    if ((availableVisual?.kind === "graph" || availableVisual?.kind === "state-model")) {
-      if (latest && !attempt) recordVisualSupport(latest.id, "open-book:interactive-visual");
+    if (
+      availableVisual?.kind === "graph" ||
+      availableVisual?.kind === "state-model"
+    ) {
+      if (latest && !attempt)
+        recordVisualSupport(latest.id, "open-book:interactive-visual");
       setLessonVisual(!lastReply?.visual_example);
       setInlineVisualOpen(false);
       setActivity("visual");
-    } else setInlineVisualOpen(v => !v);
+    } else setInlineVisualOpen((v) => !v);
   };
   const continueFromTeaching = () => {
     if (latest && attemptFor(latest)) onContinueCheck(latest);
@@ -511,23 +580,24 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
       setActivity("visual");
     } else goToQuestion();
   };
-  const stageLabel = busy && !held
-    ? "Preparing the next step"
-    : activity === "reference"
-    ? "Read the reference"
-    : activity === "check"
-    ? reviewAttempt
-      ? "Review your answer"
-      : "Try this question"
-    : activity === "visual"
-    ? "Explore the idea"
-    : activity === "lesson"
-    ? `Explanation · ${
-        overview
-          ? "overview"
-          : `step ${visibleStep + 1} of ${Math.max(1, lessonSteps.length)}`
-      }`
-    : `Coach · step ${replyStep + 1} of ${Math.max(1, replySteps.length)}`;
+  const stageLabel =
+    busy && !held
+      ? "Preparing the next step"
+      : activity === "reference"
+      ? "Read the reference"
+      : activity === "check"
+      ? reviewAttempt
+        ? "Review your answer"
+        : "Try this question"
+      : activity === "visual"
+      ? "Explore the idea"
+      : activity === "lesson"
+      ? `Explanation · ${
+          overview
+            ? "overview"
+            : `step ${visibleStep + 1} of ${Math.max(1, lessonSteps.length)}`
+        }`
+      : `Coach · step ${replyStep + 1} of ${Math.max(1, replySteps.length)}`;
   const slideCount =
     activity === "lesson"
       ? overview
@@ -557,6 +627,11 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   return (
     <section
       className="lesson-pane workspace-panel unified-session focused-session"
+      data-question-active={
+        activity === "check" && !!reviewCheck && !reviewAttempt
+          ? "true"
+          : undefined
+      }
       aria-label="Guided learning session"
     >
       <div className="session-toolbar">
@@ -663,13 +738,26 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
             </h1>
           </div>
         )}
-        <ReferenceShelf references={activeMilestone?.references} pendingCheckId={latest && !attempt ? latest.id : undefined} />
+        <ReferenceShelf
+          references={activeMilestone?.references}
+          pendingCheckId={latest && !attempt ? latest.id : undefined}
+        />
         {continuationError && (
           <div className="continuation-error" role="alert">
-            <p>{reviewAttempt
-              ? "Couldn’t prepare the next step. Your answer is saved. Try Continue again."
-              : "Your coach couldn’t connect. Your message and draft are saved. Check your connection and try again."}</p>
-            {onOpenSettings && <button type="button" className="check-coach-button" onClick={onOpenSettings}>Check AI connection</button>}
+            <p>
+              {reviewAttempt
+                ? "Couldn’t prepare the next step. Your answer is saved. Try Continue again."
+                : "Your coach couldn’t connect. Your message and draft are saved. Check your connection and try again."}
+            </p>
+            {onOpenSettings && (
+              <button
+                type="button"
+                className="check-coach-button"
+                onClick={onOpenSettings}
+              >
+                Check AI connection
+              </button>
+            )}
           </div>
         )}
         <div
@@ -790,10 +878,10 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
               </div>
             </div>
           )}
-          {activity === "check" && (!busy || held) && (
+          {activity === "check" && (!busy || held || tutoringBusy) && (
             <>
               <div className="check-context-pills">
-                {latest && reference && !held && (
+                {latest && reference && !held && reviewAttempt && (
                   <button
                     className="slide-reference-button"
                     onClick={() => setActivity("reference")}
@@ -805,7 +893,12 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                   <button
                     type="button"
                     className="slide-reference-button"
-                    aria-expanded={(availableVisual.kind === "graph" || availableVisual.kind === "state-model") ? undefined : inlineVisualOpen}
+                    aria-expanded={
+                      availableVisual.kind === "graph" ||
+                      availableVisual.kind === "state-model"
+                        ? undefined
+                        : inlineVisualOpen
+                    }
                     onClick={openVisualCompanion}
                   >
                     <Eye size={13} />
@@ -852,29 +945,44 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                   check={reviewCheck}
                   references={activeMilestone?.references}
                   onDispute={onDisputeCheck}
-                  hideContext
+                  hideContext={!!reviewAttempt}
                   attempt={reviewAttempt}
                   language={language}
                   isBusy={busy && !reviewAttempt}
-                  assistedSoFar={
-                    visualSupportFor(reviewCheck.id).length > 0
-                  }
+                  assistedSoFar={visualSupportFor(reviewCheck.id).length > 0}
                   continuePending={busy}
                   onSubmit={onSubmitCheck}
                   onAskCoach={ask}
                   onClarify={() => onQuickAction?.("clarify")}
                   onNewQuestion={onRequestCheck}
-                  onContinue={
-                    reviewAttempt && !approved
-                      ? () => continueFromFeedback(reviewCheck)
-                      : undefined
-                  }
-                  continueLabel={
-                    reviewAttempt && !reviewAttempt.correct
-                      ? "Work through this"
-                      : evidence?.readyToAdvance
-                      ? "Review readiness"
-                      : "Continue"
+                  feedbackTeaching={
+                    reviewAttempt && !approved ? (
+                      <AnswerTutoring
+                        key={reviewCheck.id}
+                        check={reviewCheck}
+                        teaching={teaching}
+                        initialTogether={preferences.pace === "overview"}
+                        loading={
+                          tutoringBusy &&
+                          tutoringRequest?.tutoring_for_check_id ===
+                            reviewCheck.id
+                        }
+                        failed={tutoringFailed}
+                        feedbackChanged={
+                          reviewAttempt.grading?.reviewRequested === true
+                        }
+                        busy={busy}
+                        language={language}
+                        onRetry={() => onContinueCheck(reviewCheck)}
+                        onContinue={() => continueFromFeedback(reviewCheck)}
+                        onApplyCode={onApplyCodeToEditor}
+                        continueLabel={
+                          evidence?.readyToAdvance
+                            ? "Review readiness"
+                            : "Practise with a fresh case"
+                        }
+                      />
+                    ) : undefined
                   }
                   showActions={false}
                   showCoachLink={false}
@@ -970,7 +1078,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
               )}
             </article>
           )}
-          {busy && !held && (
+          {busy && !held && !tutoringBusy && (
             <article
               className="session-turn from-coach"
               data-response="streaming"
@@ -1044,7 +1152,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
           )}
       </div>
       {btwState && (
-        <aside className="btw-popover" role="status" aria-live="polite">
+        <aside className="btw-popover" aria-label="Quick side question">
           <div className="btw-popover-header">
             <span className="btw-badge">/btw · Quick side question</span>
             <strong>{btwState.question}</strong>
@@ -1052,19 +1160,37 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
               type="button"
               className="icon-button"
               aria-label="Dismiss side question"
-              onClick={() => setBtwState(null)}
+              onClick={() => {
+                btwRequest.current?.abort();
+                btwRequest.current = null;
+                setBtwState(null);
+                ask();
+              }}
             >
               <X size={14} />
             </button>
           </div>
           <div className="btw-popover-body">
             {btwState.loading ? (
-              <p className="btw-loading">
-                <Loader2 size={13} className="animate-spin" /> Answering
-                without leaving your current step…
+              <p className="btw-loading" role="status">
+                <Loader2 size={13} className="animate-spin" /> Answering without
+                leaving your current step…
               </p>
             ) : btwState.error ? (
-              <p className="btw-error">{btwState.error}</p>
+              <div>
+                <p className="btw-error" role="alert">
+                  {btwState.error}
+                </p>
+                <button
+                  type="button"
+                  className="check-coach-button"
+                  onClick={() =>
+                    handleComposerSend(`/btw ${btwState.question}`)
+                  }
+                >
+                  Retry side question
+                </button>
+              </div>
             ) : (
               <MarkdownView
                 content={btwState.answer || ""}
@@ -1077,77 +1203,79 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
       <div className="session-composer" ref={composerRef}>
         <div className="session-composer-row">
           <div className="session-help-actions" aria-label="Get help">
-          <button
-            type="button"
-            aria-pressed={btwMode}
-            className={btwMode ? "is-active-btw" : undefined}
-            onClick={() => {
-              setBtwMode((v) => !v);
-              ask();
-            }}
-            title="Ask a quick side question without leaving this step (/btw)"
-          >
-            <span>/btw</span>
-          </button>
-          <button
-            disabled={busy}
-            onClick={() => onQuickAction?.("hint")}
-            title="Give me a hint"
-          >
-            <Lightbulb size={13} />
-            <span>Hint</span>
-          </button>
-          <button
-            disabled={busy}
-            aria-pressed={inlineVisualOpen || activity === "visual"}
-            onClick={() => {
-              if (activity === "visual") {
-                continueFromTeaching();
-              } else if ((availableVisual?.kind === "graph" || availableVisual?.kind === "state-model")) {
-                openVisualCompanion();
-              } else if (
-                availableVisual &&
-                (activity === "check" || activity === "lesson")
-              ) {
-                setInlineVisualOpen((v) => !v);
-              } else {
-                onQuickAction?.("visual");
+            <button
+              type="button"
+              aria-pressed={btwMode}
+              className={btwMode ? "is-active-btw" : undefined}
+              onClick={() => {
+                setBtwMode((v) => !v);
+                ask();
+              }}
+              title="Ask a quick side question without leaving this step (/btw)"
+            >
+              <span>/btw</span>
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => onQuickAction?.("hint")}
+              title="Give me a hint"
+            >
+              <Lightbulb size={13} />
+              <span>Hint</span>
+            </button>
+            <button
+              disabled={busy}
+              aria-pressed={inlineVisualOpen || activity === "visual"}
+              onClick={() => {
+                if (activity === "visual") {
+                  continueFromTeaching();
+                } else if (
+                  availableVisual?.kind === "graph" ||
+                  availableVisual?.kind === "state-model"
+                ) {
+                  openVisualCompanion();
+                } else if (
+                  availableVisual &&
+                  (activity === "check" || activity === "lesson")
+                ) {
+                  setInlineVisualOpen((v) => !v);
+                } else {
+                  onQuickAction?.("visual");
+                }
+              }}
+              title={
+                availableVisual?.kind === "graph" ||
+                availableVisual?.kind === "state-model"
+                  ? "Explore the interactive visual in its own step"
+                  : availableVisual
+                  ? "Toggle inline visual companion alongside this step"
+                  : "Show me visually"
               }
-            }}
-            title={
-              (availableVisual?.kind === "graph" || availableVisual?.kind === "state-model")
-                ? "Explore the interactive visual in its own step"
-                : availableVisual
-                ? "Toggle inline visual companion alongside this step"
-                : "Show me visually"
-            }
-          >
-            <Eye size={13} />
-            <span>Visual</span>
-          </button>
-          <button
-            disabled={busy}
-            onClick={() => onQuickAction?.("derivation")}
-            title="Show the steps"
-          >
-            <ListTree size={13} />
-            <span>Steps</span>
-          </button>
+            >
+              <Eye size={13} />
+              <span>Visual</span>
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => onQuickAction?.("derivation")}
+              title="Show the steps"
+            >
+              <ListTree size={13} />
+              <span>Steps</span>
+            </button>
+          </div>
+          <Composer
+            key={`${trackId}:${activeMilestone?.id}`}
+            draftKey={`learnforge:composer-draft:${trackId}:${activeMilestone?.id}`}
+            compact
+            sideQuestion={btwMode}
+            codeIncluded={isCodeWorkspaceOpen}
+            onSendMessage={handleComposerSend}
+            isStreaming={isStreaming}
+            onStopStreaming={onStopStreaming}
+          />
         </div>
-        <Composer
-          key={`${trackId}:${activeMilestone?.id}`}
-          draftKey={`learnforge:composer-draft:${trackId}:${activeMilestone?.id}`}
-          compact
-          codeIncluded={isCodeWorkspaceOpen}
-          onSendMessage={handleComposerSend}
-          isStreaming={isStreaming}
-          onStopStreaming={onStopStreaming}
-        />
-        </div>
-        <div
-          className="session-telemetry-bar"
-          aria-label="Session model, context, and token usage"
-        >
+        <div className="session-telemetry-bar" aria-label="AI model and usage">
           <button
             type="button"
             className="telemetry-model-pill"
@@ -1158,54 +1286,68 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                 : "Change AI provider or model in Settings"
             }
           >
-            <i
-              className={`telemetry-status-dot ${
-                busy || btwState?.loading
-                  ? "is-busy"
-                  : aiStatus.ok
-                  ? "is-ok"
-                  : "is-error"
-              }`}
-              aria-hidden="true"
-            />
+            {(busy || btwState?.loading || !aiStatus.ok) && (
+              <i
+                className={`telemetry-status-dot ${
+                  busy || btwState?.loading ? "is-busy" : "is-error"
+                }`}
+                aria-hidden="true"
+              />
+            )}
             <strong>{aiConn.model}</strong>
-            <span className="telemetry-provider">{providerLabel}</span>
+            <span className="telemetry-provider">
+              {busy || btwState?.loading
+                ? "Generating…"
+                : !aiStatus.ok
+                ? "Last request failed"
+                : providerLabel}
+            </span>
             <ChevronDown size={11} className="telemetry-chevron" />
           </button>
-          <div className="telemetry-metrics">
-            <span
-              className="telemetry-context"
-              title={`About ${contextTokens.toLocaleString()} of ${contextWindow.toLocaleString()} tokens (${(
-                contextRatio * 100
-              ).toFixed(1)}%). Estimated from lesson and conversation length (characters ÷ 4); providers don't report per-request context.`}
-            >
-              <ContextRing used={contextTokens} total={contextWindow} />
-              <span>
-                <strong>{formatTok(contextTokens)}</strong>
-                <em> / {formatTok(contextWindow)}</em>
-              </span>
-              <span className="telemetry-turns">
-                · {turnCount} {turnCount === 1 ? "turn" : "turns"}
-              </span>
-            </span>
-            <span
-              className={`telemetry-tokens${tokensBumped ? " is-bumped" : ""}`}
-              title={`${usage.prompt.toLocaleString()} in · ${usage.completion.toLocaleString()} out${
-                usage.estimated ? " (partly estimated)" : ""
-              }. Cumulative on this device; reset in Settings.`}
-            >
-              <span>
-                <strong>
-                  {usage.estimated ? "≈" : ""}
-                  {formatTok(totalUsedTokens)}
-                </strong>{" "}
-                tokens
-              </span>
-              <span className="telemetry-split" aria-hidden="true">
-                <i style={{ width: `${inShare}%` }} />
-              </span>
-            </span>
-          </div>
+          <details
+            className="session-usage-details"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                event.currentTarget.open = false;
+                event.currentTarget
+                  .querySelector<HTMLElement>("summary")
+                  ?.focus();
+              }
+            }}
+          >
+            <summary>Usage details</summary>
+            <div className="session-usage-panel">
+              <dl>
+                <div>
+                  <dt>Estimated context</dt>
+                  <dd>
+                    {formatTok(contextTokens)} / {formatTok(contextWindow)}{" "}
+                    tokens
+                  </dd>
+                </div>
+                <div>
+                  <dt>Conversation</dt>
+                  <dd>
+                    {turnCount} {turnCount === 1 ? "turn" : "turns"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Device usage total</dt>
+                  <dd>
+                    {usage.estimated ? "≈" : ""}
+                    {formatTok(totalUsedTokens)} tokens
+                  </dd>
+                </div>
+              </dl>
+              <p>
+                Context is estimated from the visible lesson and conversation;
+                it is not a live provider measurement. Device usage is
+                cumulative and can be reset in Settings.
+              </p>
+            </div>
+          </details>
         </div>
       </div>
       {historyOpen && (
@@ -1224,10 +1366,18 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                 <h2 id="session-history-title">
                   Saved explanations & study sheet
                 </h2>
-                <div className="history-tab-group" role="tablist">
+                <div
+                  className="history-tab-group"
+                  role="tablist"
+                  aria-label="Saved session views"
+                  onKeyDown={handleTabNavigation}
+                >
                   <button
                     type="button"
                     role="tab"
+                    id="history-timeline-tab"
+                    aria-controls="history-timeline-panel"
+                    tabIndex={historyTab === "timeline" ? 0 : -1}
                     aria-selected={historyTab === "timeline"}
                     onClick={() => setHistoryTab("timeline")}
                   >
@@ -1236,6 +1386,9 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                   <button
                     type="button"
                     role="tab"
+                    id="history-sheet-tab"
+                    aria-controls="history-sheet-panel"
+                    tabIndex={historyTab === "sheet" ? 0 : -1}
                     aria-selected={historyTab === "sheet"}
                     onClick={() => setHistoryTab("sheet")}
                   >
@@ -1251,7 +1404,21 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                 <X size={18} />
               </button>
             </header>
-            <div className="session-history-content">
+            <div
+              className="session-history-content"
+              role="tabpanel"
+              id={
+                historyTab === "sheet"
+                  ? "history-sheet-panel"
+                  : "history-timeline-panel"
+              }
+              aria-labelledby={
+                historyTab === "sheet"
+                  ? "history-sheet-tab"
+                  : "history-timeline-tab"
+              }
+              tabIndex={0}
+            >
               {historyTab === "sheet" ? (
                 (() => {
                   const allMilestones =
@@ -1261,11 +1428,52 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                       ? [activeMilestone]
                       : [];
                   const sheet = buildStudySheet(allMilestones, messages);
+                  const readyIds = approvedLessonIds(messages);
                   const sheetTitle =
                     activeMilestone?.title || trackId || "Learning Session";
                   return (
                     <div className="study-sheet-view">
                       <div className="study-sheet-actions">
+                        <button
+                          type="button"
+                          className="check-coach-button"
+                          disabled={copyingSheet}
+                          onClick={async () => {
+                            setCopyingSheet(true);
+                            setCopyError("");
+                            setCopiedSheet(false);
+                            try {
+                              if (!navigator.clipboard?.writeText)
+                                throw new Error("Clipboard unavailable");
+                              await navigator.clipboard.writeText(
+                                buildStudySheetMarkdown(
+                                  sheetTitle,
+                                  allMilestones,
+                                  messages
+                                )
+                              );
+                              setCopiedSheet(true);
+                              if (copyReset.current)
+                                clearTimeout(copyReset.current);
+                              copyReset.current = setTimeout(
+                                () => setCopiedSheet(false),
+                                1800
+                              );
+                            } catch {
+                              setCopyError(
+                                "The notes could not be copied. Download Markdown instead."
+                              );
+                            } finally {
+                              setCopyingSheet(false);
+                            }
+                          }}
+                        >
+                          {copyingSheet
+                            ? "Copying…"
+                            : copiedSheet
+                            ? "Copied Markdown"
+                            : "Copy Markdown notes"}
+                        </button>
                         <button
                           type="button"
                           className="check-coach-button"
@@ -1275,12 +1483,22 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                               allMilestones,
                               messages
                             );
-                            navigator.clipboard?.writeText(md);
-                            setCopiedSheet(true);
-                            setTimeout(() => setCopiedSheet(false), 1800);
+                            const url = URL.createObjectURL(
+                              new Blob([md], {
+                                type: "text/markdown;charset=utf-8",
+                              })
+                            );
+                            const link = document.createElement("a");
+                            link.href = url;
+                            link.download = `LearnForge-${sheetTitle.replace(
+                              /[^a-z0-9_-]+/gi,
+                              "-"
+                            )}.md`;
+                            link.click();
+                            setTimeout(() => URL.revokeObjectURL(url), 1000);
                           }}
                         >
-                          {copiedSheet ? "Copied Markdown!" : "Copy Markdown notes"}
+                          Download Markdown
                         </button>
                         <button
                           type="button"
@@ -1297,7 +1515,9 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                             const url = URL.createObjectURL(blob);
                             const link = document.createElement("a");
                             link.href = url;
-                            link.download = `${trackId || "learnforge"}-anki.tsv`;
+                            link.download = `${
+                              trackId || "learnforge"
+                            }-anki.tsv`;
                             link.click();
                             URL.revokeObjectURL(url);
                           }}
@@ -1305,6 +1525,16 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                           Export Anki deck (.tsv)
                         </button>
                       </div>
+                      {copyError && (
+                        <p className="study-sheet-copy-error" role="alert">
+                          {copyError}
+                        </p>
+                      )}
+                      {copiedSheet && (
+                        <p className="study-sheet-copy-status" role="status">
+                          Markdown notes copied.
+                        </p>
+                      )}
                       <section className="study-sheet-section">
                         <h3>Core concepts</h3>
                         {sheet.concepts.map((c) => (
@@ -1312,9 +1542,13 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                             <strong>
                               {c.title}{" "}
                               <small>
-                                {c.status === "completed"
-                                  ? "· Ready to move on"
-                                  : "· In progress"}
+                                {readyIds.has(c.id)
+                                  ? "· Readiness reviewed"
+                                  : c.status === "completed"
+                                  ? "· Past activity"
+                                  : c.status === "active"
+                                  ? "· In progress"
+                                  : "· Not started"}
                               </small>
                             </strong>
                             <MarkdownView
@@ -1334,10 +1568,10 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                             >
                               <strong>{m.question}</strong>
                               <p className="study-sheet-trap">
-                                Initial trap: {m.chosenAnswer}
+                                Your earlier answer: {m.chosenAnswer}
                               </p>
                               <p className="study-sheet-invariant">
-                                Key invariant: <b>{m.correctAnswer}</b> —{" "}
+                                Key idea: <b>{m.correctAnswer}</b> —{" "}
                                 {m.explanation}
                               </p>
                             </div>
@@ -1358,24 +1592,28 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                                 ? "check"
                                 : "checks"}
                             </p>
-                            {sheet.calibration.overconfidentTraps.map((trap) => (
-                              <p
-                                key={`trap-${trap.id}`}
-                                className="study-sheet-trap"
-                              >
-                                Overconfident trap: <b>{trap.question}</b> (felt
-                                confident on <em>{trap.chosenAnswer}</em>; actual:{" "}
-                                <em>{trap.correctAnswer}</em>)
-                              </p>
-                            ))}
+                            {sheet.calibration.overconfidentTraps.map(
+                              (trap) => (
+                                <p
+                                  key={`trap-${trap.id}`}
+                                  className="study-sheet-trap"
+                                >
+                                  Confident answer to revisit:{" "}
+                                  <b>{trap.question}</b> (felt confident on{" "}
+                                  <em>{trap.chosenAnswer}</em>; actual:{" "}
+                                  <em>{trap.correctAnswer}</em>)
+                                </p>
+                              )
+                            )}
                             {sheet.calibration.underconfidentStrengths.map(
                               (item) => (
                                 <p
                                   key={`strength-${item.id}`}
                                   className="study-sheet-invariant"
                                 >
-                                  Hidden strength: <b>{item.question}</b>{" "}
-                                  (answered accurately despite uncertainty)
+                                  Correct despite uncertainty:{" "}
+                                  <b>{item.question}</b> (answered accurately
+                                  despite uncertainty)
                                 </p>
                               )
                             )}
@@ -1400,75 +1638,98 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                 })()
               ) : (
                 <>
-              {activeMilestone?.lesson && (
-                <article className="session-turn">
-                  <div className="session-speaker">Lesson explanation</div>
-                  <MarkdownView
-                    content={activeMilestone.lesson}
-                    languageHint={language}
-                  />
-                </article>
-              )}
-              {activeMilestone?.visual && (
-                <VisualExample
-                  visual={activeMilestone.visual}
-                  visualId={`${activeMilestone.id}:history-visual`}
-                  defaultOpen={false}
-                  supportCheckId={latest && !attempt ? latest.id : undefined}
-                />
-              )}
-              {messages
-                .filter((m) => m.role !== "system" && !m.internal)
-                .map((m) => (
-                  <article className="session-turn" key={m.id}>
-                    <div className="session-speaker">
-                      {m.role === "user" ? "You" : "LearnForge"}
-                    </div>
-                    <MarkdownView
-                      content={hideLearningCheckBlocks(visibleText(m))}
-                      languageHint={language}
-                      onApplyCode={onApplyCodeToEditor}
-                    />
-                    {m.visual_example && (
-                      <VisualExample
-                        visual={m.visual_example}
-                        visualId={`${m.id}:history`}
-                        defaultOpen={false}
-                        supportCheckId={
-                          latest &&
-                          !attempt &&
-                          m.milestone_id === activeMilestone?.id
-                            ? latest.id
-                            : undefined
-                        }
+                  {activeMilestone?.lesson && (
+                    <article className="session-turn">
+                      <div className="session-speaker">Lesson explanation</div>
+                      <MarkdownView
+                        content={activeMilestone.lesson}
+                        languageHint={language}
                       />
-                    )}{" "}
-                    {m.learning_check && (
-                      <>
-                        <MarkdownView
-                          content={m.learning_check.question}
-                          languageHint={language}
-                        />
-                        {m.learning_check.options.map((o) => (
+                    </article>
+                  )}
+                  {activeMilestone?.visual && (
+                    <VisualExample
+                      visual={activeMilestone.visual}
+                      visualId={`${activeMilestone.id}:history-visual`}
+                      defaultOpen={false}
+                      supportCheckId={
+                        latest && !attempt ? latest.id : undefined
+                      }
+                    />
+                  )}
+                  {messages
+                    .filter((m) => m.role !== "system" && !m.internal)
+                    .map((m) => (
+                      <article className="session-turn" key={m.id}>
+                        <div className="session-speaker">
+                          {m.role === "user" ? "You" : "LearnForge"}
+                        </div>
+                        {m.tutoring_for_check_id &&
+                        !tutoringMatchesAttempt(
+                          m,
+                          messages.find(
+                            (message) =>
+                              message.check_attempt?.checkId ===
+                              m.tutoring_for_check_id
+                          )?.check_attempt
+                        ) ? (
+                          <details>
+                            <summary>
+                              Earlier explanation · feedback has changed
+                            </summary>
+                            <MarkdownView
+                              content={hideLearningCheckBlocks(visibleText(m))}
+                              languageHint={language}
+                              onApplyCode={onApplyCodeToEditor}
+                            />
+                          </details>
+                        ) : (
                           <MarkdownView
-                            key={o.id}
-                            content={o.label}
+                            content={hideLearningCheckBlocks(visibleText(m))}
                             languageHint={language}
-                          />
-                        ))}
-                        {attemptFor(m.learning_check) && (
-                          <MarkdownView
-                            content={m.learning_check.explanation}
-                            languageHint={language}
+                            onApplyCode={onApplyCodeToEditor}
                           />
                         )}
-                      </>
-                    )}
-                  </article>
-                ))}
-              {!messages.length && !activeMilestone?.lesson && (
-                <p>Your explanations and answers will be saved here.</p>
-              )}
+                        {m.visual_example && (
+                          <VisualExample
+                            visual={m.visual_example}
+                            visualId={`${m.id}:history`}
+                            defaultOpen={false}
+                            supportCheckId={
+                              latest &&
+                              !attempt &&
+                              m.milestone_id === activeMilestone?.id
+                                ? latest.id
+                                : undefined
+                            }
+                          />
+                        )}{" "}
+                        {m.learning_check && (
+                          <>
+                            <MarkdownView
+                              content={m.learning_check.question}
+                              languageHint={language}
+                            />
+                            {m.learning_check.options.map((o) => (
+                              <MarkdownView
+                                key={o.id}
+                                content={o.label}
+                                languageHint={language}
+                              />
+                            ))}
+                            {attemptFor(m.learning_check) && (
+                              <MarkdownView
+                                content={m.learning_check.explanation}
+                                languageHint={language}
+                              />
+                            )}
+                          </>
+                        )}
+                      </article>
+                    ))}
+                  {!messages.length && !activeMilestone?.lesson && (
+                    <p>Your explanations and answers will be saved here.</p>
+                  )}
                 </>
               )}
             </div>

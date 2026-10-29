@@ -10,7 +10,7 @@ import {
   visualForSubject,
   VISUAL_INSTRUCTIONS,
 } from "../learning/visuals";
-import { MATH_INSTRUCTIONS } from "../learning/visualContract";
+import { MATH_INSTRUCTIONS, TABLE_INSTRUCTIONS } from "../learning/visualContract";
 import { loadLearningPreferences } from "../learning/preferences";
 import { CourseTrack } from "./types";
 import { aiFetch, loadAIConnection, recordUsage } from "./connection";
@@ -22,6 +22,7 @@ import { createLearningReference, referenceContext, GROUNDING_INSTRUCTIONS } fro
 
 export interface GenerateTrackOptions {
   topic: string;
+  unitContext?: string;
   interest?: string;
   signal?: AbortSignal;
   language?: SupportedLanguage;
@@ -32,7 +33,7 @@ export interface GenerateTrackOptions {
   };
 }
 
-function normalizeLanguage(lang: unknown): SupportedLanguage | null {
+export function normalizeLanguage(lang: unknown): SupportedLanguage | null {
   if (typeof lang !== "string") return null;
   const clean = lang.toLowerCase().trim();
   const aliases: Record<string, SupportedLanguage> = {
@@ -71,6 +72,7 @@ Return practice_mode="general" and language=null for language learning, history,
 For spoken languages, use accurate, natural phrases with translations and correct diacritics, then ask about meaning or use in a short exchange. Explain new terms in plain words. Do not claim to hear, evaluate pronunciation, or assess listening without actual audio; text questions establish written understanding only. Do not invent translations when uncertain.
 
 TEACHING AND STRUCTURE
+${options.unitContext ? `This request prepares EXACTLY ONE focused lesson or unit for the supplied learning context. Do not create a new path or change its scope. Return exactly one milestone with a nonempty lesson and a valid check. Use a new example, not any prior placement question. Approved context: ${options.unitContext}` : ""}
 Each activity teaches one small idea with a short concrete example and an interactive check, then waits for the learner. Do not dump advanced terminology or reveal the answer key outside the check. Put substantial code, if relevant, in a fenced context block. The initial map is provisional, with 1–8 concepts suited to this goal. Each prerequisite_ids array references existing milestone ids; independent roots use [], dependencies must be real and acyclic.
 
 VISUAL SUPPORT
@@ -78,6 +80,7 @@ Learner presentation preferences: ${JSON.stringify(loadLearningPreferences())}.
 When visuals=auto, optionally add a visual object to a milestone when a contrast, phrase breakdown, process or state change would clarify the idea. Use a different example from the assessment. Otherwise omit it. The object follows the schema below, but must be a JSON field named visual, not a fenced block in lesson. Do not force a visual onto every activity.
 ${VISUAL_INSTRUCTIONS}
 ${MATH_INSTRUCTIONS}
+${TABLE_INSTRUCTIONS}
 
 Return valid JSON only, using this structure. The single milestone here is a schema example, not a required plan length:
 {
@@ -181,6 +184,7 @@ Return valid JSON only, using this structure. The single milestone here is a sch
     !Array.isArray(parsed.milestones) ||
     parsed.milestones.length < 1 ||
     parsed.milestones.length > 8 ||
+    (options.unitContext && (parsed.milestones.length !== 1 || !parsed.milestones[0]?.lesson?.trim())) ||
     parsed.milestones.some(
       (m: any) =>
         !m ||

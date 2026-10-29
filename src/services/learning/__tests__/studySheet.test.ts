@@ -56,6 +56,18 @@ const messages: ChatMessage[] = [
 ];
 
 describe("Study Sheet & Anki deck export (#166, #11) and Plan Approval (#252)", () => {
+  it("distinguishes future concepts from active practice without inferring readiness from completion", () => {
+    const items: Milestone[] = [
+      { ...milestones[0], id: "past", title: "Past concept", status: "completed" },
+      { ...milestones[0], id: "current", title: "Current concept", status: "active" },
+      { ...milestones[0], id: "future", title: "Future concept", status: "pending" },
+    ];
+    const markdown = buildStudySheetMarkdown("Learning", items, []);
+    expect(markdown).toContain("### Past concept [Past activity]");
+    expect(markdown).toContain("### Current concept [In Progress]");
+    expect(markdown).toContain("### Future concept [Not started]");
+    expect(markdown).not.toContain("[Ready to move on]");
+  });
   it("synthesizes concepts, repaired mistakes, and verified checks into Markdown and Anki TSV", () => {
     const sheet = buildStudySheet(milestones, messages);
     expect(sheet.concepts).toHaveLength(1);

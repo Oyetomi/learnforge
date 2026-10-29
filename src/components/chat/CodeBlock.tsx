@@ -13,6 +13,17 @@ import css from "highlight.js/lib/languages/css";
 import sql from "highlight.js/lib/languages/sql";
 import cpp from "highlight.js/lib/languages/cpp";
 import xml from "highlight.js/lib/languages/xml";
+import java from "highlight.js/lib/languages/java";
+import csharp from "highlight.js/lib/languages/csharp";
+import kotlin from "highlight.js/lib/languages/kotlin";
+import swift from "highlight.js/lib/languages/swift";
+import ruby from "highlight.js/lib/languages/ruby";
+import php from "highlight.js/lib/languages/php";
+import lua from "highlight.js/lib/languages/lua";
+import yaml from "highlight.js/lib/languages/yaml";
+import markdown from "highlight.js/lib/languages/markdown";
+import elixir from "highlight.js/lib/languages/elixir";
+import r from "highlight.js/lib/languages/r";
 
 for (const [name, grammar] of Object.entries({
   go,
@@ -25,7 +36,7 @@ for (const [name, grammar] of Object.entries({
   css,
   sql,
   cpp,
-  xml,
+  xml, java, csharp, kotlin, swift, ruby, php, lua, yaml, markdown, elixir, r,
 }))
   hljs.registerLanguage(name, grammar);
 const aliases: Record<string, string> = {
@@ -43,6 +54,7 @@ const aliases: Record<string, string> = {
   "c++": "cpp",
   html: "xml",
   svg: "xml",
+  "c#": "csharp", cs: "csharp", rb: "ruby", kt: "kotlin", yml: "yaml", md: "markdown", ex: "elixir", exs: "elixir",
 };
 const labels: Record<string, string> = {
   go: "Go",
@@ -56,6 +68,7 @@ const labels: Record<string, string> = {
   sql: "SQL",
   cpp: "C++",
   xml: "HTML / XML",
+  java: "Java", csharp: "C#", kotlin: "Kotlin", swift: "Swift", ruby: "Ruby", php: "PHP", lua: "Lua", yaml: "YAML", markdown: "Markdown", elixir: "Elixir", r: "R",
 };
 
 export function highlightSource(code: string, language = "") {
@@ -82,7 +95,11 @@ export const CodeBlock: React.FC<{
     "idle"
   );
   const timer = useRef<ReturnType<typeof setTimeout>>();
-  useEffect(() => () => clearTimeout(timer.current), []);
+  useEffect(() => {
+    clearTimeout(timer.current);
+    setCopyState("idle");
+    return () => clearTimeout(timer.current);
+  }, [code]);
   const copy = async () => {
     clearTimeout(timer.current);
     try {

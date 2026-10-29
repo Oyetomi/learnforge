@@ -123,6 +123,9 @@ export function extractRepair(
     !last ||
     last.checkId !== value.triggerCheckId ||
     (last.correct && last.confidence !== 'unsure') ||
+    current.adaptive ||
+    milestones.some(m => m.adaptive && m.status !== 'completed') ||
+    milestones.filter(m => m.adaptive && m.return_to_milestone_id === current.id).length >= 2 ||
     milestones.filter((m) => m.adaptive).length >= 6
   )
     return null;

@@ -1,0 +1,44 @@
+/* One dominant answering surface, with a quieter workspace around it. */
+.focused-session[data-question-active="true"] .session-flow {
+  background: #121518;
+  padding-inline: max(20px, calc((100% - 960px) / 2));
+}
+.focused-session[data-question-active="true"] .knowledge-check {
+  margin: 8px auto 16px;
+  max-width: 960px;
+  padding: clamp(18px, 3vw, 30px);
+  border: 1px solid #50565f;
+  border-radius: 14px;
+  background: #1b1f24;
+  box-shadow: 0 10px 30px #00000030, inset 0 1px 0 #ffffff04;
+}
+.focused-session[data-question-active="true"] .check-kicker { margin-bottom: 20px; color: #aab5c3; }
+.focused-session[data-question-active="true"] .check-question .prose { color: #edf0f4; font-size: 17px; line-height: 1.7; }
+.focused-session[data-question-active="true"] .check-options { gap: 9px; margin-top: 22px; }
+.focused-session[data-question-active="true"] .check-option {
+  min-height: 52px;
+  padding: 13px 15px;
+  border-color: #444b55;
+  border-radius: 9px;
+  background: #1b1f24;
+  transition: background-color 120ms, border-color 120ms;
+}
+.focused-session[data-question-active="true"] .check-option .prose { font-size: 13px; color: #dae0e8; }
+.focused-session[data-question-active="true"] .check-option:hover { background: #22272e; border-color: #7e8997; }
+.focused-session[data-question-active="true"] .check-option.is-selected { border-color: #cfb292; background: #cfb2920e; }
+.focused-session[data-question-active="true"] .check-option:focus-within { outline: 2px solid #cfb292; outline-offset: 3px; }
+.focused-session[data-question-active="true"] .session-composer { background: #121518; border-top-color: #272d35; }
+/* Actions follow the choices; sticky actions obscured answers in short windows. */
+.focused-session[data-question-active="true"] .check-submit-row { position: relative; bottom: auto; padding-top: 14px; padding-bottom: 4px; background: #1b1f24; z-index: auto; }
+@media (min-width: 721px) and (max-height: 800px) {
+  .focused-session[data-question-active="true"] .knowledge-check { padding: 20px 24px; }
+  .focused-session[data-question-active="true"] .check-kicker { margin-bottom: 14px; }
+  .focused-session[data-question-active="true"] .check-question .prose { font-size: 16px; line-height: 1.6; }
+  .focused-session[data-question-active="true"] .check-options { margin-top: 16px; }
+  .focused-session[data-question-active="true"] .check-option { min-height: 44px; padding: 10px 12px; }
+}
+@media (max-width: 600px) {
+  .focused-session[data-question-active="true"] .session-flow { padding: 12px; }
+  .focused-session[data-question-active="true"] .knowledge-check { padding: 18px 14px; margin-top: 4px; border-radius: 11px; }
+  .focused-session[data-question-active="true"] .check-question .prose { font-size: 15px; }
+}

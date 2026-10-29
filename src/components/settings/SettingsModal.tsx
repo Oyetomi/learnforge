@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { connectionDraftError } from "./validation";
 import {
   CheckCircle2,
   Cpu,
@@ -63,6 +64,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const setPreference = (patch: Partial<LearningPreferences>) =>
     setLearning((p) => ({ ...p, ...patch }));
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  const mounted = useRef(false),
+    connectionVersion = useRef(0),
+    testRequest = useRef(0),
+    modelRequest = useRef(0);
+  const loginPoll = useRef<number | null>(null);
+  const initialConnection = useRef(loadAIConnection());
+  const [modelListStatus, setModelListStatus] = useState("");
+  const stopLoginPoll = () => {
+    if (loginPoll.current !== null) window.clearInterval(loginPoll.current);
+    loginPoll.current = null;
+  };
   const [draft, setDraft] = useState<AIConnection>(() => loadAIConnection());
   const [showKey, setShowKey] = useState(false);
   const [testState, setTestState] = useState<
@@ -89,140 +102,281 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [codexBusy, setCodexBusy] = useState(false);
   const [codexError, setCodexError] = useState("");
   const [manualCallbackInput, setManualCallbackInput] = useState("");
+  const [signInUrl, setSignInUrl] = useState("");
 
   useEffect(() => {
+    mounted.current = true;
     const previous = document.activeElement as HTMLElement | null;
     const dialog = dialogRef.current;
     dialog?.showModal();
     return () => {
+      mounted.current = false;
+      connectionVersion.current += 1;
+      testRequest.current += 1;
+      modelRequest.current += 1;
+      stopLoginPoll();
       dialog?.close();
       previous?.isConnected && previous.focus();
     };
   }, []);
 
   useEffect(() => {
+    let active = true;
+    const version = connectionVersion.current;
     setModelOptions(presetFor(draft.provider).models);
     setCustomMainModel(false);
     setCustomFallbackModel(false);
+    setShowKey(false);
+    setCodexError("");
     if (draft.provider === "chatgpt-codex") {
-      getChatGptCodexStatus().then((status) => {
-        setCodexStatus(status);
-        if (status.authenticated) {
-          fetchProviderModels(draft).then((list) => {
-            if (list.length > 0) {
-              setModelOptions(list);
-              if (!list.some((m) => m.id === draft.model)) {
-                setDraft((d) => ({
-                  ...d,
-                  model: list[0].id,
-                  fallbackModel: list[1]?.id || list[0].id,
-                }));
-              }
-            }
-          });
-        }
-      });
+      void getChatGptCodexStatus()
+        .then(async (status) => {
+          if (!active || version !== connectionVersion.current) return;
+          setCodexStatus(status);
+          if (status.authenticated) {
+            const list = await fetchProviderModels(draft);
+            if (!active || version !== connectionVersion.current) return;
+            if (list.length) setModelOptions(list);
+          }
+        })
+        .catch(() => {
+          if (active)
+            setCodexError("Sign-in status could not be checked. Try again.");
+        });
     }
+    return () => {
+      active = false;
+      stopLoginPoll();
+    };
   }, [draft.provider]);
 
   const update = (patch: Partial<AIConnection>) => {
+    connectionVersion.current += 1;
+    testRequest.current += 1;
+    modelRequest.current += 1;
+    stopLoginPoll();
+    setCodexBusy(false);
+    setSignInUrl("");
+    setLoadingModels(false);
+    setModelListStatus("");
+    setSaveError("");
     setDraft((d) => ({ ...d, ...patch }));
     setTestState({ kind: "idle" });
   };
 
   const chooseProvider = (id: ProviderId) => {
+    setShowKey(false);
     const saved = loadAIConnection();
     update(connectionFromPreset(id, saved.provider === id ? saved.apiKey : ""));
+    setManualCallbackInput("");
   };
 
   const refreshModels = async () => {
+    const request = ++modelRequest.current,
+      version = connectionVersion.current;
     setLoadingModels(true);
+    setModelListStatus("");
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const list = await fetchProviderModels(draft);
+      const list = await Promise.race([
+        fetchProviderModels(draft),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error("Model discovery timed out.")),
+            15000
+          );
+        }),
+      ]);
+      if (
+        !mounted.current ||
+        request !== modelRequest.current ||
+        version !== connectionVersion.current
+      )
+        return;
       setModelOptions(list);
+      setModelListStatus(
+        list.length
+          ? "Model options are ready. Enter a model ID if yours is missing."
+          : "No model options returned. Enter a model ID below."
+      );
+    } catch {
+      if (
+        mounted.current &&
+        request === modelRequest.current &&
+        version === connectionVersion.current
+      )
+        setModelListStatus(
+          "Model options could not be refreshed. You can keep the current model or enter its ID."
+        );
     } finally {
-      setLoadingModels(false);
+      if (timer) clearTimeout(timer);
+      if (mounted.current && request === modelRequest.current)
+        setLoadingModels(false);
     }
   };
 
   const handleStartCodexLogin = async () => {
+    const version = connectionVersion.current;
+    stopLoginPoll();
     setCodexBusy(true);
     setCodexError("");
     try {
       const { authUrl } = await startChatGptCodexLogin();
+      if (!mounted.current || version !== connectionVersion.current) return;
+      setSignInUrl(authUrl);
       window.open(authUrl, "_blank", "noopener,noreferrer");
-      // Poll for completion for up to 60 seconds
-      let attempts = 0;
-      const timer = window.setInterval(async () => {
+      let attempts = 0,
+        checking = false;
+      loginPoll.current = window.setInterval(async () => {
+        if (checking) return;
+        checking = true;
         attempts += 1;
-        const status = await getChatGptCodexStatus();
-        if (status.authenticated) {
-          window.clearInterval(timer);
-          setCodexStatus(status);
-          setCodexBusy(false);
-        } else if (attempts >= 40) {
-          window.clearInterval(timer);
-          setCodexBusy(false);
+        try {
+          const status = await getChatGptCodexStatus();
+          if (!mounted.current || version !== connectionVersion.current) {
+            stopLoginPoll();
+            return;
+          }
+          if (status.authenticated) {
+            stopLoginPoll();
+            setCodexStatus(status);
+            setCodexBusy(false);
+          } else if (attempts >= 40) {
+            stopLoginPoll();
+            setCodexBusy(false);
+            setCodexError(
+              "Sign-in has not completed yet. Try signing in again or use the callback option."
+            );
+          }
+        } catch {
+          if (mounted.current && version === connectionVersion.current) {
+            stopLoginPoll();
+            setCodexBusy(false);
+            setCodexError("Sign-in status could not be checked. Try again.");
+          }
+        } finally {
+          checking = false;
         }
       }, 1500);
     } catch (err) {
-      setCodexError((err as Error).message || "Could not start sign-in.");
-      setCodexBusy(false);
+      if (mounted.current && version === connectionVersion.current) {
+        setCodexError((err as Error).message || "Could not start sign-in.");
+        setCodexBusy(false);
+      }
     }
   };
 
   const handleManualCodexCallback = async () => {
     if (!manualCallbackInput.trim()) return;
+    const version = connectionVersion.current;
+    stopLoginPoll();
     setCodexBusy(true);
     setCodexError("");
     try {
       const status = await submitChatGptCodexCallback(manualCallbackInput);
+      if (!mounted.current || version !== connectionVersion.current) return;
       setCodexStatus(status);
       setManualCallbackInput("");
     } catch (err) {
-      setCodexError((err as Error).message || "Sign-in failed.");
+      if (mounted.current && version === connectionVersion.current)
+        setCodexError((err as Error).message || "Sign-in failed.");
     } finally {
-      setCodexBusy(false);
+      if (mounted.current && version === connectionVersion.current)
+        setCodexBusy(false);
     }
   };
 
   const handleCodexLogout = async () => {
-    await logoutChatGptCodex();
-    setCodexStatus({ authenticated: false });
-  };
-
-  const runTest = async () => {
-    setTestState({ kind: "testing" });
+    const version = connectionVersion.current;
+    stopLoginPoll();
+    setCodexBusy(true);
     try {
-      const model = await testAIConnection(draft);
-      if (model && model !== draft.model) {
-        setDraft((d) => ({ ...d, model }));
-      }
-      setTestState({ kind: "ok", model });
-      setUsage(readUsage());
-    } catch (err) {
-      setTestState({
-        kind: "error",
-        message: (err as Error)?.message || "Connection failed.",
-      });
+      await logoutChatGptCodex();
+      if (mounted.current && version === connectionVersion.current)
+        setCodexStatus({ authenticated: false });
+    } catch {
+      if (mounted.current && version === connectionVersion.current)
+        setCodexError("Could not sign out. Try again.");
+    } finally {
+      if (mounted.current && version === connectionVersion.current)
+        setCodexBusy(false);
     }
   };
 
-  const save = () => {
+  const runTest = async () => {
+    const request = ++testRequest.current,
+      version = connectionVersion.current;
+    setTestState({ kind: "testing" });
     try {
-      if (draft.provider === "chatgpt-codex" && !bridgeAvailable) {
-        setSaveError(SUBSCRIPTION_BRIDGE_NOTICE);
+      const model = await testAIConnection(draft);
+      if (
+        !mounted.current ||
+        request !== testRequest.current ||
+        version !== connectionVersion.current
+      )
+        return;
+      if (model && model !== draft.model) setDraft((d) => ({ ...d, model }));
+      setTestState({ kind: "ok", model });
+      setUsage(readUsage());
+    } catch (err) {
+      if (
+        mounted.current &&
+        request === testRequest.current &&
+        version === connectionVersion.current
+      )
+        setTestState({
+          kind: "error",
+          message: (err as Error)?.message || "Connection failed.",
+        });
+    }
+  };
+
+  const showSaveError = (message: string, connection = false) => {
+    setSaveError(message);
+    if (connection) setSection("connection");
+    requestAnimationFrame(() => {
+      errorRef.current?.focus();
+      errorRef.current?.scrollIntoView({ block: "nearest" });
+    });
+  };
+  const save = () => {
+    if (draft.provider === "chatgpt-codex" && !bridgeAvailable) {
+      showSaveError(SUBSCRIPTION_BRIDGE_NOTICE, true);
+      return;
+    }
+    if (JSON.stringify(draft) !== JSON.stringify(initialConnection.current)) {
+      const issue = connectionDraftError(draft, bridgeAvailable);
+      if (issue) {
+        showSaveError(issue, true);
         return;
       }
+    }
+
+    const previousLearning = loadLearningPreferences();
+    let preferencesSaved = false;
+    try {
       saveLearningPreferences(learning);
-      saveAIConnection(draft);
+      preferencesSaved = true;
+      saveAIConnection({
+        ...draft,
+        url: draft.url.trim(),
+        model: draft.model.trim(),
+        fallbackModel: draft.fallbackModel.trim(),
+        apiKey: draft.apiKey.trim(),
+      });
       onClose();
     } catch {
-      setSaveError(
+      if (preferencesSaved) {
+        try {
+          saveLearningPreferences(previousLearning);
+        } catch {}
+      }
+      showSaveError(
         "Settings could not be saved on this device. Please try again."
       );
     }
   };
+
   const totalTokens = usage.prompt + usage.completion;
 
   // Ensure current draft model is always selectable in dropdown
@@ -341,9 +495,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               <div className="settings-group">
-                <label className="retention-setting"><input type="checkbox" checked={learning.retention}
-                  onChange={(event) => setPreference({ retention: event.target.checked })} />Offer a quick revisit in later sessions</label>
-                <p className="written-grading-note">Optional and off by default. Offers one earlier idea within the same topic, without a review modal. You can always continue your current lesson.</p>
+                <label className="retention-setting">
+                  <input
+                    type="checkbox"
+                    checked={learning.retention}
+                    onChange={(event) =>
+                      setPreference({ retention: event.target.checked })
+                    }
+                  />
+                  Offer a quick revisit in later sessions
+                </label>
+                <p className="written-grading-note">
+                  Optional and off by default. Offers one earlier idea within
+                  the same topic, without a review modal. You can always
+                  continue your current lesson.
+                </p>
               </div>
 
               <div className="settings-group">
@@ -353,12 +519,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     {
                       value: "brief",
                       title: "Brief & focused",
-                      desc: "Start with one atomic concept and example",
+                      desc: "One idea and a concrete example",
                     },
                     {
                       value: "deeper",
                       title: "Deeper detail",
-                      desc: "Include invariants, edge cases & trade-offs",
+                      desc: "Explore reasoning, examples and exceptions",
                     },
                   ].map((opt) => (
                     <button
@@ -388,7 +554,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     {
                       value: "steps",
                       title: "One step at a time",
-                      desc: "Progressive disclosure across sections",
+                      desc: "Move through short sections at your pace",
                     },
                     {
                       value: "overview",
@@ -458,18 +624,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   onChange={(e) => chooseProvider(e.target.value as ProviderId)}
                 >
                   {PROVIDER_PRESETS.map((p) => (
-                    <option key={p.id} value={p.id} disabled={p.id === "chatgpt-codex" && !bridgeAvailable}>
+                    <option
+                      key={p.id}
+                      value={p.id}
+                      disabled={p.id === "chatgpt-codex" && !bridgeAvailable}
+                    >
                       {p.label}
                     </option>
                   ))}
                 </select>
               </label>
 
-              {draft.provider === "chatgpt-codex" && !bridgeAvailable && <div className="continuation-error" role="status">
-                <p>{SUBSCRIPTION_BRIDGE_NOTICE}</p>
-                <button type="button" className="check-coach-button" onClick={() => chooseProvider("proxy")}>Use a local provider</button>
-                <button type="button" className="check-coach-button" onClick={() => chooseProvider("openai")}>Use an OpenAI API key</button>
-              </div>}
+              {draft.provider === "chatgpt-codex" && !bridgeAvailable && (
+                <div className="continuation-error" role="status">
+                  <p>{SUBSCRIPTION_BRIDGE_NOTICE}</p>
+                  <button
+                    type="button"
+                    className="check-coach-button"
+                    onClick={() => chooseProvider("proxy")}
+                  >
+                    Use a local provider
+                  </button>
+                  <button
+                    type="button"
+                    className="check-coach-button"
+                    onClick={() => chooseProvider("openai")}
+                  >
+                    Use an OpenAI API key
+                  </button>
+                </div>
+              )}
               {draft.provider === "chatgpt-codex" && bridgeAvailable && (
                 <div className="codex-oauth-card">
                   <div className="codex-oauth-header">
@@ -496,6 +680,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         type="button"
                         className="header-secondary-button"
                         onClick={handleCodexLogout}
+                        disabled={codexBusy}
                       >
                         <LogOut size={13} />
                         Sign out
@@ -519,6 +704,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     )}
                   </div>
 
+                  {signInUrl && !codexStatus.authenticated && (
+                    <p className="written-grading-note">
+                      If the sign-in window did not open,{" "}
+                      <a
+                        href={signInUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        open the sign-in page
+                      </a>
+                      .
+                    </p>
+                  )}
                   {!codexStatus.authenticated && (
                     <details className="codex-manual-details">
                       <summary>
@@ -527,7 +725,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </summary>
                       <div className="codex-manual-row">
                         <input
-                          type="text"
+                          type="password"
+                          aria-label="Callback URL or access token"
+                          autoComplete="off"
                           spellCheck={false}
                           placeholder="http://localhost:1455/auth/callback?code=… or access token"
                           value={manualCallbackInput}
@@ -577,6 +777,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </span>
                   <div className="settings-key">
                     <input
+                      aria-label="API key"
                       type={showKey ? "text" : "password"}
                       spellCheck={false}
                       autoComplete="off"
@@ -589,6 +790,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       className="icon-button"
                       onClick={() => setShowKey((v) => !v)}
                       aria-label={showKey ? "Hide key" : "Show key"}
+                      aria-pressed={showKey}
                     >
                       {showKey ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>
@@ -596,149 +798,159 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </label>
               )}
 
-              {(draft.provider !== "chatgpt-codex" || bridgeAvailable) && <>
-              <div className="settings-models-header">
-                <span>Model selection</span>
-                {draft.provider !== "anthropic" && (
-                  <button
-                    type="button"
-                    className="settings-refresh-models"
-                    onClick={refreshModels}
-                    disabled={loadingModels}
-                  >
-                      <RefreshCw
-                        size={11}
-                        className={loadingModels ? "animate-spin" : undefined}
-                      />
-                      <span>
-                        {loadingModels ? "Fetching…" : "Fetch live models"}
-                      </span>
+              {(draft.provider !== "chatgpt-codex" || bridgeAvailable) && (
+                <>
+                  <div className="settings-models-header">
+                    <span>Model selection</span>
+                    {draft.provider !== "anthropic" && (
+                      <button
+                        type="button"
+                        className="settings-refresh-models"
+                        onClick={refreshModels}
+                        disabled={loadingModels}
+                      >
+                        <RefreshCw
+                          size={11}
+                          className={loadingModels ? "animate-spin" : undefined}
+                        />
+                        <span>
+                          {loadingModels ? "Fetching…" : "Refresh models"}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+
+                  {modelListStatus && (
+                    <p className="settings-model-status" role="status">
+                      {modelListStatus}
+                    </p>
+                  )}
+                  <div className="settings-row">
+                    <label className="settings-field">
+                      <span>Main model</span>
+                      {mergedMainOptions.length > 0 && !customMainModel ? (
+                        <select
+                          aria-label="Main model"
+                          value={draft.model}
+                          onChange={(e) => {
+                            if (e.target.value === "__custom__") {
+                              setCustomMainModel(true);
+                            } else {
+                              update({ model: e.target.value });
+                            }
+                          }}
+                        >
+                          {mergedMainOptions.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.label}
+                            </option>
+                          ))}
+                          <option value="__custom__">Custom model ID…</option>
+                        </select>
+                      ) : (
+                        <div className="settings-custom-model-row">
+                          <input
+                            aria-label="Main model"
+                            spellCheck={false}
+                            placeholder="e.g. gpt-6.1-sol"
+                            value={draft.model}
+                            onChange={(e) => update({ model: e.target.value })}
+                          />
+                          {mergedMainOptions.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setCustomMainModel(false)}
+                            >
+                              List
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </label>
+
+                    <label className="settings-field">
+                      <span>Fallback model</span>
+                      {mergedFallbackOptions.length > 0 &&
+                      !customFallbackModel ? (
+                        <select
+                          aria-label="Fallback model"
+                          value={draft.fallbackModel}
+                          onChange={(e) => {
+                            if (e.target.value === "__custom__") {
+                              setCustomFallbackModel(true);
+                            } else {
+                              update({ fallbackModel: e.target.value });
+                            }
+                          }}
+                        >
+                          {mergedFallbackOptions.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.label}
+                            </option>
+                          ))}
+                          <option value="__custom__">Custom model ID…</option>
+                        </select>
+                      ) : (
+                        <div className="settings-custom-model-row">
+                          <input
+                            aria-label="Fallback model"
+                            spellCheck={false}
+                            placeholder="e.g. gpt-6-astra"
+                            value={draft.fallbackModel}
+                            onChange={(e) =>
+                              update({ fallbackModel: e.target.value })
+                            }
+                          />
+                          {mergedFallbackOptions.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setCustomFallbackModel(false)}
+                            >
+                              List
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </label>
+                  </div>
+
+                  <div className="settings-test">
+                    <button
+                      type="button"
+                      className="header-secondary-button"
+                      onClick={runTest}
+                      disabled={
+                        testState.kind === "testing" ||
+                        !draft.url.trim() ||
+                        !draft.model.trim()
+                      }
+                    >
+                      {testState.kind === "testing" && (
+                        <Loader2 size={14} className="animate-spin" />
+                      )}
+                      {testState.kind === "testing"
+                        ? "Testing connection…"
+                        : "Test connection"}
                     </button>
-                  )}
-              </div>
-
-              <div className="settings-row">
-                <label className="settings-field">
-                  <span>Main model</span>
-                  {mergedMainOptions.length > 0 && !customMainModel ? (
-                    <select
-                      aria-label="Main model"
-                      value={draft.model}
-                      onChange={(e) => {
-                        if (e.target.value === "__custom__") {
-                          setCustomMainModel(true);
-                        } else {
-                          update({ model: e.target.value });
-                        }
-                      }}
+                    <span
+                      role="status"
+                      className={`settings-test-result is-${testState.kind}`}
                     >
-                      {mergedMainOptions.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.label}
-                        </option>
-                      ))}
-                      <option value="__custom__">Custom model ID…</option>
-                    </select>
-                  ) : (
-                    <div className="settings-custom-model-row">
-                      <input
-                        aria-label="Main model"
-                        spellCheck={false}
-                        placeholder="e.g. gpt-6.1-sol"
-                        value={draft.model}
-                        onChange={(e) => update({ model: e.target.value })}
-                      />
-                      {mergedMainOptions.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setCustomMainModel(false)}
-                        >
-                          List
-                        </button>
+                      {testState.kind === "ok" && (
+                        <>
+                          <CheckCircle2 size={14} /> Connected ·{" "}
+                          {testState.model}
+                        </>
                       )}
-                    </div>
-                  )}
-                </label>
-
-                <label className="settings-field">
-                  <span>Fallback model</span>
-                  {mergedFallbackOptions.length > 0 && !customFallbackModel ? (
-                    <select
-                      aria-label="Fallback model"
-                      value={draft.fallbackModel}
-                      onChange={(e) => {
-                        if (e.target.value === "__custom__") {
-                          setCustomFallbackModel(true);
-                        } else {
-                          update({ fallbackModel: e.target.value });
-                        }
-                      }}
-                    >
-                      {mergedFallbackOptions.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.label}
-                        </option>
-                      ))}
-                      <option value="__custom__">Custom model ID…</option>
-                    </select>
-                  ) : (
-                    <div className="settings-custom-model-row">
-                      <input
-                        aria-label="Fallback model"
-                        spellCheck={false}
-                        placeholder="e.g. gpt-6-astra"
-                        value={draft.fallbackModel}
-                        onChange={(e) =>
-                          update({ fallbackModel: e.target.value })
-                        }
-                      />
-                      {mergedFallbackOptions.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setCustomFallbackModel(false)}
-                        >
-                          List
-                        </button>
+                      {testState.kind === "error" && (
+                        <>
+                          <XCircle size={14} /> {testState.message}
+                        </>
                       )}
-                    </div>
-                  )}
-                </label>
-              </div>
-
-              <div className="settings-test">
-                <button
-                  type="button"
-                  className="header-secondary-button"
-                  onClick={runTest}
-                  disabled={
-                    testState.kind === "testing" ||
-                    !draft.url.trim() ||
-                    !draft.model.trim()
-                  }
-                >
-                  {testState.kind === "testing" && (
-                    <Loader2 size={14} className="animate-spin" />
-                  )}
-                  Test connection
-                </button>
-                <span
-                  role="status"
-                  className={`settings-test-result is-${testState.kind}`}
-                >
-                  {testState.kind === "ok" && (
-                    <>
-                      <CheckCircle2 size={14} /> Connected · {testState.model}
-                    </>
-                  )}
-                  {testState.kind === "error" && (
-                    <>
-                      <XCircle size={14} /> {testState.message}
-                    </>
-                  )}
-                </span>
-              </div>
-
-              </>}
+                    </span>
+                  </div>
+                </>
+              )}
               <div className="settings-usage">
                 <span>
                   {usage.estimated ? "≈ " : ""}
@@ -767,7 +979,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           )}
         </div>
         {saveError && (
-          <p className="settings-save-error" role="alert">
+          <p
+            className="settings-save-error"
+            role="alert"
+            ref={errorRef}
+            tabIndex={-1}
+          >
             {saveError}
           </p>
         )}

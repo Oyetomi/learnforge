@@ -131,6 +131,8 @@ Interactive concept walkthroughs use lesson-supplied states and actions across s
 
 Mathematical lessons also support guided LaTeX derivations and an interactive slope graph: move points, compare rise/run and watch the equation update. Visual support stays separate from independent mastery. See [mathematical visual learning](docs/latex-visual-learning.md) for the design rationale, supported model and validation.
 
+Submitted answers now receive a worked tutoring explanation before another question. Read one meaningful part at a time or choose Read together; comparisons use styled, accessible tables when useful. See [post-answer tutoring and question focus](docs/post-answer-tutoring.md) for behavior, verification, and limitations.
+
 ### 7. Optional code execution
 
 The editor is optional. Run uses real execution services for programming lessons:

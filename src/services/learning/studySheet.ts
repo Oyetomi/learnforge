@@ -1,8 +1,9 @@
 import { aiFetch, loadAIConnection, recordUsage } from "../ai/connection";
 import type { ChatMessage, LearningCheck, Milestone } from "../../types";
 import { hideLearningCheckBlocks } from "./checks";
-import { ILLUSTRATION_INSTRUCTIONS, MATH_INSTRUCTIONS } from "./visualContract";
+import { ILLUSTRATION_INSTRUCTIONS, MATH_INSTRUCTIONS, TABLE_INSTRUCTIONS } from "./visualContract";
 import { GROUNDING_INSTRUCTIONS, referenceContext } from "./grounding";
+import { approvedLessonIds } from "./adaptation";
 
 /**
  * Ephemeral "/btw" side-question helper (inspired by LearnHarness #16).
@@ -25,7 +26,7 @@ export async function askBtwQuestion(
       messages: [
         {
           role: "system",
-          content: `Answer a quick /btw side question in 2–4 plain-language sentences without changing the lesson. ${ILLUSTRATION_INSTRUCTIONS} ${MATH_INSTRUCTIONS} ${GROUNDING_INSTRUCTIONS} Do not emit forge-check, forge-visual, forge-repair or forge-assessment. Never reveal the answer to an active unanswered check.`,
+          content: `Answer a quick /btw side question in 2–4 plain-language sentences without changing the lesson. ${ILLUSTRATION_INSTRUCTIONS} ${MATH_INSTRUCTIONS} ${TABLE_INSTRUCTIONS} ${GROUNDING_INSTRUCTIONS} Do not emit forge-check, forge-visual, forge-repair or forge-assessment. Never reveal the answer to an active unanswered check.`,
         },
         {
           role: "user",
@@ -223,11 +224,18 @@ export function buildStudySheetMarkdown(
   messages: ChatMessage[]
 ): string {
   const sheet = buildStudySheet(milestones, messages);
+  const readyIds = approvedLessonIds(messages);
   const lines: string[] = [`# ${trackTitle} — Study Sheet`, ""];
 
   lines.push("## Core Concepts");
   for (const c of sheet.concepts) {
-    const badge = c.status === "completed" ? "[Ready to move on]" : "[In Progress]";
+    const badge = readyIds.has(c.id)
+      ? "[Readiness reviewed]"
+      : c.status === "completed"
+      ? "[Past activity]"
+      : c.status === "active"
+      ? "[In Progress]"
+      : "[Not started]";
     lines.push(`### ${c.title} ${badge}`);
     lines.push(c.takeaway);
     lines.push("");

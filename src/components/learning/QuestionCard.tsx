@@ -11,7 +11,11 @@ import {
   Play,
   RefreshCw,
 } from "lucide-react";
-import type { CheckAttempt, LearningCheck, LearningReference } from "../../types";
+import type {
+  CheckAttempt,
+  LearningCheck,
+  LearningReference,
+} from "../../types";
 import { FreeResponseCard } from "./FreeResponseCard";
 import { usePracticeSupport } from "./usePracticeSupport";
 import {
@@ -48,12 +52,20 @@ export interface QuestionCardProps {
   continuePending?: boolean;
   showActions?: boolean;
   showCoachLink?: boolean;
+  feedbackTeaching?: React.ReactNode;
 }
 
 export const QuestionCard: React.FC<QuestionCardProps> = (props) => {
   const support = usePracticeSupport(props.check.id);
-  const shared = { ...props, assistedSoFar: props.assistedSoFar || support.length > 0 };
-  return props.check.kind === "free-response" ? <FreeResponseCard {...shared} /> : <ChoiceQuestionCard {...shared} />;
+  const shared = {
+    ...props,
+    assistedSoFar: props.assistedSoFar || support.length > 0,
+  };
+  return props.check.kind === "free-response" ? (
+    <FreeResponseCard {...shared} />
+  ) : (
+    <ChoiceQuestionCard {...shared} />
+  );
 };
 
 const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
@@ -74,8 +86,11 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
   continuePending = false,
   showActions = true,
   showCoachLink = true,
+  feedbackTeaching,
 }) => {
   const feedbackRef = useRef<HTMLDivElement>(null);
+  const retryRef = useRef<HTMLDivElement>(null);
+  const focusRetry = useRef(false);
   const focusFeedback = useRef(false);
   useEffect(() => {
     if (attempt && focusFeedback.current) {
@@ -129,7 +144,14 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
     exitCode: number;
   } | null>(null);
   const handleRunSnippet = async () => {
-    if (!runnableSnippet || !language || sandboxRunning || !sandboxPrediction.trim()) return;
+    if (
+      !runnableSnippet ||
+      !language ||
+      isBusy ||
+      sandboxRunning ||
+      !sandboxPrediction.trim()
+    )
+      return;
     const prediction = sandboxPrediction.trim();
     if (!attempt) {
       setSandboxUsed(true);
@@ -182,8 +204,15 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
         dontKnow: saved.dontKnow === true,
         thinking: typeof saved.thinking === "string" ? saved.thinking : "",
         retriedOptionIds: Array.isArray(saved.retriedOptionIds)
-          ? [...new Set<string>(saved.retriedOptionIds.filter((id: unknown) =>
-              typeof id === "string" && check.options.some((option) => option.id === id)))]
+          ? [
+              ...new Set<string>(
+                saved.retriedOptionIds.filter(
+                  (id: unknown) =>
+                    typeof id === "string" &&
+                    check.options.some((option) => option.id === id)
+                )
+              ),
+            ]
           : [...(initialRetryIds || [])],
         confidence: ["unsure", "somewhat", "confident"].includes(
           saved.confidence
@@ -207,8 +236,16 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
   }, [draft, check.id, attempt]);
   const selectedIds = attempt?.selectedIds || draft.selectedIds;
   const retriedIds = draft.retriedOptionIds;
+  useEffect(() => {
+    if (!focusRetry.current || !retriedIds.length) return;
+    retryRef.current?.focus({ preventScroll: true });
+    retryRef.current?.scrollIntoView({ block: "nearest", behavior: "auto" });
+    focusRetry.current = false;
+  }, [retriedIds]);
   const [choicesHidden, setChoicesHidden] = useState(initialChoicesHidden);
-  const select = (id: string) =>
+  const select = (id: string) => {
+    if (isBusy || attempt || (!check.multiple && retriedIds.includes(id)))
+      return;
     setDraft((previous) => ({
       ...previous,
       dontKnow: false,
@@ -218,6 +255,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
           : [...previous.selectedIds, id]
         : [id],
     }));
+  };
   const submittedRef = useRef(false);
   const submit = (event?: React.FormEvent) => {
     event?.preventDefault();
@@ -241,6 +279,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
       retriedIds.length === 0 &&
       options.length >= 3
     ) {
+      focusRetry.current = true;
       setDraft((previous) => ({
         ...previous,
         retriedOptionIds: [...previous.selectedIds],
@@ -255,8 +294,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
       checkId: check.id,
       milestoneId: check.milestoneId,
       correct: isCorrect,
-      assisted:
-        retriedIds.length > 0 || sandboxUsed ? true : undefined,
+      assisted: assistedSoFar || retriedIds.length > 0 || sandboxUsed ? true : undefined,
       retriedOptionIds: retriedIds.length > 0 ? retriedIds : undefined,
       submittedAt: Date.now(),
     });
@@ -283,8 +321,24 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
 
   // Keyboard: A–F / 1–9 choose, ? = don't know, Enter = check, then continue.
   const sectionRef = useRef<HTMLElement>(null);
-  const keyState = useRef({ submit, attempt, onContinue, isBusy, options });
-  keyState.current = { submit, attempt, onContinue, isBusy, options };
+  const keyState = useRef({
+    submit,
+    select,
+    attempt,
+    onContinue,
+    isBusy,
+    options,
+    choicesHidden,
+  });
+  keyState.current = {
+    submit,
+    select,
+    attempt,
+    onContinue,
+    isBusy,
+    options,
+    choicesHidden,
+  };
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const section = sectionRef.current;
@@ -292,6 +346,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
         !section ||
         !section.isConnected ||
         section.offsetParent === null ||
+        event.defaultPrevented ||
         event.metaKey ||
         event.ctrlKey ||
         event.altKey ||
@@ -305,7 +360,10 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
         )
       )
         return;
+      if (target && target !== document.body && !section.contains(target))
+        return;
       const state = keyState.current;
+      if (state.isBusy) return;
       if (event.key === "Enter") {
         // Let focused buttons, links and disclosures handle Enter natively.
         if (target?.closest("button, a, summary")) return;
@@ -314,7 +372,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
         else if (state.onContinue && !state.isBusy) state.onContinue();
         return;
       }
-      if (state.attempt) return;
+      if (state.attempt || state.choicesHidden) return;
       if (event.key === "?") {
         event.preventDefault();
         setDraft((previous) => ({
@@ -332,7 +390,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
         : -1;
       if (index >= 0 && index < state.options.length) {
         event.preventDefault();
-        select(state.options[index].id);
+        state.select(state.options[index].id);
       }
     };
     document.addEventListener("keydown", onKey);
@@ -358,7 +416,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
           >
             {assistedSoFar || retriedIds.length > 0 || sandboxUsed
               ? "Supported practice"
-              : "Closed-book · mastery eligible"}
+              : "Independent practice"}
           </span>
         )}
       </div>
@@ -398,7 +456,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
                 <input
                   type="text"
                   value={sandboxPrediction}
-                  disabled={sandboxRunning}
+                  disabled={sandboxRunning || isBusy}
                   onChange={(e) => setSandboxPrediction(e.target.value)}
                   placeholder="Predict output before running (e.g. 42, or deadlock)…"
                   aria-label="Predicted output"
@@ -406,7 +464,9 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
                 <button
                   type="button"
                   className="check-coach-button"
-                  disabled={sandboxRunning || !sandboxPrediction.trim()}
+                  disabled={
+                    isBusy || sandboxRunning || !sandboxPrediction.trim()
+                  }
                   onClick={() => void handleRunSnippet()}
                 >
                   {sandboxRunning ? (
@@ -427,7 +487,8 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
                   )}
                   <div>
                     <small>
-                      Sandbox {sandboxResult.exitCode === 0 ? "stdout" : "output"}
+                      Sandbox{" "}
+                      {sandboxResult.exitCode === 0 ? "stdout" : "output"}
                     </small>
                     <pre>
                       {sandboxResult.stdout.trim() ||
@@ -453,7 +514,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
           <fieldset
             className="check-options"
             aria-labelledby={`question-${check.id}`}
-            disabled={!!attempt}
+            disabled={!!attempt || isBusy}
           >
             {!attempt && (
               <legend className="check-legend-row">
@@ -506,7 +567,8 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
                   !!attempt && check.correctOptionIds.includes(option.id);
                 const wrong = !!attempt && chosen && !correct;
                 // A partly correct multi-select answer must remain editable.
-                const eliminated = !attempt && !check.multiple && retriedIds.includes(option.id);
+                const eliminated =
+                  !attempt && !check.multiple && retriedIds.includes(option.id);
                 return (
                   <label
                     key={option.id}
@@ -541,7 +603,9 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
                           Your answer{wrong ? " · not correct" : ""}
                         </small>
                       )}
-                      {eliminated && <small>First try · try another option</small>}
+                      {eliminated && (
+                        <small>First try · try another option</small>
+                      )}
                       {correct && !chosen && <small>Correct answer</small>}
                     </span>
                   </label>
@@ -636,12 +700,15 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
                 </div>
               </details>
               {retriedIds.length > 0 && (
-                <div className="check-retry-banner" role="status">
+                <div
+                  className="check-retry-banner"
+                  ref={retryRef}
+                  tabIndex={-1}
+                  role="status"
+                >
                   <div className="check-retry-header">
                     <CircleAlert size={15} aria-hidden="true" />
-                    <strong>
-                      Repair your choice before seeing the committed answer
-                    </strong>
+                    <strong>Try the choice again</strong>
                   </div>
                   <p>
                     {check.hint ||
@@ -725,12 +792,27 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
             {!!attempt.retriedOptionIds?.length && (
               <div className="is-chosen">
                 <dt>Your first answer</dt>
-                <dd>{check.options.filter((option) => attempt.retriedOptionIds!.includes(option.id))
-                  .map((option) => <MarkdownView key={option.id} content={option.label} languageHint={language} />)}</dd>
+                <dd>
+                  {check.options
+                    .filter((option) =>
+                      attempt.retriedOptionIds!.includes(option.id)
+                    )
+                    .map((option) => (
+                      <MarkdownView
+                        key={option.id}
+                        content={option.label}
+                        languageHint={language}
+                      />
+                    ))}
+                </dd>
               </div>
             )}
             <div className={attempt.correct ? "is-right" : "is-chosen"}>
-              <dt>{attempt.retriedOptionIds?.length ? "Your retry · supported practice" : "Your answer"}</dt>
+              <dt>
+                {attempt.retriedOptionIds?.length
+                  ? "Your retry · supported practice"
+                  : "Your answer"}
+              </dt>
               <dd>
                 {attempt.dontKnow ? (
                   <p>I don’t know yet</p>
@@ -766,19 +848,31 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
               </div>
             )}
           </dl>
-          <div className="check-feedback-explanation">
-            <MarkdownView content={check.explanation} languageHint={language} />
-          </div>
-          {attempt.assisted && !attempt.retriedOptionIds?.length && <p className="written-grading-note">With support · try a fresh case before this counts toward readiness.</p>}
-          <p className="check-feedback-pause">
-            {isBusy
-              ? "Preparing your next step…"
-              : continuePending && onContinue
-              ? "Your next step is being prepared. Continue whenever you’re ready."
-              : onContinue
-              ? "Take a moment to review. Continue when you’re ready."
-              : "Your answer and this explanation are saved with the lesson."}
-          </p>
+          {feedbackTeaching || (
+            <div className="check-feedback-explanation">
+              <MarkdownView
+                content={check.explanation}
+                languageHint={language}
+              />
+            </div>
+          )}
+          {attempt.assisted && !attempt.retriedOptionIds?.length && (
+            <p className="written-grading-note">
+              With support · try a fresh case before this counts toward
+              readiness.
+            </p>
+          )}
+          {!feedbackTeaching && (
+            <p className="check-feedback-pause">
+              {isBusy
+                ? "Preparing your next step…"
+                : continuePending && onContinue
+                ? "Your next step is being prepared. Continue whenever you’re ready."
+                : onContinue
+                ? "Take a moment to review. Continue when you’re ready."
+                : "Your answer and this explanation are saved with the lesson."}
+            </p>
+          )}
           {attempt.thinking && (
             <details>
               <summary>Your thinking</summary>

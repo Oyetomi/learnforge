@@ -1,6 +1,7 @@
 import { forgetVisualSupport } from "./preferences";
 import type { LocalDatabase } from "../db/storage";
 import type { CourseTrack } from "../ai/types";
+import { tutoringReadingKey } from "./tutoring";
 
 /** Delete only data owned by this track, including legacy sessions it could open. */
 export function deleteTopicData(
@@ -36,6 +37,9 @@ export function deleteTopicData(
   const ownedKeys = new Set(
     sessions.flatMap((s) => [`learnforge:active-milestone:${s.id}`, `learnforge:retention-dismissed:${s.id}`])
   );
+  for (const session of sessions)
+    for (const message of database.getMessages(session.id))
+      ownedKeys.add(tutoringReadingKey(message.id));
   for (const id of milestoneIds) {
     ownedKeys.add(`learnforge:lesson-step:${id}`);
     ownedKeys.add(`learnforge:lesson-progress:${id}`);

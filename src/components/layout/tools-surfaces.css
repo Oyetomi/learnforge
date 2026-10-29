@@ -1,0 +1,199 @@
+/* Shared utility surfaces use the same typography and subdued state colors. */
+.track-picker-popover .track-picker-manage {
+  min-height: 40px;
+}
+.track-picker-popover .track-picker-option {
+  min-height: 54px;
+}
+.track-picker-popover .track-option-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.track-picker-popover .track-picker-footer {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.settings-dialog .settings-field input,
+.settings-dialog .settings-field select {
+  min-width: 0;
+}
+.settings-dialog .settings-row > label {
+  min-width: 0;
+}
+.settings-dialog .settings-test {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.settings-dialog .settings-test-result {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.65;
+}
+.settings-dialog .settings-model-status {
+  margin: 8px 0 16px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+.settings-dialog .settings-choice-card small {
+  line-height: 1.6;
+}
+.settings-dialog .settings-save-error {
+  flex-shrink: 0;
+  max-height: 100px;
+  overflow: auto;
+  line-height: 1.6;
+}
+.settings-dialog .codex-status-pill {
+  overflow-wrap: anywhere;
+}
+.settings-dialog .codex-manual-row input {
+  min-width: 0;
+}
+.manage-topics-dialog .manage-topics-content li > div {
+  min-width: 0;
+}
+.manage-topics-dialog .manage-topics-content li strong {
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.manage-topics-dialog .manage-topics-content li small {
+  flex-wrap: wrap;
+  line-height: 1.7;
+}
+.manage-topics-dialog .topic-delete-button {
+  flex-shrink: 0;
+  min-height: 36px;
+}
+.editor-pane .editor-stale-results {
+  margin: 0;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.editor-pane .test-results-panel {
+  min-width: 0;
+  color: var(--heading);
+  font-size: 12px;
+}
+.editor-pane .test-results-heading {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.editor-pane .test-results-heading strong {
+  font-size: 11px;
+  font-weight: 500;
+}
+.editor-pane .test-results-heading > span {
+  font-size: 10px;
+}
+.editor-pane .is-passing {
+  color: rgb(var(--color-success));
+}
+.editor-pane .has-failures {
+  color: rgb(var(--color-danger));
+}
+.editor-pane .test-results-list {
+  padding: 12px 14px;
+}
+.editor-pane .test-results-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  line-height: 1.7;
+  margin: 5px 0;
+  font-size: 12px;
+}
+.editor-pane .tests-passed-summary {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid #41604b;
+  border-radius: 6px;
+  background: #a4ceb108;
+}
+.editor-pane .tests-passed-summary p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  color: rgb(var(--color-success));
+  font-size: 12px;
+}
+.editor-pane .tests-passed-summary small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.7;
+  display: block;
+}
+.editor-pane .test-result-item {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.editor-pane .test-result-item h4 {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+}
+.editor-pane .test-result-item h4 svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.editor-pane .test-result-item h4 span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.editor-pane .test-result-item h4 small {
+  font-size: 10px;
+}
+.editor-pane .test-result-item dl {
+  margin: 12px 0 0 22px;
+}
+.editor-pane .test-result-item dt {
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 10px;
+}
+.editor-pane .test-result-item dd {
+  margin: 4px 0 0;
+  color: var(--heading);
+}
+.editor-pane .test-result-item code,
+.editor-pane .test-result-item pre {
+  font-family: var(--font-code, "Google Sans Code", monospace);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+  margin: 0;
+}
+@media (max-width: 600px) {
+  .settings-dialog .settings-row {
+    grid-template-columns: 1fr;
+  }
+  .settings-dialog .codex-oauth-header,
+  .settings-dialog .codex-manual-row {
+    flex-wrap: wrap;
+  }
+  .manage-topics-dialog .manage-topics-content li {
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .editor-pane .editor-actions {
+    gap: 7px;
+  }
+  .editor-pane .run-button kbd {
+    display: none;
+  }
+}

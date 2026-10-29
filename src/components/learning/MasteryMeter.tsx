@@ -17,17 +17,19 @@ export function masteryStatus({
   readyToAdvance,
   approved,
 }: Omit<MasteryMeterProps, "milestoneId">): string {
-  if (approved) return "Lesson mastered";
-  if (readyToAdvance) return "Ready for review";
-  if (independentCorrect >= MASTERY_TARGET)
-    return "One more correct answer";
-  const remaining = MASTERY_TARGET - independentCorrect;
-  return `${remaining} more correct answer${remaining === 1 ? "" : "s"}`;
+  if (approved) return "Ready for the next concept";
+  if (readyToAdvance) return "Ready for tutor review";
+  if (independentCorrect >= MASTERY_TARGET) return "Practise another case";
+  return independentCorrect > 0
+    ? `${independentCorrect} independent application${
+        independentCorrect === 1 ? "" : "s"
+      }`
+    : "Building evidence";
 }
 
 /**
  * Three marks: two independent correct answers, then the readiness review.
- * Wrong answers never remove progress; they only delay the review.
+ * Marks record independent applications; tutor review decides the next step.
  */
 export const MasteryMeter: React.FC<MasteryMeterProps> = ({
   milestoneId,
@@ -45,14 +47,17 @@ export const MasteryMeter: React.FC<MasteryMeterProps> = ({
     if (before.milestoneId !== milestoneId) return;
     if (approved && !before.approved) {
       setPulse(MASTERY_TARGET);
-      void celebrate();
     } else if (filled > before.filled) setPulse(filled - 1);
     else return;
     const timer = setTimeout(() => setPulse(null), 700);
     return () => clearTimeout(timer);
   }, [milestoneId, filled, approved]);
 
-  const status = masteryStatus({ independentCorrect, readyToAdvance, approved });
+  const status = masteryStatus({
+    independentCorrect,
+    readyToAdvance,
+    approved,
+  });
   const marks = [...Array(MASTERY_TARGET)].map((_, i) => i < filled);
   marks.push(approved);
 
@@ -60,10 +65,10 @@ export const MasteryMeter: React.FC<MasteryMeterProps> = ({
     <div
       className={`mastery-meter ${approved ? "is-mastered" : ""}`}
       role="status"
-      aria-label={`Mastery: ${status}`}
-      title="Two independent correct answers, then a readiness review"
+      aria-label={`Readiness: ${status}`}
+      title="Fresh independent applications and a tutor review guide the next step; answer counts alone do not establish readiness."
     >
-      <span className="mastery-label">Mastery</span>
+      <span className="mastery-label">Readiness</span>
       <span className="mastery-marks" aria-hidden="true">
         {marks.map((on, i) => (
           <i
@@ -80,24 +85,3 @@ export const MasteryMeter: React.FC<MasteryMeterProps> = ({
     </div>
   );
 };
-
-async function celebrate() {
-  if (
-    typeof window === "undefined" ||
-    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-  )
-    return;
-  try {
-    const confetti = (await import("canvas-confetti")).default;
-    confetti({
-      particleCount: 70,
-      spread: 62,
-      startVelocity: 32,
-      origin: { y: 0.25 },
-      colors: ["#d2b497", "#4ade80", "#e4c7ae", "#8daf98"],
-      disableForReducedMotion: true,
-    });
-  } catch {
-    // Celebration is decorative; ignore load failures.
-  }
-}
