@@ -17,6 +17,7 @@ import type {
   LearningReference,
 } from "../../types";
 import { FreeResponseCard } from "./FreeResponseCard";
+import { VoiceDictationButton } from "./VoiceDictationButton";
 import { usePracticeSupport } from "./usePracticeSupport";
 import {
   gradeLearningCheck,
@@ -319,8 +320,12 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
     if (!attempt) submittedRef.current = false;
   }, [attempt]);
 
-  // Keyboard: A–F / 1–9 choose, ? = don't know, Enter = check, then continue.
+  // Keyboard: A–F / 1–9 choose, ? = don't know, [ / ] = confidence, T = think out loud, Enter = check.
   const sectionRef = useRef<HTMLElement>(null);
+  const thinkingInputRef = useRef<HTMLTextAreaElement>(null);
+  const [detailOpen, setDetailOpen] = useState(
+    () => Boolean(draft.thinking || draft.confidence)
+  );
   const keyState = useRef({
     submit,
     select,
@@ -380,6 +385,32 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
           dontKnow: !previous.dontKnow,
           selectedIds: [],
         }));
+        return;
+      }
+      if (event.key === "t" || event.key === "T") {
+        event.preventDefault();
+        setDetailOpen(true);
+        requestAnimationFrame(() => {
+          thinkingInputRef.current?.focus();
+        });
+        return;
+      }
+      if (event.key === "[" || event.key === "]") {
+        event.preventDefault();
+        setDetailOpen(true);
+        const levels = ["unsure", "somewhat", "confident"] as const;
+        setDraft((previous) => {
+          const idx = previous.confidence
+            ? levels.indexOf(previous.confidence)
+            : -1;
+          const nextIdx =
+            event.key === "]"
+              ? Math.min(levels.length - 1, idx + 1)
+              : idx <= 0
+              ? 0
+              : idx - 1;
+          return { ...previous, confidence: levels[nextIdx] };
+        });
         return;
       }
       const key = event.key.toLowerCase();
@@ -641,12 +672,20 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
             <p className="check-key-hints" aria-hidden="true">
               <kbd>{String.fromCharCode(65)}</kbd>–
               <kbd>{String.fromCharCode(64 + Math.max(1, options.length))}</kbd>{" "}
-              choose · <kbd>?</kbd> not sure · <kbd>↵</kbd> check answer
+              choose · <kbd>?</kbd> not sure · <kbd>[</kbd>
+              <kbd>]</kbd> confidence · <kbd>T</kbd> think out loud ·{" "}
+              <kbd>↵</kbd> check answer
             </p>
           )}
           {!attempt && (
             <>
-              <details className="check-response-detail">
+              <details
+                className="check-response-detail"
+                open={detailOpen}
+                onToggle={(e) =>
+                  setDetailOpen((e.currentTarget as HTMLDetailsElement).open)
+                }
+              >
                 <summary>
                   Add confidence or reasoning <span>Optional</span>
                 </summary>
@@ -682,10 +721,25 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
                   )}
                 </div>
                 <div className="check-reasoning">
-                  <label htmlFor={`thinking-${check.id}`}>
-                    Your thinking <span>Optional</span>
-                  </label>
+                  <div className="check-field-header">
+                    <label htmlFor={`thinking-${check.id}`}>
+                      Your thinking <span>Optional</span>
+                    </label>
+                    <VoiceDictationButton
+                      label="Dictate your thinking"
+                      disabled={isBusy}
+                      onTranscript={(chunk) =>
+                        setDraft((previous) => ({
+                          ...previous,
+                          thinking: previous.thinking
+                            ? `${previous.thinking.trimEnd()} ${chunk}`
+                            : chunk,
+                        }))
+                      }
+                    />
+                  </div>
                   <textarea
+                    ref={thinkingInputRef}
                     id={`thinking-${check.id}`}
                     rows={2}
                     value={draft.thinking}

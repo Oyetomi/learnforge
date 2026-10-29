@@ -4,6 +4,7 @@ import type { QuestionCardProps } from "./QuestionCard";
 import type { CheckAttempt, FreeResponseGrade } from "../../types";
 import { gradeFreeResponse } from "../../services/learning/freeResponse";
 import { MarkdownView } from "../chat/MarkdownView";
+import { VoiceDictationButton } from "./VoiceDictationButton";
 
 export const FreeResponseCard: React.FC<QuestionCardProps> = ({
   check,
@@ -161,7 +162,21 @@ export const FreeResponseCard: React.FC<QuestionCardProps> = ({
           >
             <MarkdownView content={check.question} languageHint={language} />
           </div>
-          <label htmlFor={`written-answer-${check.id}`}>Your answer</label>
+          <div className="check-field-header">
+            <label htmlFor={`written-answer-${check.id}`}>Your answer</label>
+            <VoiceDictationButton
+              label="Dictate your answer"
+              disabled={checking || isBusy}
+              onTranscript={(chunk) =>
+                setDraft((d) => ({
+                  ...d,
+                  response: d.response
+                    ? `${d.response.trimEnd()} ${chunk}`.slice(0, 6000)
+                    : chunk.slice(0, 6000),
+                }))
+              }
+            />
+          </div>
           <textarea
             id={`written-answer-${check.id}`}
             aria-describedby={`written-question-${check.id}`}

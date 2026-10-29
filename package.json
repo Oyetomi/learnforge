@@ -1,7 +1,7 @@
 {
   "name": "learnforge",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A local-first Socratic learning harness with active recall, real code execution, LaTeX derivations, and FSRS-4.5 spaced repetition.",
   "author": "Oyetomi",
   "license": "MIT",

@@ -5116,16 +5116,16 @@ dialog.review-dialog { overflow: hidden; max-height: calc(100dvh - 40px); }
 .review-header h2 { overflow-wrap:anywhere; }
 .review-header .icon-button { flex-shrink:0; }
 .review-dialog :is(input,textarea,select) { font-family:inherit; }
-.focused-session .lesson-reading .prose { font-size:14px; line-height:1.85; }
-.focused-session .lesson-heading h1 { font-size:21px; line-height:1.5; letter-spacing:-.5px; }
-.focused-session .lesson-position { font-size:10px; letter-spacing:1px; }
+.focused-session .lesson-reading .prose { font-size:15.75px; line-height:1.7; color:#e4e9f0; }
+.focused-session .lesson-heading h1 { font-size:clamp(22px, 2.3vw, 26px); line-height:1.32; font-weight:600; letter-spacing:-0.022em; color:#f3f6fa; }
+.focused-session .lesson-position { font-size:10.5px; letter-spacing:1.1px; }
 .snippet-toolbar button { min-height:32px; }
 .snippet pre:focus-visible { outline:2px solid var(--accent); outline-offset:-3px; }
 .snippet-tab,.snippet-toolbar>div { min-width:0; }
 .snippet-language { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .empty-workspace p { line-height:1.85; max-width:56ch; }
 @media(max-width:600px) {
-  .focused-session .lesson-heading h1 { font-size:19px; }
+  .focused-session .lesson-heading h1 { font-size:20px; }
   .focused-session .session-composer-row { flex-wrap:wrap; }
   .focused-session .session-composer-row .composer { flex:1 1 100%; max-width:none; }
   .focused-session .session-composer-row .session-help-actions { justify-content:flex-start; flex-wrap:wrap; width:100%; }
@@ -5142,3 +5142,123 @@ dialog.review-dialog { overflow: hidden; max-height: calc(100dvh - 40px); }
 @media(max-width:600px) { .curriculum-session-context>span { display:none; } }
 .study-sheet-actions { display:flex; flex-wrap:wrap; gap:8px; }
 .study-sheet-actions .check-coach-button { border:1px solid var(--border); border-radius:6px; padding:8px 11px; min-height:36px; }
+
+/* Chrome diet & calm editorial reading hierarchy */
+@media (min-width: 721px) {
+  .app-header {
+    height: 54px;
+    padding: 0 18px;
+    gap: 18px;
+  }
+  .header-track label {
+    font-size: 9.5px;
+    line-height: 1.3;
+    margin-bottom: 0;
+  }
+}
+.curriculum-session-context {
+  min-height: 32px;
+  padding: 4px 18px;
+  font-size: 11px;
+  background: #13161a;
+  border-bottom: 1px solid #232830;
+}
+.focused-session .session-toolbar {
+  min-height: 38px;
+  padding: 4px 20px;
+  background: #15181c;
+  border-bottom: 1px solid #22272f;
+}
+.focused-session .session-activity-bar {
+  min-height: 33px;
+  padding: 4px 20px;
+  background: #15181c;
+  border-bottom: 1px solid #292f38;
+  font-size: 11px;
+}
+.focused-session .session-turn .prose,
+.answer-tutoring .prose {
+  font-size: 15.5px;
+  line-height: 1.68;
+  color: #e3e8f0;
+}
+.focused-session .activity-slide .prose > :is(p, ul, ol, blockquote) {
+  max-width: 68ch;
+}
+.session-flow .prose :is(h1, h2) {
+  font-size: 19px;
+  line-height: 1.45;
+  font-weight: 600;
+  color: #eef2f7;
+}
+.session-flow .prose h3 {
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 600;
+  color: #e4eaf2;
+}
+.check-question .prose,
+.session-turn .check-question .prose {
+  font-size: 17px;
+  line-height: 1.62;
+}
+.check-option .prose,
+.session-turn .check-option .prose {
+  font-size: 14.5px;
+  line-height: 1.58;
+}
+.check-feedback-explanation .prose,
+.check-answer-lines dd .prose,
+.check-answer-lines dd p {
+  font-size: 14.5px;
+  line-height: 1.64;
+}
+.check-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.check-field-header label {
+  margin-bottom: 0 !important;
+}
+.voice-dictation-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 3px 9px;
+  border: 1px solid #3c434e;
+  border-radius: 6px;
+  background: #1a1e24;
+  color: #bac4d2;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.voice-dictation-button.is-compact {
+  padding: 4px 7px;
+  min-width: 28px;
+  justify-content: center;
+}
+.voice-dictation-button:hover:not(:disabled) {
+  border-color: #7d8898;
+  color: #edf1f7;
+}
+.voice-dictation-button.is-listening {
+  border-color: var(--accent, #cfb292);
+  background: #2b241d;
+  color: #f4dec4;
+}
+.voice-dictation-button:focus-visible {
+  outline: 2px solid var(--accent, #cfb292);
+  outline-offset: 2px;
+}
+.settings-ledger-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}

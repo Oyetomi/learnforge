@@ -2,11 +2,11 @@ import React, { useState, useRef, useEffect } from "react";
 import {
   ArrowUp,
   Lightbulb,
-  ScanLine,
   BookOpen,
   Square,
   ListTree,
 } from "lucide-react";
+import { VoiceDictationButton } from "../learning/VoiceDictationButton";
 
 interface ComposerProps {
   onSendMessage: (message: string) => void;
@@ -112,6 +112,17 @@ export const Composer: React.FC<ComposerProps> = ({
           }
           rows={compact ? 1 : 2}
         />
+        {!isStreaming && (
+          <VoiceDictationButton
+            compact
+            label="Dictate message to coach"
+            onTranscript={(chunk) =>
+              setInput((prev) =>
+                prev ? `${prev.trimEnd()} ${chunk}` : chunk
+              )
+            }
+          />
+        )}
         {isStreaming ? (
           <button
             className="send-button stop-button"

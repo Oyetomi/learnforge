@@ -383,3 +383,132 @@ it("keeps usage details collapsed and does not imply a verified live connection"
   expect(html).not.toContain("telemetry-status-dot is-ok");
   expect(html).toContain("not a live provider measurement");
 });
+
+it("renders the in-session route minimap strip for multi-unit tracks and adaptive repair detours", () => {
+  const m1: Milestone = {
+    ...milestone,
+    id: "u1",
+    title: "Morning greetings",
+    status: "completed",
+  };
+  const m2: Milestone = {
+    ...milestone,
+    id: "u2",
+    title: "Polite requests",
+    prerequisite_ids: ["u1"],
+    lesson: "Use ẹ jọ̀wọ́ for polite requests.",
+  };
+  const m3: Milestone = {
+    ...milestone,
+    id: "u3",
+    title: "Market bargaining",
+    prerequisite_ids: ["u2"],
+  };
+
+  const routeHtml = renderToStaticMarkup(
+    <ChatPane
+      trackId="yoruba"
+      activeMilestone={m2}
+      milestones={[m1, m2, m3]}
+      milestoneIndex={1}
+      milestoneCount={3}
+      messages={[]}
+      isRequestingCheck={false}
+      isStreaming={false}
+      isCodeWorkspaceOpen={false}
+      onToggleCode={vi.fn()}
+      onRequestCheck={vi.fn()}
+      onSubmitCheck={vi.fn()}
+      onContinueCheck={vi.fn()}
+      onSendMessage={vi.fn()}
+      onStopStreaming={vi.fn()}
+      onOpenEditor={vi.fn()}
+    />
+  );
+  expect(routeHtml).toContain('aria-label="Lesson route"');
+  expect(routeHtml).toContain("Morning greetings");
+  expect(routeHtml).toContain("Polite requests");
+  expect(routeHtml).toContain("Market bargaining");
+
+  const repairMilestone: Milestone = {
+    ...milestone,
+    id: "repair-1",
+    title: "Tone marks on vowels",
+    adaptive: true,
+    return_to_milestone_id: "u2",
+    lesson: "Quick tone mark step.",
+  };
+  const repairHtml = renderToStaticMarkup(
+    <ChatPane
+      trackId="yoruba"
+      activeMilestone={repairMilestone}
+      milestones={[m1, repairMilestone, m2]}
+      milestoneIndex={1}
+      milestoneCount={3}
+      messages={[]}
+      isRequestingCheck={false}
+      isStreaming={false}
+      isCodeWorkspaceOpen={false}
+      onToggleCode={vi.fn()}
+      onRequestCheck={vi.fn()}
+      onSubmitCheck={vi.fn()}
+      onContinueCheck={vi.fn()}
+      onSendMessage={vi.fn()}
+      onStopStreaming={vi.fn()}
+      onOpenEditor={vi.fn()}
+    />
+  );
+  expect(repairHtml).toContain("Repair detour");
+  expect(repairHtml).toContain("Returns to Polite requests");
+});
+
+it("surfaces the transparent open-book explanation peek contract on unanswered checks without leaking lesson prose prematurely", () => {
+  const pendingCheck = {
+    id: "q-open-book-test",
+    milestoneId: "m1",
+    question: "Which greeting fits the morning?",
+    options: [
+      { id: "a", label: "Ẹ káàárọ̀" },
+      { id: "b", label: "Ẹ káalẹ́" },
+    ],
+    correctOptionIds: ["a"],
+    multiple: false,
+    explanation: "Ẹ káàárọ̀ is used in the morning.",
+  };
+  const html = renderToStaticMarkup(
+    <ChatPane
+      trackId="a"
+      activeMilestone={{
+        ...milestone,
+        lesson: "Anchored explanation prose.",
+        check: pendingCheck,
+      }}
+      milestoneIndex={0}
+      milestoneCount={1}
+      messages={[
+        {
+          id: "coach-q",
+          role: "assistant",
+          session_id: "s1",
+          milestone_id: "m1",
+          content: "Try this fresh case.",
+          created_at: 1,
+          learning_check: pendingCheck,
+        },
+      ]}
+      isRequestingCheck={false}
+      isStreaming={false}
+      isCodeWorkspaceOpen={false}
+      onToggleCode={vi.fn()}
+      onRequestCheck={vi.fn()}
+      onSubmitCheck={vi.fn()}
+      onContinueCheck={vi.fn()}
+      onSendMessage={vi.fn()}
+      onStopStreaming={vi.fn()}
+      onOpenEditor={vi.fn()}
+    />
+  );
+  expect(html).toContain("Peek at explanation (switches to supported practice)");
+  expect(html).toContain("Independent practice");
+  expect(html).not.toContain("Anchored explanation prose.");
+});

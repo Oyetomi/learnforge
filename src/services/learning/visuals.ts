@@ -1,5 +1,6 @@
 import { validateStateModel, type StateModel } from './stateModel';
 import { validateSlopeGraph, type SlopeGraphSpec } from './math';
+import { validateParameterSim, type ParameterSimSpec } from './parameterSim';
 export interface VisualExample {
   kind:
     | "parts"
@@ -9,10 +10,12 @@ export interface VisualExample {
     | "simulation"
     | "phrase-builder"
     | "graph"
-    | "state-model";
+    | "state-model"
+    | "explorer";
   model?: "go-channel" | "http-response" | "go-slice";
   graph?: SlopeGraphSpec;
   stateModel?: StateModel;
+  explorer?: ParameterSimSpec;
   title: string;
   summary: string;
   items: { id: string; label: string; description: string }[];
@@ -33,6 +36,7 @@ export function validateVisualExample(value: unknown): VisualExample | null {
       "phrase-builder",
       "graph",
       "state-model",
+      "explorer",
     ].includes(String(v.kind))
   )
     return null;
@@ -45,6 +49,8 @@ export function validateVisualExample(value: unknown): VisualExample | null {
   if (v.kind === "state-model" && !stateModel) return null;
   const graph = v.kind === "graph" ? validateSlopeGraph(v.graph) : null;
   if (v.kind === "graph" && !graph) return null;
+  const explorer = v.kind === "explorer" ? validateParameterSim(v.explorer) : null;
+  if (v.kind === "explorer" && !explorer) return null;
   const title = clean(v.title, 140),
     summary = clean(v.summary, 600),
     takeaway = clean(v.takeaway, 400);
@@ -80,6 +86,7 @@ export function validateVisualExample(value: unknown): VisualExample | null {
       : {}),
     ...(graph ? { graph } : {}),
     ...(stateModel ? { stateModel } : {}),
+    ...(explorer ? { explorer } : {}),
     title,
     summary,
     items,
@@ -108,6 +115,7 @@ export function visualForSubject(
 export const VISUAL_INSTRUCTIONS = `VISUAL EXPLANATIONS (forge-visual)
 When a learner asks to see an idea visually, return ONE forge-visual JSON block about the CURRENT lesson, using a small analogous example rather than solving their unanswered check. Do not change their subject or goal. You may also include a visual when it clarifies an explanation and their visual preference is auto. If preferences are ask or text, only include it on an explicit visual request.
 Choose a visualization that lets the learner act on the concept and observe a meaningful consequence, rather than defaulting to boxes and arrows.
+PARAMETER EXPLORERS: When a concept involves a quantitative relationship, rate, step size, frequency, probability, growth, throughput, or trade-off curve, use kind="explorer" with explorer={"prompt":"One short instruction on what to sweep and watch","parameters":[{"id":"alpha","label":"Step size","min":0.05,"max":1.2,"step":0.05,"initial":0.2,"unit":""}],"outputs":[{"id":"update","label":"Step change","expression":"alpha * grad","unit":"","precision":2}],"curve":{"xLabel":"x","yLabel":"f(x)","xMin":-2,"xMax":2,"expression":"alpha * x ^ 2","markerXExpression":"alpha"}}. Include 1–4 parameters (identifiers must be valid variable names other than x), 1–4 outputs using pure math expressions (+, -, *, /, ^, sin, cos, tan, exp, log, ln, sqrt, abs, min, max, clamp, pow, PI, E), and an optional 2D curve over x. Include the usual title, summary, 2–6 items explaining key regimes, and takeaway.
 MATH GRAPHS: Only when the CURRENT concept is slope, gradients of a straight line, or rise/run, use kind="graph" and graph={"type":"slope","points":[{"x":-2,"y":-1},{"x":2,"y":3}]}. Choose your own two relevant points: each coordinate must be a finite number between -5 and 5 in increments of 0.5. The owned graph supports dragging/keyboard movement of A and B, exact slope fractions, horizontal/vertical lines and coincident points, with a text equivalent. Include the usual title/summary/items/takeaway. Use an analogous example, never the coordinates or answer of a pending question. This is a slope model only: do not call it a derivative, nonlinear curve, physics simulation or generic function plotter. Never choose a math graph for a language lesson or unrelated subject.
 INTERACTIVE WALKTHROUGHS: Use kind="state-model" for a concept whose entities change as the learner chooses actions. This is language- and subject-neutral: derive the entities, statuses, values, allowed actions and explanations from THIS learner's actual concept and relevant source. Do not choose a canned program or change the subject. This walkthrough renderer does not select behavior rules by programming language. It navigates the finite state graph you supply, labels it as an illustrative concept walkthrough, and does NOT execute the supplied source or verify its behavior. Do not present it as an actual runtime trace, live debugger, measured timing, verified simulation or independent assessment.
 Include the usual title, summary, items and takeaway plus a stateModel object. version=1; initialStateId references one of the states; entities has 1–6 unique {id,label} entries. states has 2–20 unique {id,label,description,entities} entries: EACH state's entities must contain exactly one {entityId,status,value,tone} per entity. status is short natural text, value is readable state data, tone is neutral|active|waiting|done and is never the only description. transitions has 1–40 unique {id,from,to,label,explanation,sourceLines?} entries; from/to must be different existing state ids, all states reachable from initialStateId, at most FOUR actions per state. Branches and cycles are allowed; include alternatives when they explain the concept rather than pretending one execution order is guaranteed. If you cannot reliably explain valid state changes, provide a static illustration and acknowledge the limitation rather than inventing behavior. Keep the first experiment small: about 2–4 entities, 3–7 states and 1–2 concise actions at each state. The learner can step, go back, explore another branch and replay.
@@ -116,6 +124,6 @@ When practising word or phrase order, kind="phrase-builder" is also available wi
 Use parts for phrase chunks or labeled parts, comparison for contrasting examples, flow for a directed process, or steps for changing states. Preserve the current subject, natural wording and meaningful notation; do not turn every concept into a pipeline. No fake audio, waveforms, pronunciation scores, arbitrary HTML, SVG or scripts inside forge-visual, or invented sources. All descriptor strings render as text. Standalone illustrations use the separate shared illustration contract.
 Schema (2–6 items with unique ids):
 \`\`\`forge-visual
-{"kind":"parts|comparison|flow|steps|phrase-builder|graph|state-model","title":"Plain short title","summary":"Text equivalent explaining the whole visual","items":[{"id":"one","label":"Visible phrase, state or example","description":"One plain-language explanation of this part"},{"id":"two","label":"Another part","description":"Explain its relationship to the idea"}],"takeaway":"One short point to apply in a new situation"}
+{"kind":"parts|comparison|flow|steps|phrase-builder|graph|state-model|explorer","title":"Plain short title","summary":"Text equivalent explaining the whole visual","items":[{"id":"one","label":"Visible phrase, state or example","description":"One plain-language explanation of this part"},{"id":"two","label":"Another part","description":"Explain its relationship to the idea"}],"takeaway":"One short point to apply in a new situation"}
 \`\`\`
-For kind state-model include stateModel as specified above and omit model. For kind graph include its graph field and omit model. For other kinds omit model. Items in flow, steps and phrase-builder are ordered; only use that order when it is meaningful. A comparison does not imply a timeline. Keep the graphic focused on ONE idea. Do not encode answer keys or correct-option labels into a visual meant to help with a pending assessment. A visual request alone should not replace the pending question or approve advancement. Follow-up fresh checks must use a different case and reduced scaffolding.`;
+For kind explorer include explorer as specified above and omit model. For kind state-model include stateModel as specified above and omit model. For kind graph include its graph field and omit model. For other kinds omit model. Items in flow, steps and phrase-builder are ordered; only use that order when it is meaningful. A comparison does not imply a timeline. Keep the graphic focused on ONE idea. Do not encode answer keys or correct-option labels into a visual meant to help with a pending assessment. A visual request alone should not replace the pending question or approve advancement. Follow-up fresh checks must use a different case and reduced scaffolding.`;

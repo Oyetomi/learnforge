@@ -67,6 +67,7 @@ import {
   tutoringMatchesAttempt,
 } from "../../services/learning/tutoring";
 import { MasteryMeter } from "../learning/MasteryMeter";
+import { SessionRouteStrip } from "../learning/SessionRouteStrip";
 import { Composer } from "./Composer";
 import { cleanMilestoneTitle } from "../milestones/MilestoneSidebar";
 import {
@@ -400,6 +401,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   const [overview, setOverview] = useState(preferences.pace === "overview");
   const [lessonVisual, setLessonVisual] = useState(!lastReply?.visual_example);
   const [inlineVisualOpen, setInlineVisualOpen] = useState(false);
+  const [inlineLessonOpen, setInlineLessonOpen] = useState(false);
   const visibleStep = Math.min(stepIndex, Math.max(0, lessonSteps.length - 1));
   const replyStep = Math.min(replyIndex, Math.max(0, replySteps.length - 1));
   const visual = lessonVisual
@@ -459,11 +461,16 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
     setReplyIndex(0);
     setOverview(preferences.pace === "overview");
     setLessonVisual(!lastReply?.visual_example);
+    setInlineVisualOpen(false);
+    setInlineLessonOpen(false);
     setActivity(entryActivity());
     holdCheck(null);
     continuationRequested.current = false;
     lastSeenReply.current = lastReply?.id;
   }, [activeMilestone?.id]);
+  useEffect(() => {
+    setInlineLessonOpen(false);
+  }, [reviewCheck?.id]);
   useEffect(
     () => setOverview(preferences.pace === "overview"),
     [preferences.pace]
@@ -722,7 +729,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
             <button
               title={
                 activity === "check" && latest && !attempt
-                  ? "Peek at explanation (marks this question as open-book practice)"
+                  ? "Open full lesson screen (marks this question as open-book practice)"
                   : undefined
               }
               onClick={() => {
@@ -737,6 +744,11 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
           )}
         </div>
       </div>
+      <SessionRouteStrip
+        milestones={milestones}
+        activeMilestone={activeMilestone}
+        messages={messages}
+      />
       <div className="session-flow" ref={scrollRef}>
         {(activity === "lesson" || activity === "reply" || !latest) && (
           <div className="lesson-heading">
@@ -910,6 +922,26 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                     View reference
                   </button>
                 )}
+                {reviewCheck && !reviewAttempt && lessonSteps.length > 0 && (
+                  <button
+                    type="button"
+                    className="slide-reference-button is-lesson-peek"
+                    aria-expanded={inlineLessonOpen}
+                    onClick={() => {
+                      if (!inlineLessonOpen && latest && !attempt) {
+                        recordVisualSupport(latest.id, "open-book:lesson");
+                      }
+                      setInlineLessonOpen((v) => !v);
+                    }}
+                  >
+                    <BookOpen size={13} />
+                    {inlineLessonOpen
+                      ? "Hide explanation"
+                      : visualSupportFor(reviewCheck.id).length > 0
+                      ? "Show explanation alongside question"
+                      : "Peek at explanation (switches to supported practice)"}
+                  </button>
+                )}
                 {availableVisual && (
                   <button
                     type="button"
@@ -929,6 +961,34 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                   </button>
                 )}
               </div>
+              {inlineLessonOpen && !reviewAttempt && lessonSteps.length > 0 && (
+                <aside
+                  className="session-inline-lesson"
+                  aria-label="Lesson explanation reference"
+                >
+                  <div className="session-inline-visual-bar">
+                    <span>
+                      Lesson explanation · Open-book (counts as supported
+                      practice)
+                    </span>
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setInlineLessonOpen(false)}
+                      >
+                        Hide
+                      </button>
+                    </div>
+                  </div>
+                  <div className="session-inline-lesson-body">
+                    <MarkdownView
+                      content={lessonSteps.join("\n\n")}
+                      languageHint={language}
+                      onApplyCode={onApplyCodeToEditor}
+                    />
+                  </div>
+                </aside>
+              )}
               {inlineVisualOpen && availableVisual && (
                 <div className="session-inline-visual">
                   <div className="session-inline-visual-bar">

@@ -1,10 +1,12 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   X,
   ArrowRight,
   Loader2,
   Compass,
   FileText,
+  Sparkles,
+  Target,
   Upload,
 } from "lucide-react";
 import { generateCustomTrack } from "../../services/ai/curriculum";
@@ -13,9 +15,21 @@ import {
   proposeLearningScope,
   type ScopeProposal,
 } from "../../services/ai/curriculumOutline";
+import {
+  generateBoundaryProbes,
+  summarizeBoundaryProbes,
+  type BoundaryProbeQuestion,
+  type BoundaryProbeResponse,
+} from "../../services/ai/preProbe";
+import {
+  loadConceptLedger,
+  relevantPriorConcepts,
+} from "../../services/learning/conceptLedger";
 import type { LearningScope } from "../../services/learning/curriculumPlan";
 import { extractTextFromFile } from "../../services/learning/fileExtractor";
 import type { CourseTrack } from "../../services/ai/types";
+import type { ConfidenceLevel } from "../../types";
+import { VoiceDictationButton } from "../learning/VoiceDictationButton";
 import { PlanApproval } from "./PlanApproval";
 import { CurriculumApproval } from "./CurriculumApproval";
 import "./curriculum.css";
@@ -74,11 +88,30 @@ export const NewTopicModal: React.FC<Props> = ({
     [referenceContent, setReferenceContent] = useState("");
   const [proposal, setProposal] = useState<ScopeProposal | null>(null),
     [scope, setScope] = useState<LearningScope>("curriculum");
-  const [task, setTask] = useState<"idle" | "scoping" | "creating">("idle");
+  const [task, setTask] = useState<
+    "idle" | "scoping" | "probing" | "creating"
+  >("idle");
   const [status, setStatus] = useState(""),
     [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [isReadingFile, setIsReadingFile] = useState(false);
+  const [probeQuestions, setProbeQuestions] = useState<BoundaryProbeQuestion[]>(
+    []
+  );
+  const [probeResponses, setProbeResponses] = useState<
+    Record<string, BoundaryProbeResponse>
+  >({});
+
+  const ledgerEntries = useMemo(
+    () => (isOpen ? loadConceptLedger() : []),
+    [isOpen]
+  );
+  const matchedPrior = useMemo(() => {
+    const query = `${interest} ${destination}`.trim();
+    if (!query || query.length < 3 || !ledgerEntries.length) return [];
+    return relevantPriorConcepts(query, { entries: ledgerEntries, limit: 6 });
+  }, [interest, destination, ledgerEntries]);
+
   const busy = task !== "idle" || isReadingFile;
   const [draftTrack, setDraftTrack] = useState<CourseTrack | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null),
@@ -166,6 +199,81 @@ export const NewTopicModal: React.FC<Props> = ({
       "Preparation cancelled. Your goal is still here; continue when you’re ready."
     );
   };
+
+  const updateProbeResponse = (
+    probeId: string,
+    patch: Partial<BoundaryProbeResponse>
+  ) => {
+    setProbeResponses((prev) => {
+      const current = prev[probeId] || {
+        selectedOptionId: null,
+        dontKnow: false,
+        confidence: null,
+        thinking: "",
+      };
+      return {
+        ...prev,
+        [probeId]: { ...current, ...patch },
+      };
+    });
+  };
+
+  const startBoundaryProbe = async () => {
+    const goal =
+      interest.trim() ||
+      (referenceContent.trim()
+        ? `Teach me the key concepts in ${referenceName || "my reference"}`
+        : "");
+    if (task !== "idle" || requestRef.current || readingFile.current || !goal)
+      return;
+    const controller = new AbortController();
+    requestRef.current = controller;
+    setTask("probing");
+    setError("");
+    setNotice("");
+    setStatus("Preparing 3 quick boundary questions to calibrate your outline…");
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 60000);
+    try {
+      const questions = await generateBoundaryProbes({
+        goal,
+        destination: destination.trim() || goal,
+        startingPoint,
+        priorConcepts: matchedPrior,
+        signal: controller.signal,
+      });
+      if (!mounted.current || controller.signal.aborted) return;
+      setProbeQuestions(questions);
+      const initial: Record<string, BoundaryProbeResponse> = {};
+      for (const q of questions) {
+        initial[q.id] = {
+          selectedOptionId: null,
+          dontKnow: false,
+          confidence: null,
+          thinking: "",
+        };
+      }
+      setProbeResponses(initial);
+    } catch (e) {
+      if (mounted.current && (!controller.signal.aborted || timedOut)) {
+        setError(
+          timedOut
+            ? "Boundary probing took longer than expected. You can prepare the curriculum outline directly."
+            : e instanceof Error
+            ? e.message
+            : "Could not prepare boundary questions."
+        );
+      }
+    } finally {
+      clearTimeout(timeout);
+      if (mounted.current) setTask("idle");
+      if (requestRef.current === controller) requestRef.current = null;
+    }
+  };
+
   const run = async () => {
     const goal =
       interest.trim() ||
@@ -218,6 +326,10 @@ export const NewTopicModal: React.FC<Props> = ({
               }
             : undefined,
         };
+        const boundaryEvidence =
+          scope === "curriculum" && probeQuestions.length > 0
+            ? summarizeBoundaryProbes(probeQuestions, probeResponses)
+            : undefined;
         const track =
           scope === "curriculum"
             ? await generateCurriculumOutline(
@@ -225,6 +337,8 @@ export const NewTopicModal: React.FC<Props> = ({
                   ...options,
                   destination: destination.trim() || goal,
                   startingPoint,
+                  priorConcepts: matchedPrior,
+                  boundaryEvidence,
                 },
                 updateStatus
               )
@@ -277,6 +391,7 @@ export const NewTopicModal: React.FC<Props> = ({
         prev.trim() ? prev : `Teach me the key concepts in ${file.name}`
       );
       setProposal(null);
+      setProbeQuestions([]);
       setNotice(`Added ${file.name}. Review your goal before continuing.`);
     } catch (e) {
       if (mounted.current && readSequence.current === sequence)
@@ -368,6 +483,7 @@ export const NewTopicModal: React.FC<Props> = ({
               onChange={(e) => {
                 setInterest(e.target.value);
                 setProposal(null);
+                setProbeQuestions([]);
                 setError("");
               }}
               disabled={busy}
@@ -376,6 +492,29 @@ export const NewTopicModal: React.FC<Props> = ({
               autoComplete="off"
               placeholder="What would you like to be able to do?"
             />
+            {matchedPrior.length > 0 && (
+              <details className="prior-ledger-pill">
+                <summary>
+                  <Sparkles size={13} aria-hidden="true" />
+                  <span>
+                    Prior knowledge recognized:{" "}
+                    <strong>
+                      {matchedPrior.length}{" "}
+                      {matchedPrior.length === 1 ? "concept" : "concepts"}
+                    </strong>{" "}
+                    from earlier sessions
+                  </span>
+                </summary>
+                <ul>
+                  {matchedPrior.map((entry) => (
+                    <li key={entry.id}>
+                      <strong>{entry.title}</strong>
+                      <span> · {entry.trackTitle}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
             {proposal && (
               <section className="curriculum-brief" aria-label="Learning scope">
                 <div className="curriculum-scope-options">
@@ -422,6 +561,180 @@ export const NewTopicModal: React.FC<Props> = ({
                     <option key={point}>{point}</option>
                   ))}
                 </select>
+                {scope === "curriculum" &&
+                  startingPoint !== "I’m starting from the beginning" &&
+                  probeQuestions.length === 0 && (
+                    <div className="boundary-probe-cta">
+                      <div>
+                        <strong>Calibrate before freezing the outline</strong>
+                        <small>
+                          Answer 3 quick boundary questions so already-known
+                          basics are pruned upfront.
+                        </small>
+                      </div>
+                      <button
+                        type="button"
+                        className="check-coach-button"
+                        disabled={busy}
+                        onClick={() => void startBoundaryProbe()}
+                      >
+                        <Target size={13} />
+                        Probe my starting boundary
+                      </button>
+                    </div>
+                  )}
+                {scope === "curriculum" && probeQuestions.length > 0 && (
+                  <div
+                    className="boundary-probe-panel"
+                    role="region"
+                    aria-label="Pre-outline boundary probe"
+                  >
+                    <div className="boundary-probe-header">
+                      <div>
+                        <strong>Quick boundary check</strong>
+                        <small>
+                          Your answers prune redundant basics before generating
+                          the curriculum.
+                        </small>
+                      </div>
+                      <button
+                        type="button"
+                        className="check-coach-button"
+                        disabled={busy}
+                        onClick={() => setProbeQuestions([])}
+                      >
+                        Skip probe
+                      </button>
+                    </div>
+                    {probeQuestions.map((q, idx) => {
+                      const reply = probeResponses[q.id] || {
+                        selectedOptionId: null,
+                        dontKnow: false,
+                        confidence: null,
+                        thinking: "",
+                      };
+                      return (
+                        <fieldset key={q.id} className="boundary-probe-card">
+                          <legend>
+                            <span className="boundary-probe-tier">
+                              {idx + 1}. {q.conceptTested}
+                            </span>
+                            {q.question}
+                          </legend>
+                          <div className="boundary-probe-options">
+                            {q.options.map((opt) => (
+                              <label
+                                key={opt.id}
+                                className={
+                                  reply.selectedOptionId === opt.id &&
+                                  !reply.dontKnow
+                                    ? "is-selected"
+                                    : ""
+                                }
+                              >
+                                <input
+                                  type="radio"
+                                  name={`boundary-probe-${q.id}`}
+                                  checked={
+                                    reply.selectedOptionId === opt.id &&
+                                    !reply.dontKnow
+                                  }
+                                  disabled={busy}
+                                  onChange={() =>
+                                    updateProbeResponse(q.id, {
+                                      selectedOptionId: opt.id,
+                                      dontKnow: false,
+                                    })
+                                  }
+                                />
+                                <span>{opt.label}</span>
+                              </label>
+                            ))}
+                            <label
+                              className={reply.dontKnow ? "is-selected" : ""}
+                            >
+                              <input
+                                type="radio"
+                                name={`boundary-probe-${q.id}`}
+                                checked={reply.dontKnow}
+                                disabled={busy}
+                                onChange={() =>
+                                  updateProbeResponse(q.id, {
+                                    selectedOptionId: null,
+                                    dontKnow: true,
+                                  })
+                                }
+                              />
+                              <span>I’m not sure yet</span>
+                            </label>
+                          </div>
+                          {!reply.dontKnow && reply.selectedOptionId && (
+                            <div className="boundary-probe-meta">
+                              <div
+                                className="boundary-probe-confidence"
+                                role="group"
+                                aria-label={`Confidence for question ${idx + 1}`}
+                              >
+                                {(
+                                  [
+                                    ["unsure", "Guessing"],
+                                    ["somewhat", "Fairly sure"],
+                                    ["confident", "Certain"],
+                                  ] as [ConfidenceLevel, string][]
+                                ).map(([val, text]) => (
+                                  <button
+                                    key={val}
+                                    type="button"
+                                    aria-pressed={reply.confidence === val}
+                                    disabled={busy}
+                                    onClick={() =>
+                                      updateProbeResponse(q.id, {
+                                        confidence:
+                                          reply.confidence === val ? null : val,
+                                      })
+                                    }
+                                  >
+                                    {text}
+                                  </button>
+                                ))}
+                              </div>
+                              <div className="boundary-probe-thinking">
+                                <input
+                                  type="text"
+                                  aria-label={`Optional reasoning for ${q.conceptTested}`}
+                                  placeholder="Think out loud (optional, 1 line)…"
+                                  maxLength={240}
+                                  disabled={busy}
+                                  value={reply.thinking}
+                                  onChange={(e) =>
+                                    updateProbeResponse(q.id, {
+                                      thinking: e.target.value,
+                                    })
+                                  }
+                                />
+                                <VoiceDictationButton
+                                  compact
+                                  disabled={busy}
+                                  label="Dictate reasoning"
+                                  onTranscript={(chunk) =>
+                                    updateProbeResponse(q.id, {
+                                      thinking: reply.thinking
+                                        ? `${reply.thinking.trimEnd()} ${chunk}`.slice(
+                                            0,
+                                            240
+                                          )
+                                        : chunk.slice(0, 240),
+                                    })
+                                  }
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </fieldset>
+                      );
+                    })}
+                  </div>
+                )}
                 <small>
                   Placement is optional. The plan is reviewed before anything is
                   added.
@@ -503,6 +816,8 @@ export const NewTopicModal: React.FC<Props> = ({
                       ? "Reading your material"
                       : task === "scoping"
                       ? "Finding the right scope"
+                      : task === "probing"
+                      ? "Preparing boundary questions"
                       : scope === "curriculum"
                       ? "Preparing the curriculum outline"
                       : "Preparing a focused lesson"}
@@ -555,7 +870,9 @@ export const NewTopicModal: React.FC<Props> = ({
                   ? "Try again"
                   : proposal
                   ? scope === "curriculum"
-                    ? "Prepare curriculum outline"
+                    ? probeQuestions.length > 0
+                      ? "Prepare calibrated outline"
+                      : "Prepare curriculum outline"
                     : "Prepare focused lesson"
                   : "Shape my learning goal"}
               </button>

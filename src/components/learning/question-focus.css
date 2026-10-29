@@ -13,17 +13,17 @@
   box-shadow: 0 10px 30px #00000030, inset 0 1px 0 #ffffff04;
 }
 .focused-session[data-question-active="true"] .check-kicker { margin-bottom: 20px; color: #aab5c3; }
-.focused-session[data-question-active="true"] .check-question .prose { color: #edf0f4; font-size: 17px; line-height: 1.7; }
-.focused-session[data-question-active="true"] .check-options { gap: 9px; margin-top: 22px; }
+.focused-session[data-question-active="true"] .check-question .prose { color: #f0f3f7; font-size: 17px; line-height: 1.64; }
+.focused-session[data-question-active="true"] .check-options { gap: 10px; margin-top: 22px; }
 .focused-session[data-question-active="true"] .check-option {
   min-height: 52px;
-  padding: 13px 15px;
+  padding: 13px 16px;
   border-color: #444b55;
   border-radius: 9px;
   background: #1b1f24;
   transition: background-color 120ms, border-color 120ms;
 }
-.focused-session[data-question-active="true"] .check-option .prose { font-size: 13px; color: #dae0e8; }
+.focused-session[data-question-active="true"] .check-option .prose { font-size: 14.5px; line-height: 1.58; color: #e2e7ef; }
 .focused-session[data-question-active="true"] .check-option:hover { background: #22272e; border-color: #7e8997; }
 .focused-session[data-question-active="true"] .check-option.is-selected { border-color: #cfb292; background: #cfb2920e; }
 .focused-session[data-question-active="true"] .check-option:focus-within { outline: 2px solid #cfb292; outline-offset: 3px; }

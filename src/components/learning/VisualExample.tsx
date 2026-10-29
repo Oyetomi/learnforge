@@ -10,6 +10,7 @@ import {
 import type { VisualExample as VisualSpec } from "../../services/learning/visuals";
 import { StateWalkthrough } from "./StateWalkthrough";
 import { SlopeGraph } from "./SlopeGraph";
+import { ParameterExplorer } from "./ParameterExplorer";
 import { TeachingSimulation, PhraseBuilder } from "./TeachingSimulation";
 import { recordVisualSupport } from "../../services/learning/preferences";
 interface Props {
@@ -79,6 +80,13 @@ export function VisualExample({
           <p className="visual-summary">{visual.summary}</p>
           {visual.kind === "state-model" && visual.stateModel ? (
             <StateWalkthrough model={visual.stateModel} onInteract={markSupport} notes={visual.items} takeaway={visual.takeaway}/>
+          ) : visual.kind === "explorer" && visual.explorer ? (
+            <ParameterExplorer
+              key={`${visualId}:${resetCount}`}
+              spec={visual.explorer}
+              title={visual.title}
+              onInteract={markSupport}
+            />
           ) : visual.kind === "graph" && visual.graph ? (
             <SlopeGraph key={`${visualId}:${resetCount}`} graph={visual.graph} onInteract={markSupport} notes={visual.items} takeaway={visual.takeaway}/>
           ) : visual.kind === "simulation" && visual.model ? (

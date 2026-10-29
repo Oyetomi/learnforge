@@ -19,6 +19,10 @@ import { validPrerequisiteGraph } from "../learning/roadmap";
 import { validateLearningCheck } from "../learning/checks";
 import { FREE_RESPONSE_INSTRUCTIONS } from "../learning/freeResponse";
 import { createLearningReference, referenceContext, GROUNDING_INSTRUCTIONS } from "../learning/grounding";
+import {
+  formatPriorConceptsForPrompt,
+  relevantPriorConcepts,
+} from "../learning/conceptLedger";
 
 export interface GenerateTrackOptions {
   topic: string;
@@ -110,6 +114,9 @@ Return valid JSON only, using this structure. The single milestone here is a sch
 }`;
   onStatusUpdate?.("Creating lessons and interactive questions…");
   const hasReference = Boolean(options.referenceMaterial?.content?.trim());
+  const matchedPrior = relevantPriorConcepts(`${interest} ${topic}`, {
+    limit: 6,
+  });
   const userPrompt = JSON.stringify({
     originalInterest: interest,
     selectedGoal: topic,
@@ -117,6 +124,11 @@ Return valid JSON only, using this structure. The single milestone here is a sch
       options.level ||
       "Not specified; start accessibly and diagnose through practice",
     preferredProgrammingLanguage: options.language || null,
+    ...(matchedPrior.length
+      ? {
+          priorDemonstratedConcepts: formatPriorConceptsForPrompt(matchedPrior),
+        }
+      : {}),
     ...(hasReference
       ? {
           referenceMaterial: {

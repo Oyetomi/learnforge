@@ -154,13 +154,15 @@ export interface LearningCheck extends LearningCheckSpec {
   milestoneId: string;
 }
 
+export type ConfidenceLevel = "unsure" | "somewhat" | "confident";
+
 /** Starting-point evidence is deliberately separate from lesson/mastery attempts. */
 export interface PlacementAttempt {
   milestoneId: string;
   check: LearningCheckSpec;
   selectedIds: string[];
   dontKnow: boolean;
-  confidence: "unsure" | "somewhat" | "confident" | null;
+  confidence: ConfidenceLevel | null;
   correct: boolean;
   helpUsed: string[];
   submittedAt: number;
@@ -182,7 +184,7 @@ export interface CheckAttempt {
   selectedIds: string[];
   dontKnow: boolean;
   thinking: string;
-  confidence: "unsure" | "somewhat" | "confident" | null;
+  confidence: ConfidenceLevel | null;
   correct: boolean;
   assisted?: boolean;
   retriedOptionIds?: string[];

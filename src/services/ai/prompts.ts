@@ -3,6 +3,10 @@ import { loadLearningPreferences } from "../learning/preferences";
 import { referenceContext, GROUNDING_INSTRUCTIONS } from "../learning/grounding";
 import { FREE_RESPONSE_INSTRUCTIONS } from "../learning/freeResponse";
 import { ILLUSTRATION_INSTRUCTIONS, MATH_INSTRUCTIONS, TABLE_INSTRUCTIONS } from "../learning/visualContract";
+import {
+  formatPriorConceptsForPrompt,
+  relevantPriorConcepts,
+} from "../learning/conceptLedger";
 /**
  * LearnForge Socratic AI Tutoring Prompts & Orchestrator
  *
@@ -183,6 +187,18 @@ export function buildSocraticSystemPrompt(
   }
 
   if (activeMilestone?.curriculum_context) sections.push(`\n## APPROVED CURRICULUM CONTEXT\n${JSON.stringify(activeMilestone.curriculum_context)}\nTeach this unit's outcome toward the original destination. Choose a small next activity from the learner's actual evidence. Do not silently expand the approved scope. Repair one distinction at a time and return to the original task; never build an unbounded prerequisite chain. A content outline or preview is not competency evidence. Current assessment modalities are text, choices and supported code execution. Do not claim to have seen a drawing, heard pronunciation or verified physical performance from textual answers; assess conceptual understanding and disclose the limits.`);
+
+  const priorLedger = relevantPriorConcepts(
+    `${activeMilestone?.title || ""} ${activeMilestone?.prompt || ""} ${referenceQuery}`,
+    { limit: 6 }
+  ).filter((entry) => entry.milestoneId !== activeMilestone?.id);
+  if (priorLedger.length > 0) {
+    sections.push(
+      `\n## PRIOR DEMONSTRATED CONCEPTS ACROSS SESSIONS\n${JSON.stringify(
+        formatPriorConceptsForPrompt(priorLedger)
+      )}\nYou may build analogies from verified-in-practice concepts without re-lecturing their basics from scratch. Never treat prior concepts or imported notes as automatic mastery of the current milestone.`
+    );
+  }
 
   // Milestone Context
   if (activeMilestone) {

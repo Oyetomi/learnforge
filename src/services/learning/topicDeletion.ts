@@ -1,4 +1,5 @@
 import { forgetVisualSupport } from "./preferences";
+import { removeTrackConcepts } from "./conceptLedger";
 import type { LocalDatabase } from "../db/storage";
 import type { CourseTrack } from "../ai/types";
 import { tutoringReadingKey } from "./tutoring";
@@ -63,6 +64,7 @@ export function deleteTopicData(
     localStorage.setItem("learnforge:code-drafts", JSON.stringify(drafts));
   }
   forgetVisualSupport(checkIds);
+  removeTrackConcepts(track.id);
   if (localStorage.getItem("learnforge:active-track") === track.id)
     localStorage.removeItem("learnforge:active-track");
   for (const s of sessions) database.deleteSession(s.id);

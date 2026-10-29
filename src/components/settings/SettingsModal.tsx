@@ -41,6 +41,11 @@ import {
   saveLearningPreferences,
   type LearningPreferences,
 } from "../../services/learning/preferences";
+import {
+  clearConceptLedger,
+  importNotesIntoLedger,
+  loadConceptLedger,
+} from "../../services/learning/conceptLedger";
 
 interface SettingsModalProps {
   initialSection?: "learning" | "connection";
@@ -60,6 +65,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [section, setSection] = useState(initialSection);
   const [learning, setLearning] = useState(loadLearningPreferences);
+  const [ledger, setLedger] = useState(loadConceptLedger);
+  const [ledgerStatus, setLedgerStatus] = useState("");
+  const notesFileRef = useRef<HTMLInputElement>(null);
   const [saveError, setSaveError] = useState("");
   const setPreference = (patch: Partial<LearningPreferences>) =>
     setLearning((p) => ({ ...p, ...patch }));
@@ -597,6 +605,69 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   rigorous.
                 </small>
               </label>
+
+              <div className="settings-group settings-ledger-group">
+                <span className="settings-group-label">
+                  Cross-topic prior knowledge
+                </span>
+                <p className="written-grading-note">
+                  {ledger.length === 0
+                    ? "Demonstrated concepts from completed units are remembered across topics so new curricula skip redundant basics. You can also import Markdown study notes."
+                    : `${ledger.length} ${
+                        ledger.length === 1 ? "concept" : "concepts"
+                      } stored locally across sessions to calibrate new curricula and analogies.`}
+                </p>
+                <input
+                  ref={notesFileRef}
+                  type="file"
+                  hidden
+                  accept=".md,.txt"
+                  aria-label="Import Markdown study notes"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = "";
+                    if (!file) return;
+                    void file.text().then((text) => {
+                      const added = importNotesIntoLedger(file.name, text);
+                      setLedger(loadConceptLedger());
+                      setLedgerStatus(
+                        added > 0
+                          ? `Imported ${added} ${
+                              added === 1 ? "concept" : "concepts"
+                            } from ${file.name}.`
+                          : `No structured headings or bullet takeaways found in ${file.name}.`
+                      );
+                    });
+                  }}
+                />
+                <div className="settings-ledger-actions">
+                  <button
+                    type="button"
+                    className="check-coach-button"
+                    onClick={() => notesFileRef.current?.click()}
+                  >
+                    Import notes (.md)
+                  </button>
+                  {ledger.length > 0 && (
+                    <button
+                      type="button"
+                      className="check-coach-button"
+                      onClick={() => {
+                        clearConceptLedger();
+                        setLedger([]);
+                        setLedgerStatus("Cleared prior knowledge ledger.");
+                      }}
+                    >
+                      Clear ledger
+                    </button>
+                  )}
+                </div>
+                {ledgerStatus && (
+                  <small className="settings-field-hint" role="status">
+                    {ledgerStatus}
+                  </small>
+                )}
+              </div>
 
               <div className="settings-reset-row">
                 <button

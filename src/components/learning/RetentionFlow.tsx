@@ -16,6 +16,7 @@ import { visualSupportFor } from "../../services/learning/preferences";
 import { useLearningPreferences } from "./useLearningPreferences";
 import { isAcceptedFreeResponseGrade } from "../../services/learning/freeResponse";
 import { gradeLearningCheck } from "../../services/learning/checks";
+import { recordDemonstratedConcept } from "../../services/learning/conceptLedger";
 import { QuestionCard } from "./QuestionCard";
 import { ReferenceShelf } from "./ReferenceShelf";
 import "./retention-flow.css";
@@ -205,6 +206,17 @@ export const RetentionFlow: React.FC<Props> = ({
     const review = reviewMessage?.retention_review;
     if (!review || !reviewMessage) return;
     database.finishRetentionReview(session.id, reviewMessage.id);
+    if (review.attempt.correct && milestone) {
+      recordDemonstratedConcept({
+        title: milestone.title,
+        outcome: milestone.prompt || milestone.title,
+        trackId: session.track_id || session.id,
+        trackTitle: session.title,
+        milestoneId: milestone.id,
+        language: session.language,
+        source: "retention",
+      });
+    }
     onSaved();
     if (close) dismiss();
   };

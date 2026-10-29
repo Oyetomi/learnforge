@@ -2,8 +2,12 @@ import React, { useState, useEffect, useRef, Suspense, lazy } from "react";
 import { Code2, BookOpen, Route, Loader2 } from "lucide-react";
 import { handleTabNavigation } from "./components/layout/keyboard";
 import { Header } from "./components/layout/Header";
-import { MilestoneSidebar } from "./components/milestones/MilestoneSidebar";
+import {
+  MilestoneSidebar,
+  cleanMilestoneTitle,
+} from "./components/milestones/MilestoneSidebar";
 import { ChatPane } from "./components/chat/ChatPane";
+import { recordDemonstratedConcept } from "./services/learning/conceptLedger";
 const EditorPane = lazy(() =>
   import("./components/editor/EditorPane").then((module) => ({
     default: module.EditorPane,
@@ -695,6 +699,15 @@ export default function App() {
               db.updateMilestoneStatus(activeMilestone.id, "completed");
               setMilestones(db.getMilestones(currentSession.id));
               setActiveMilestone({ ...activeMilestone, status: "completed" });
+              recordDemonstratedConcept({
+                title: cleanMilestoneTitle(activeMilestone.title),
+                outcome: activeMilestone.prompt || activeMilestone.title,
+                trackId: currentSession.track_id || currentTrackId,
+                trackTitle: currentSession.title,
+                milestoneId: activeMilestone.id,
+                language: currentSession.language,
+                source: "readiness",
+              });
               try {
                 if (
                   !db

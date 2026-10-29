@@ -116,3 +116,96 @@
     max-width: 130px;
   }
 }
+
+/* In-session route minimap strip */
+.session-route-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 20px;
+  min-height: 30px;
+  border-bottom: 1px solid #22272f;
+  background: #121519;
+  font-size: 11px;
+  color: #939fad;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.session-route-strip::-webkit-scrollbar {
+  display: none;
+}
+.session-route-strip .route-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.session-route-strip .route-node > span,
+.session-route-strip .route-node > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.session-route-strip .route-node.is-foundation.is-done {
+  color: #8fb69c;
+}
+.session-route-strip .route-node.is-current {
+  color: #ebeef3;
+}
+.session-route-strip .route-node.is-current strong {
+  font-weight: 500;
+}
+.session-route-strip .route-node small {
+  font-family: var(--font-code);
+  font-size: 10px;
+  color: #7f8b99;
+}
+.session-route-strip .route-node.is-repair-badge {
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #2b231b;
+  border: 1px solid #6b533b;
+  color: #e4c39f;
+  font-size: 10.5px;
+}
+.session-route-strip .route-node.is-return {
+  color: #c8b094;
+}
+.session-route-strip .route-arrow {
+  flex-shrink: 0;
+  color: #5f6a77;
+}
+
+/* Inline open-book explanation panel anchored above QuestionCard */
+.session-inline-lesson {
+  margin: 8px auto 14px;
+  max-width: 960px;
+  border: 1px solid #594a3a;
+  border-radius: 11px;
+  background: #171a1f;
+  overflow: hidden;
+}
+.session-inline-lesson .session-inline-visual-bar {
+  padding: 8px 14px;
+  border-bottom: 1px solid #2b3038;
+  background: #1f1c19;
+  color: #dfc3a4;
+  font-size: 11.5px;
+}
+.session-inline-lesson-body {
+  padding: 14px 18px;
+  max-height: min(38dvh, 320px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.session-inline-lesson-body .prose {
+  font-size: 14.75px;
+  line-height: 1.66;
+}
+.slide-reference-button.is-lesson-peek {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
