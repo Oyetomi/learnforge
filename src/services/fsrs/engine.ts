@@ -143,15 +143,15 @@ export function initStability(
 }
 
 /**
- * Initial difficulty D0(G) for a new card's first review.
- * Formula: D0(G) = clamp(w[4] - exp(w[5] * (G - 1)) + 1, 1, 10)
+ * Initial difficulty D0(G) for a new card's first review (FSRS-4.5).
+ * Formula: D0(G) = clamp(w[4] - (G - 3) * w[5], 1, 10)
  */
 export function initDifficulty(
   rating: Rating,
   w: readonly number[] = DEFAULT_WEIGHTS
 ): number {
   const g = clamp(rating, 1, 4);
-  const d0 = w[4] - Math.exp(w[5] * (g - 1)) + 1;
+  const d0 = w[4] - (g - 3) * w[5];
   return clamp(d0, 1.0, 10.0);
 }
 
@@ -211,7 +211,7 @@ export function nextRecallStability(
 /**
  * Stability update upon memory lapse (Rating 1 = Again).
  * Formula:
- *   S_forget = w[11] * D^(-w[12]) * ((S + 1)^w[13] - 1) * exp((1 - R) * w[14])
+ *   S_forget = min(S, w[11] * D^(-w[12]) * ((S + 1)^w[13] - 1) * exp((1 - R) * w[14]))
  */
 export function nextForgetStability(
   difficulty: number,
@@ -229,7 +229,7 @@ export function nextForgetStability(
     (Math.pow(safeS + 1, w[13]) - 1) *
     Math.exp((1 - safeR) * w[14]);
 
-  return Math.max(0.1, sForget);
+  return Math.max(0.1, Math.min(safeS, sForget));
 }
 
 /**

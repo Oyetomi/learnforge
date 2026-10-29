@@ -333,6 +333,61 @@ export async function aiFetch(
   return response;
 }
 
+/**
+ * Resilient non-streaming JSON request helper:
+ * - Retries once without `response_format` on HTTP 400/422 (for Ollama, Anthropic-compat,
+ *   or custom proxies that reject `json_object`).
+ * - Falls back to `connection.fallbackModel` on HTTP 404/429/5xx when configured.
+ */
+export async function aiJsonRequest(
+  body: Record<string, unknown>,
+  init?: { signal?: AbortSignal; connection?: AIConnection }
+): Promise<Response> {
+  const connection = init?.connection ?? loadAIConnection();
+  const primaryModel =
+    typeof body.model === "string" && body.model.trim()
+      ? body.model
+      : connection.model;
+  const fallbackModel = connection.fallbackModel?.trim() || "";
+
+  let activeBody: Record<string, unknown> = { ...body, model: primaryModel };
+  let response = await aiFetch(activeBody, {
+    signal: init?.signal,
+    connection,
+  });
+
+  if (
+    !response.ok &&
+    (response.status === 400 || response.status === 422) &&
+    "response_format" in activeBody &&
+    !init?.signal?.aborted
+  ) {
+    const { response_format: _omit, ...withoutFormat } = activeBody;
+    activeBody = withoutFormat;
+    response = await aiFetch(activeBody, {
+      signal: init?.signal,
+      connection,
+    });
+  }
+
+  if (
+    !response.ok &&
+    (response.status === 404 ||
+      response.status === 429 ||
+      response.status >= 500) &&
+    fallbackModel &&
+    fallbackModel !== primaryModel &&
+    !init?.signal?.aborted
+  ) {
+    response = await aiFetch(
+      { ...activeBody, model: fallbackModel },
+      { signal: init?.signal, connection }
+    );
+  }
+
+  return response;
+}
+
 /** Fired after every AI request so the session UI can show connection health. */
 export const AI_STATUS_EVENT = "learnforge:ai-status";
 export interface AIStatusDetail {

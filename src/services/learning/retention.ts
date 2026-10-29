@@ -1,5 +1,5 @@
 import type { CheckAttempt, FSRSRating, LearningCheck, LearningSession, Milestone, SRSCard } from "../../types";
-import { aiFetch, loadAIConnection, recordUsage } from "../ai/connection";
+import { aiJsonRequest, loadAIConnection, recordUsage } from "../ai/connection";
 import { validateLearningCheck, gradeLearningCheck } from "./checks";
 import { isAcceptedFreeResponseGrade, FREE_RESPONSE_INSTRUCTIONS } from "./freeResponse";
 import { GROUNDING_INSTRUCTIONS, referenceContext } from "./grounding";
@@ -21,7 +21,7 @@ export function retentionRating(check: LearningCheck, attempt: CheckAttempt): FS
 }
 
 export async function createRetentionCheck(card: SRSCard, milestone: Milestone, signal: AbortSignal, repair = false): Promise<LearningCheck> {
-  const response = await aiFetch({ model: loadAIConnection().model, temperature: 0.3, response_format: { type: "json_object" },
+  const response = await aiJsonRequest({ model: loadAIConnection().model, temperature: 0.3, response_format: { type: "json_object" },
     messages: [{ role: "system", content: `Create ONE short retrieval activity for the learner's original goal. Use a new practical case, not the old question with its nouns replaced. Do not reveal the solution before submission. No readiness assessment and no roadmap changes. Return a single check JSON object. ${FREE_RESPONSE_INSTRUCTIONS} ${GROUNDING_INSTRUCTIONS} ${repair ? "This is supported repair: give one tiny analogous example in context and ask a simpler application. No lecture." : "Prefer a small written explanation, with no answer choices or worked answer visible."}` },
       { role: "user", content: JSON.stringify({ goal: milestone.learning_intent, concept: milestone.title,
         earlierQuestion: card.prompt, expectedConcept: card.answer, referenceExcerpts: referenceContext(milestone.references, milestone.title) }) }] }, { signal });

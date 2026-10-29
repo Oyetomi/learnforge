@@ -14,8 +14,6 @@ export * from './python';
 export * from './rust';
 export * from './universal';
 export * from './go/types';
-export * from './go/runtime';
-export * from './go/interpreter';
 export * from './go/runner';
 
 const jsRunner = new JavaScriptSandboxRunner();

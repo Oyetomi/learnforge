@@ -17,6 +17,7 @@
         { "url": "https://openrouter.ai/*" },
         { "url": "https://play.rust-lang.org/*" },
         { "url": "https://play.golang.org/compile" },
+        { "url": "https://go.dev/*" },
         { "url": "https://wandbox.org/api/*" }
       ]
     }

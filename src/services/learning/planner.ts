@@ -1,4 +1,4 @@
-import { aiFetch, loadAIConnection, recordUsage } from "../ai/connection";
+import { aiJsonRequest, loadAIConnection, recordUsage } from "../ai/connection";
 import type { ChatMessage, LearningCheck, Milestone } from "../../types";
 import { extractRepair, type RepairProposal } from "./adaptation";
 import { referenceContext, GROUNDING_INSTRUCTIONS } from "./grounding";
@@ -23,7 +23,7 @@ export async function planAdaptiveRepair(
   if (signal.aborted) controller.abort();
   const timeout = setTimeout(abort, 20_000);
   try {
-    const response = await aiFetch({
+    const response = await aiJsonRequest({
         model: loadAIConnection().model,
         response_format: { type: "json_object" },
         temperature: 0.25,

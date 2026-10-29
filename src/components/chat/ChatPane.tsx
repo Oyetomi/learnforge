@@ -69,6 +69,12 @@ import {
 import { MasteryMeter } from "../learning/MasteryMeter";
 import { Composer } from "./Composer";
 import { cleanMilestoneTitle } from "../milestones/MilestoneSidebar";
+import {
+  db,
+  STORAGE_STATUS_EVENT,
+  type StorageStatusDetail,
+} from "../../services/db/storage";
+import { estimatePromptTokens } from "../../services/ai/prompts";
 
 interface ChatPaneProps {
   trackId: string;
@@ -179,11 +185,15 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
     ok: true,
     message: "",
   });
+  const [storageStatus, setStorageStatus] = useState<StorageStatusDetail>({
+    persisted: true,
+  });
   const [contextWindow, setContextWindow] = useState(() =>
     contextWindowFor(loadAIConnection().model)
   );
 
   useEffect(() => {
+    setStorageStatus(db.getStorageStatus());
     const syncTelemetry = () => {
       const conn = loadAIConnection();
       setAiConn(conn);
@@ -193,11 +203,15 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
     };
     const onStatus = (e: Event) =>
       setAiStatus((e as CustomEvent<AIStatusDetail>).detail);
+    const onStorageStatus = (e: Event) =>
+      setStorageStatus((e as CustomEvent<StorageStatusDetail>).detail);
     window.addEventListener(AI_CONNECTION_EVENT, syncTelemetry);
     window.addEventListener(AI_STATUS_EVENT, onStatus);
+    window.addEventListener(STORAGE_STATUS_EVENT, onStorageStatus);
     return () => {
       window.removeEventListener(AI_CONNECTION_EVENT, syncTelemetry);
       window.removeEventListener(AI_STATUS_EVENT, onStatus);
+      window.removeEventListener(STORAGE_STATUS_EVENT, onStorageStatus);
     };
   }, []);
 
@@ -222,12 +236,6 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
     if (n < 1000) return `${n}`;
     return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`;
   };
-  const contextChars =
-    (activeMilestone?.lesson?.length || 0) +
-    (activeMilestone?.prompt?.length || 0) +
-    (activeMilestone?.starter_code?.length || 0) +
-    messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
-  const contextTokens = Math.max(1, Math.ceil(contextChars / 4));
   const turnCount = messages.filter(
     (m) => m.role !== "system" && !m.internal
   ).length;
@@ -328,6 +336,10 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   const latest =
     [...relevant].reverse().find((m) => m.learning_check)?.learning_check ||
     starter;
+  const contextTokens = React.useMemo(
+    () => estimatePromptTokens(messages, activeMilestone, language, latest),
+    [messages, activeMilestone, language, latest]
+  );
   const attemptFor = (check: LearningCheck) =>
     messages.find((m) => m.check_attempt?.checkId === check.id)?.check_attempt;
   const attempt = latest ? attemptFor(latest) : undefined;
@@ -742,6 +754,15 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
           references={activeMilestone?.references}
           pendingCheckId={latest && !attempt ? latest.id : undefined}
         />
+        {!storageStatus.persisted && (
+          <div className="continuation-error" role="alert">
+            <p>
+              Local storage is full, so new progress is held in memory for this
+              session only. Export your notes or remove unused topics in Manage
+              Topics to free space.
+            </p>
+          </div>
+        )}
         {continuationError && (
           <div className="continuation-error" role="alert">
             <p>

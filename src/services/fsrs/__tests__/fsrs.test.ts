@@ -3,6 +3,9 @@ import {
   scheduleCard,
   calculateRetrievability,
   calculateInterval,
+  initDifficulty,
+  nextDifficulty,
+  nextForgetStability,
   getDueCards,
   DEFAULT_WEIGHTS,
 } from '../engine';
@@ -22,13 +25,44 @@ describe('FSRS 4.5 Spaced Repetition Engine', () => {
     due_date: Date.now(),
   };
 
-  it('correctly initializes stability and difficulty on first review (Good rating = 3)', () => {
-    const result = scheduleCard(newCard, 3);
-    // w[2] is initial stability for Good rating
-    expect(result.card.stability).toBeCloseTo(DEFAULT_WEIGHTS[2], 2);
-    expect(result.card.reps).toBe(1);
-    expect(result.card.lapses).toBe(0);
-    expect(result.nextIntervalDays).toBeGreaterThanOrEqual(1);
+  it('correctly initializes stability and difficulty on first review across all ratings', () => {
+    const again = scheduleCard(newCard, Rating.Again);
+    const hard = scheduleCard(newCard, Rating.Hard);
+    const good = scheduleCard(newCard, Rating.Good);
+    const easy = scheduleCard(newCard, Rating.Easy);
+
+    // w[2] is initial stability for Good rating; w[4] is baseline Good difficulty (5.1618)
+    expect(good.card.stability).toBeCloseTo(DEFAULT_WEIGHTS[2], 2);
+    expect(good.card.difficulty).toBeCloseTo(DEFAULT_WEIGHTS[4], 4);
+    expect(good.card.reps).toBe(1);
+    expect(good.card.lapses).toBe(0);
+    expect(good.nextIntervalDays).toBeGreaterThanOrEqual(1);
+
+    // Linear FSRS-4.5 initial difficulty: D0(1) > D0(2) > D0(3) > D0(4) > 1.0
+    expect(again.card.difficulty).toBeCloseTo(DEFAULT_WEIGHTS[4] + 2 * DEFAULT_WEIGHTS[5], 4);
+    expect(hard.card.difficulty).toBeCloseTo(DEFAULT_WEIGHTS[4] + DEFAULT_WEIGHTS[5], 4);
+    expect(easy.card.difficulty).toBeCloseTo(DEFAULT_WEIGHTS[4] - DEFAULT_WEIGHTS[5], 4);
+    expect(easy.card.difficulty).toBeGreaterThan(1.0);
+  });
+
+  it('mean-reverts difficulty toward D0(Good) rather than collapsing toward 1.0', () => {
+    const d0Good = initDifficulty(Rating.Good);
+    expect(d0Good).toBeCloseTo(DEFAULT_WEIGHTS[4], 4);
+    // Reviewing an extreme high-difficulty card as Good pulls it slightly toward D0(3)
+    const revertedHigh = nextDifficulty(9.0, Rating.Good);
+    expect(revertedHigh).toBeLessThan(9.0);
+    expect(revertedHigh).toBeGreaterThan(d0Good);
+    // Reviewing an extreme low-difficulty card as Good pulls it upward toward D0(3)
+    const revertedLow = nextDifficulty(1.5, Rating.Good);
+    expect(revertedLow).toBeGreaterThan(1.5);
+    expect(revertedLow).toBeLessThan(d0Good);
+  });
+
+  it('caps post-lapse stability so forgetting a low-stability card never increases stability', () => {
+    const preLapseStability = DEFAULT_WEIGHTS[0]; // 0.4872
+    const postLapse = nextForgetStability(1.5, preLapseStability, 0.5);
+    expect(postLapse).toBeLessThanOrEqual(preLapseStability);
+    expect(postLapse).toBeGreaterThanOrEqual(0.1);
   });
 
   it('records lapse and lower stability on initial Again rating (Again rating = 1)', () => {

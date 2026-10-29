@@ -1,5 +1,6 @@
 import {
   LearningSession,
+  LearningReference,
   ChatMessage,
   Milestone,
   SRSCard,
@@ -17,14 +18,70 @@ const STORAGE_KEYS = {
   INITIALIZED: "learnforge:initialized_v1",
 };
 
+export const STORAGE_STATUS_EVENT = "learnforge:storage-status";
+
+export interface StorageStatusDetail {
+  persisted: boolean;
+  error?: string;
+}
+
+function sameReferences(
+  a?: LearningReference[],
+  b?: LearningReference[]
+): boolean {
+  if (!a || !b || a.length !== b.length) return false;
+  return a.every(
+    (ref, idx) =>
+      ref.id === b[idx].id &&
+      ref.name === b[idx].name &&
+      ref.truncated === b[idx].truncated &&
+      ref.content === b[idx].content
+  );
+}
+
 export class LocalDatabase {
   private sessions: Map<string, LearningSession> = new Map();
   private messages: Map<string, ChatMessage[]> = new Map(); // sessionId -> messages
   private milestones: Map<string, Milestone[]> = new Map(); // sessionId -> milestones
   private cards: Map<string, SRSCard> = new Map();
+  private inMemoryOnly = false;
+  private persisted = true;
+  private persistenceError = "";
+  private failedKeys: Set<string> = new Set();
+  private flushingPending = false;
 
   constructor() {
     this.init();
+  }
+
+  isPersisted(): boolean {
+    return this.persisted;
+  }
+
+  getPersistenceError(): string {
+    return this.persistenceError;
+  }
+
+  getStorageStatus(): StorageStatusDetail {
+    return {
+      persisted: this.persisted,
+      error: this.persistenceError || undefined,
+    };
+  }
+
+  private emitStorageStatus(persisted: boolean, error = "") {
+    this.persisted = persisted;
+    this.persistenceError = error;
+    if (
+      typeof window !== "undefined" &&
+      typeof window.dispatchEvent === "function"
+    ) {
+      window.dispatchEvent(
+        new CustomEvent<StorageStatusDetail>(STORAGE_STATUS_EVENT, {
+          detail: this.getStorageStatus(),
+        })
+      );
+    }
   }
 
   private init() {
@@ -37,7 +94,7 @@ export class LocalDatabase {
       }
     } catch (e) {
       console.warn("LocalStorage unavailable, running in-memory mode:", e);
-      this.initializeEmptyStorage();
+      this.inMemoryOnly = true;
     }
   }
 
@@ -47,6 +104,23 @@ export class LocalDatabase {
     try {
       localStorage.setItem(STORAGE_KEYS.INITIALIZED, "true");
     } catch {}
+  }
+
+  private hydrateMilestone(milestone: Milestone): Milestone {
+    const sessionRefs = this.sessions.get(milestone.session_id)?.references;
+    if (!milestone.references && sessionRefs) {
+      return { ...milestone, references: sessionRefs };
+    }
+    return { ...milestone };
+  }
+
+  private dehydrateMilestone(milestone: Milestone): Milestone {
+    const sessionRefs = this.sessions.get(milestone.session_id)?.references;
+    if (sameReferences(milestone.references, sessionRefs)) {
+      const { references: _omit, ...rest } = milestone;
+      return rest;
+    }
+    return milestone;
   }
 
   private loadFromStorage() {
@@ -62,7 +136,7 @@ export class LocalDatabase {
         const arr: Milestone[] = JSON.parse(milestonesJson);
         arr.forEach((m) => {
           const list = this.milestones.get(m.session_id) || [];
-          list.push(m);
+          list.push(this.hydrateMilestone(m));
           this.milestones.set(m.session_id, list);
         });
       }
@@ -87,29 +161,85 @@ export class LocalDatabase {
     }
   }
 
-  private persistAll() {
+  private writeKey(key: string, value: string): boolean {
+    if (this.inMemoryOnly) return true;
     try {
-      localStorage.setItem(
-        STORAGE_KEYS.SESSIONS,
-        JSON.stringify(Array.from(this.sessions.values()))
-      );
-      const allMilestones: Milestone[] = [];
-      this.milestones.forEach((list) => allMilestones.push(...list));
-      localStorage.setItem(
-        STORAGE_KEYS.MILESTONES,
-        JSON.stringify(allMilestones)
-      );
-
-      const allMessages: ChatMessage[] = [];
-      this.messages.forEach((list) => allMessages.push(...list));
-      localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(allMessages));
-
-      localStorage.setItem(
-        STORAGE_KEYS.SRS_CARDS,
-        JSON.stringify(Array.from(this.cards.values()))
-      );
+      localStorage.setItem(key, value);
+      this.failedKeys.delete(key);
+      if (!this.flushingPending && this.failedKeys.size > 0) {
+        this.flushPending(key);
+      }
+      if (this.failedKeys.size === 0 && !this.persisted) {
+        this.emitStorageStatus(true, "");
+      }
+      return true;
     } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
       console.warn("Storage persistence failed:", e);
+      this.failedKeys.add(key);
+      this.emitStorageStatus(false, msg || "Local storage quota exceeded.");
+      return false;
+    }
+  }
+
+  private flushPending(skipKey?: string) {
+    if (this.flushingPending || this.failedKeys.size === 0) return;
+    this.flushingPending = true;
+    try {
+      for (const pendingKey of Array.from(this.failedKeys)) {
+        if (pendingKey === skipKey) continue;
+        if (pendingKey === STORAGE_KEYS.SESSIONS) this.persistSessions();
+        else if (pendingKey === STORAGE_KEYS.MILESTONES) this.persistMilestones();
+        else if (pendingKey === STORAGE_KEYS.MESSAGES) this.persistMessages();
+        else if (pendingKey === STORAGE_KEYS.SRS_CARDS) this.persistCards();
+      }
+    } finally {
+      this.flushingPending = false;
+    }
+  }
+
+  private persistSessions() {
+    this.writeKey(
+      STORAGE_KEYS.SESSIONS,
+      JSON.stringify(Array.from(this.sessions.values()))
+    );
+  }
+
+  private persistMilestones() {
+    const allMilestones: Milestone[] = [];
+    this.milestones.forEach((list) => {
+      for (const milestone of list) {
+        allMilestones.push(this.dehydrateMilestone(milestone));
+      }
+    });
+    this.writeKey(STORAGE_KEYS.MILESTONES, JSON.stringify(allMilestones));
+  }
+
+  private persistMessages() {
+    const allMessages: ChatMessage[] = [];
+    this.messages.forEach((list) => allMessages.push(...list));
+    this.writeKey(STORAGE_KEYS.MESSAGES, JSON.stringify(allMessages));
+  }
+
+  private persistCards() {
+    this.writeKey(
+      STORAGE_KEYS.SRS_CARDS,
+      JSON.stringify(Array.from(this.cards.values()))
+    );
+  }
+
+  private persistAll() {
+    this.flushingPending = true;
+    try {
+      this.persistSessions();
+      this.persistMilestones();
+      this.persistMessages();
+      this.persistCards();
+    } finally {
+      this.flushingPending = false;
+    }
+    if (this.failedKeys.size === 0 && !this.persisted) {
+      this.emitStorageStatus(true, "");
     }
   }
 
@@ -136,7 +266,7 @@ export class LocalDatabase {
       updated_at: now,
     };
     this.sessions.set(id, newSession);
-    this.persistAll();
+    this.persistSessions();
     return newSession;
   }
 
@@ -191,9 +321,10 @@ export class LocalDatabase {
     if (session) {
       session.updated_at = Date.now();
       this.sessions.set(msg.session_id, session);
+      this.persistSessions();
     }
 
-    this.persistAll();
+    this.persistMessages();
     return fullMsg;
   }
 
@@ -204,7 +335,7 @@ export class LocalDatabase {
     message.check_attempt = { ...attempt, correct: false, assisted: true,
       grading: { ...attempt.grading, status: "uncertain", reviewRequested: true } };
     message.content += "\nFeedback disputed by learner; this result is unresolved and excluded from readiness.";
-    this.persistAll();
+    this.persistMessages();
     return true;
   }
 
@@ -217,7 +348,7 @@ export class LocalDatabase {
     const rating = retentionRating(review.check, review.attempt);
     review.finishedAt = Date.now();
     if (rating !== null) this.rateCard(card.id, rating);
-    this.persistAll();
+    this.persistMessages();
     return true;
   }
 
@@ -226,43 +357,45 @@ export class LocalDatabase {
     if (!review?.attempt.grading || review.finishedAt !== undefined) return null;
     review.attempt = { ...review.attempt, correct: false, assisted: true,
       grading: { ...review.attempt.grading, status: "uncertain", reviewRequested: true } };
-    this.persistAll();
+    this.persistMessages();
     return review;
   }
 
   // --- Milestones CRUD ---
   getMilestones(sessionId: string): Milestone[] {
-    return (this.milestones.get(sessionId) || []).map((milestone) => ({
-      ...milestone,
-    }));
+    return (this.milestones.get(sessionId) || []).map((milestone) =>
+      this.hydrateMilestone(milestone)
+    );
   }
 
   createMilestone(milestone: Omit<Milestone, "id" | "created_at">): Milestone {
+    const session = this.sessions.get(milestone.session_id);
     const fullM: Milestone = {
       ...milestone,
-      learning_intent:
-        milestone.learning_intent ||
-        this.sessions.get(milestone.session_id)?.learning_intent,
+      learning_intent: milestone.learning_intent || session?.learning_intent,
+      references: milestone.references ?? session?.references,
       id: `m-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       created_at: Date.now(),
     };
     const list = this.milestones.get(milestone.session_id) || [];
     list.push(fullM);
     this.milestones.set(milestone.session_id, list);
-    this.persistAll();
-    return fullM;
+    this.persistMilestones();
+    return this.hydrateMilestone(fullM);
   }
 
   /** Seed an approved outline in one storage snapshot, with all runtime edges mapped. */
   seedMilestonePlan(sessionId: string, templates: (Omit<Milestone, "id" | "session_id" | "created_at"> & { sourceId: string })[]): Milestone[] {
     if ((this.milestones.get(sessionId) || []).length) return this.getMilestones(sessionId);
+    const sessionRefs = this.sessions.get(sessionId)?.references;
     const ids = new Map(templates.map(t => [t.sourceId, `m-${crypto.randomUUID()}`]));
     const list: Milestone[] = templates.map(({ sourceId, ...t }) => ({ ...t,
+      references: t.references ?? sessionRefs,
       id: ids.get(sourceId)!, session_id: sessionId, created_at: Date.now(),
       prerequisite_ids: t.prerequisite_ids?.map(id => ids.get(id)!).filter(Boolean),
     }));
     this.milestones.set(sessionId, list);
-    this.persistAll();
+    this.persistMilestones();
     return this.getMilestones(sessionId);
   }
 
@@ -287,7 +420,9 @@ export class LocalDatabase {
         learning_intent: parent.learning_intent,
         curriculum_module_id: parent.curriculum_module_id,
         curriculum_context: parent.curriculum_context,
-        references: parent.references,
+        references:
+          parent.references ??
+          this.sessions.get(parent.session_id)?.references,
         title: input.title,
         prompt: input.lesson,
         lesson: input.lesson,
@@ -304,8 +439,8 @@ export class LocalDatabase {
       parent.prerequisite_ids = [repair.id];
       parent.status = "pending";
       list.splice(index, 0, repair);
-      this.persistAll();
-      return { ...repair };
+      this.persistMilestones();
+      return this.hydrateMilestone(repair);
     }
     return null;
   }
@@ -316,8 +451,8 @@ export class LocalDatabase {
       const unit = list.find(m => m.id === id);
       if (!unit || unit.content_status !== "outline") continue;
       Object.assign(unit, content, { content_status: "ready" });
-      this.persistAll();
-      return { ...unit };
+      this.persistMilestones();
+      return this.hydrateMilestone(unit);
     }
     return null;
   }
@@ -327,7 +462,7 @@ export class LocalDatabase {
       const milestone = list.find((item) => item.id === id);
       if (milestone) milestone.prerequisite_ids = [...prerequisiteIds];
     }
-    this.persistAll();
+    this.persistMilestones();
   }
 
   updateMilestoneStatus(
@@ -340,7 +475,7 @@ export class LocalDatabase {
         target.status = status;
       }
     });
-    this.persistAll();
+    this.persistMilestones();
   }
 
   // --- SRS Cards CRUD ---
@@ -379,7 +514,7 @@ export class LocalDatabase {
       due_date: Date.now(), // Due immediately upon creation
     };
     this.cards.set(id, newCard);
-    this.persistAll();
+    this.persistCards();
     return newCard;
   }
 
@@ -389,7 +524,7 @@ export class LocalDatabase {
 
     const { card: updatedCard } = scheduleCard(card, rating);
     this.cards.set(cardId, updatedCard);
-    this.persistAll();
+    this.persistCards();
     return updatedCard;
   }
 

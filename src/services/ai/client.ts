@@ -223,7 +223,11 @@ export async function streamSocraticChat(
     options?.activeCheck,
     [...messages].reverse().find((message) => message.role === "user")?.content || ""
   );
-  const formattedMessages = formatConversationMessages(messages, systemPrompt);
+  const formattedMessages = formatConversationMessages(
+    messages,
+    systemPrompt,
+    activeMilestone
+  );
 
   let streamedAnyChunk = false;
   const wrappedOptions: StreamOptions = {

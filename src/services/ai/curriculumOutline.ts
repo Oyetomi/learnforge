@@ -5,7 +5,7 @@ import {
   curriculumUnits,
   validCurriculumPlan,
 } from "../learning/curriculumPlan";
-import { aiFetch, loadAIConnection, recordUsage } from "./connection";
+import { aiJsonRequest, loadAIConnection, recordUsage } from "./connection";
 import {
   createLearningReference,
   referenceContext,
@@ -23,7 +23,7 @@ async function requestJson(
   input: unknown,
   signal?: AbortSignal
 ): Promise<any> {
-  const response = await aiFetch(
+  const response = await aiJsonRequest(
     {
       model: loadAIConnection().model,
       temperature: 0.25,

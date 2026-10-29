@@ -23,7 +23,6 @@ import {
   orderedCheckOptions,
 } from "../../services/learning/checks";
 import { recordVisualSupport } from "../../services/learning/preferences";
-import { executeCode } from "../../services/sandbox";
 import { MarkdownView } from "../chat/MarkdownView";
 import { CodeBlock } from "../chat/CodeBlock";
 import {
@@ -159,6 +158,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
     }
     setSandboxRunning(true);
     try {
+      const { executeCode } = await import("../../services/sandbox");
       const res = await executeCode(language, runnableSnippet);
       setSandboxResult({
         prediction,

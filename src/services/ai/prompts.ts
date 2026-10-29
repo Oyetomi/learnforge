@@ -249,56 +249,190 @@ DIAGNOSTIC INSTRUCTIONS:
   return sections.join("\n");
 }
 
+const RECENT_FULL_TAIL = 8;
+const MAX_PRIOR_UNIT_MESSAGES = 12;
+const COMPACT_PROSE_LIMIT = 600;
+
+function messageMilestoneId(msg: ChatMessage): string | undefined {
+  return (
+    msg.milestone_id ??
+    msg.learning_check?.milestoneId ??
+    msg.check_attempt?.milestoneId
+  );
+}
+
+function formatFullMessageContent(
+  msg: ChatMessage,
+  allMessages: ChatMessage[]
+): string {
+  let content = hideLearningCheckBlocks(msg.content);
+  if (
+    msg.tutoring_for_check_id &&
+    !tutoringMatchesAttempt(
+      msg,
+      allMessages.find(
+        (message) => message.check_attempt?.checkId === msg.tutoring_for_check_id
+      )?.check_attempt
+    )
+  ) {
+    content = `Earlier tutoring based on feedback that has since changed. Its judgment is unresolved:\n${content}`;
+  }
+  if (msg.code_snippet && msg.code_snippet.trim().length > 0) {
+    content = `${content}\n\n\`\`\`\n${msg.code_snippet}\n\`\`\``;
+  }
+
+  if (msg.check_attempt)
+    content += `\nRecorded attempt: ${JSON.stringify(msg.check_attempt)}`;
+  if (msg.competency_assessment)
+    content += `\nReadiness review: ${JSON.stringify(
+      msg.competency_assessment
+    )}`;
+  if (msg.roadmap_change)
+    content += `\nRoadmap adaptation: ${JSON.stringify(msg.roadmap_change)}`;
+  if (msg.visual_example)
+    content += `\n\n\`\`\`forge-visual\n${JSON.stringify(
+      msg.visual_example
+    )}\n\`\`\``;
+  if (msg.learning_check) {
+    content += `\n\n\`\`\`forge-check\n${JSON.stringify(
+      msg.learning_check
+    )}\n\`\`\``;
+  }
+  return content;
+}
+
+function formatCompactPriorUnitContent(msg: ChatMessage): string {
+  let prose = hideLearningCheckBlocks(msg.content).trim();
+  if (prose.length > COMPACT_PROSE_LIMIT) {
+    prose = `${prose.slice(0, COMPACT_PROSE_LIMIT).trim()}…`;
+  }
+  const summaries: string[] = [];
+  if (msg.check_attempt) {
+    const outcome = msg.check_attempt.correct
+      ? "correct"
+      : msg.check_attempt.dontKnow
+      ? "unsure"
+      : "incorrect";
+    summaries.push(
+      `Prior check (${msg.check_attempt.checkId}): ${outcome}`
+    );
+  }
+  if (msg.competency_assessment) {
+    summaries.push(
+      `Prior readiness: ${msg.competency_assessment.decision}`
+    );
+  }
+  if (msg.roadmap_change) {
+    summaries.push(`Prior adaptation: ${msg.roadmap_change.reason}`);
+  }
+  return [prose, ...summaries].filter(Boolean).join("\n");
+}
+
 /**
  * Formats user and assistant messages for the OpenAI chat completions schema,
- * prepending the system prompt.
+ * prepending the system prompt. When `activeMilestone` is provided, preserves
+ * full rich history for the active unit (plus repair parent/child units and
+ * recent turns) while compacting and bounding stale turns from unrelated units.
  */
 export function formatConversationMessages(
   messages: ChatMessage[],
-  systemPrompt: string
+  systemPrompt: string,
+  activeMilestone?: Milestone
 ): Array<{ role: "system" | "user" | "assistant"; content: string }> {
   const formatted: Array<{
     role: "system" | "user" | "assistant";
     content: string;
   }> = [{ role: "system", content: systemPrompt }];
 
-  for (const msg of messages) {
-    // Skip internal system messages from history to avoid duplicates with generated system prompt
-    if (msg.role === "system") continue;
+  const nonSystem = messages.filter((msg) => msg.role !== "system");
 
-    let content = hideLearningCheckBlocks(msg.content);
-    if (msg.tutoring_for_check_id && !tutoringMatchesAttempt(msg,
-      messages.find((message) => message.check_attempt?.checkId === msg.tutoring_for_check_id)?.check_attempt
-    )) content = `Earlier tutoring based on feedback that has since changed. Its judgment is unresolved:\n${content}`;
-    if (msg.code_snippet && msg.code_snippet.trim().length > 0) {
-      content = `${content}\n\n\`\`\`\n${msg.code_snippet}\n\`\`\``;
+  if (!activeMilestone) {
+    for (const msg of nonSystem) {
+      formatted.push({
+        role: msg.role,
+        content: formatFullMessageContent(msg, messages),
+      });
     }
+    return formatted;
+  }
 
-    if (msg.check_attempt)
-      content += `\nRecorded attempt: ${JSON.stringify(msg.check_attempt)}`;
-    if (msg.competency_assessment)
-      content += `\nReadiness review: ${JSON.stringify(
-        msg.competency_assessment
-      )}`;
-    if (msg.roadmap_change)
-      content += `\nRoadmap adaptation: ${JSON.stringify(msg.roadmap_change)}`;
-    if (msg.visual_example)
-      content += `\n\n\`\`\`forge-visual\n${JSON.stringify(
-        msg.visual_example
-      )}\n\`\`\``;
-    if (msg.learning_check) {
-      content += `\n\n\`\`\`forge-check\n${JSON.stringify(
-        msg.learning_check
-      )}\n\`\`\``;
+  const relevantIds = new Set<string>([activeMilestone.id]);
+  if (activeMilestone.return_to_milestone_id) {
+    relevantIds.add(activeMilestone.return_to_milestone_id);
+  }
+  for (const m of nonSystem) {
+    if (m.roadmap_change?.returnToMilestoneId === activeMilestone.id) {
+      relevantIds.add(m.roadmap_change.addedMilestoneId);
     }
+  }
 
-    formatted.push({
-      role: msg.role,
-      content,
-    });
+  const tailStart = Math.max(0, nonSystem.length - RECENT_FULL_TAIL);
+  const priorCandidateIndices: number[] = [];
+  for (let i = 0; i < tailStart; i++) {
+    const msg = nonSystem[i];
+    const mid = messageMilestoneId(msg);
+    if (mid && !relevantIds.has(mid)) {
+      if (!msg.internal) priorCandidateIndices.push(i);
+    }
+  }
+  const keptPriorIndices = new Set(
+    priorCandidateIndices.slice(-MAX_PRIOR_UNIT_MESSAGES)
+  );
+
+  for (let i = 0; i < nonSystem.length; i++) {
+    const msg = nonSystem[i];
+    const mid = messageMilestoneId(msg);
+    const isFull = i >= tailStart || !mid || relevantIds.has(mid);
+    if (isFull) {
+      formatted.push({
+        role: msg.role,
+        content: formatFullMessageContent(msg, messages),
+      });
+    } else if (keptPriorIndices.has(i)) {
+      const compact = formatCompactPriorUnitContent(msg);
+      if (compact) {
+        formatted.push({
+          role: msg.role,
+          content: compact,
+        });
+      }
+    }
   }
 
   return formatted;
+}
+
+/**
+ * Estimates the active prompt token footprint sent to the model for the next turn,
+ * including system instructions, reference grounding, structured checks/visuals,
+ * and conversation windowing (excluding inline base64 image payloads).
+ */
+export function estimatePromptTokens(
+  messages: ChatMessage[],
+  activeMilestone?: Milestone | null,
+  sessionLanguage?: string,
+  activeCheck?: LearningCheckSpec | null
+): number {
+  const lastUser =
+    [...messages].reverse().find((m) => m.role === "user")?.content || "";
+  const systemPrompt = buildSocraticSystemPrompt(
+    activeMilestone ?? undefined,
+    activeMilestone?.starter_code,
+    sessionLanguage,
+    activeCheck ?? undefined,
+    lastUser
+  );
+  const formatted = formatConversationMessages(
+    messages,
+    systemPrompt,
+    activeMilestone ?? undefined
+  );
+  const totalChars = formatted.reduce(
+    (sum, m) =>
+      sum + m.content.replace(/data:image\/[^)\s]+/g, "[image]").length,
+    0
+  );
+  return Math.max(1, Math.ceil(totalChars / 4));
 }
 
 export type OpenAIMessageContentPart =

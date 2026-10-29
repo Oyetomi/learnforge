@@ -1,4 +1,4 @@
-import { aiFetch, loadAIConnection, recordUsage } from "./connection";
+import { aiJsonRequest, loadAIConnection, recordUsage } from "./connection";
 import { GROUNDING_INSTRUCTIONS } from "../learning/grounding";
 export interface TopicSuggestion {
   title: string;
@@ -16,7 +16,7 @@ export async function suggestTopics(
         referenceMaterial!.name || "Reference"
       }):\n${referenceMaterial!.content.trim().slice(0, 6000)}`
     : interest.trim();
-  const response = await aiFetch(
+  const response = await aiJsonRequest(
     {
       model: loadAIConnection().model,
       response_format: { type: "json_object" },

@@ -13,7 +13,7 @@ import {
 import { MATH_INSTRUCTIONS, TABLE_INSTRUCTIONS } from "../learning/visualContract";
 import { loadLearningPreferences } from "../learning/preferences";
 import { CourseTrack } from "./types";
-import { aiFetch, loadAIConnection, recordUsage } from "./connection";
+import { aiJsonRequest, loadAIConnection, recordUsage } from "./connection";
 import { SupportedLanguage } from "../../types";
 import { validPrerequisiteGraph } from "../learning/roadmap";
 import { validateLearningCheck } from "../learning/checks";
@@ -140,7 +140,7 @@ Return valid JSON only, using this structure. The single milestone here is a sch
     response_format: { type: "json_object" },
   };
 
-  const response = await aiFetch(payload, { signal: options.signal });
+  const response = await aiJsonRequest(payload, { signal: options.signal });
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");

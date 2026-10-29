@@ -3,6 +3,7 @@ import {
   AIConnectionError,
   DEFAULT_CONNECTION,
   aiFetch,
+  aiJsonRequest,
   buildHeaders,
   connectionFromPreset,
   loadAIConnection,
@@ -87,5 +88,50 @@ describe("AI connection settings", () => {
     recordUsage({ prompt_tokens: 10, completion_tokens: 5 });
     recordUsage(null, { prompt: "abcdefgh", completion: "abcd" });
     expect(readUsage()).toEqual({ prompt: 12, completion: 6, estimated: true });
+  });
+
+  it("retries aiJsonRequest without response_format on HTTP 400 and falls back to fallbackModel on 5xx", async () => {
+    const calls: Array<Record<string, unknown>> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+        const parsed = JSON.parse(String(init?.body || "{}"));
+        calls.push(parsed);
+        if (parsed.response_format) {
+          return new Response("response_format unsupported", { status: 400 });
+        }
+        if (parsed.model === "primary-model") {
+          return new Response("overloaded", { status: 503 });
+        }
+        return new Response(
+          JSON.stringify({ choices: [{ message: { content: '{"ok":true}' } }] }),
+          { status: 200 }
+        );
+      })
+    );
+
+    const conn = {
+      ...DEFAULT_CONNECTION,
+      model: "primary-model",
+      fallbackModel: "fallback-model",
+    };
+    const res = await aiJsonRequest(
+      {
+        model: conn.model,
+        response_format: { type: "json_object" },
+        messages: [{ role: "user", content: "hi" }],
+      },
+      { connection: conn }
+    );
+    expect(res.ok).toBe(true);
+    expect(calls).toHaveLength(3);
+    expect(calls[0]).toMatchObject({
+      model: "primary-model",
+      response_format: { type: "json_object" },
+    });
+    expect(calls[1].response_format).toBeUndefined();
+    expect(calls[1].model).toBe("primary-model");
+    expect(calls[2].response_format).toBeUndefined();
+    expect(calls[2].model).toBe("fallback-model");
   });
 });

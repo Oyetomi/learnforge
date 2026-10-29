@@ -228,3 +228,112 @@ it("restores visual examples and their support evidence, and exports a text equi
     visual.items[1].description
   );
 });
+
+it("deduplicates session references across seeded milestones while hydrating them on read and reload", () => {
+  const db = new LocalDatabase();
+  const ref = {
+    id: "ref-1",
+    name: "notes.md",
+    content: "A".repeat(12000),
+    truncated: false,
+  };
+  const session = db.createSession({
+    title: "Distributed Systems",
+    topic: "Consensus",
+    language: "go",
+    references: [ref],
+  });
+  const seeded = db.seedMilestonePlan(
+    session.id,
+    Array.from({ length: 12 }, (_, idx) => ({
+      sourceId: `u-${idx}`,
+      title: `Unit ${idx + 1}`,
+      prompt: "Reason about quorum.",
+      starter_code: "",
+      status: idx === 0 ? ("active" as const) : ("pending" as const),
+      references: [ref],
+    }))
+  );
+  expect(seeded).toHaveLength(12);
+  expect(seeded.every((m) => m.references?.[0].id === "ref-1")).toBe(true);
+
+  const rawMilestonesJson = localStorage.getItem("learnforge:milestones")!;
+  expect(rawMilestonesJson).toBeTruthy();
+  // 12 units * 12 KB would exceed 144 KB if duplicated; deduplicated JSON is < 4 KB
+  expect(rawMilestonesJson.length).toBeLessThan(8000);
+  expect(rawMilestonesJson).not.toContain("AAAA");
+
+  const reloaded = new LocalDatabase();
+  const restoredUnits = reloaded.getMilestones(session.id);
+  expect(restoredUnits).toHaveLength(12);
+  expect(restoredUnits.every((m) => m.references?.[0].content.length === 12000)).toBe(
+    true
+  );
+});
+
+it("writes only mutated collections and tracks quota failures until pending writes flush cleanly", () => {
+  const writes: string[] = [];
+  const store = new Map<string, string>();
+  let failMilestones = false;
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      if (failMilestones && key === "learnforge:milestones") {
+        throw new Error("QuotaExceededError");
+      }
+      writes.push(key);
+      store.set(key, value);
+    },
+  });
+
+  const db = new LocalDatabase();
+  const session = db.createSession({
+    title: "Rust",
+    topic: "Lifetimes",
+    language: "rust",
+  });
+  writes.length = 0;
+
+  db.addMessage({
+    session_id: session.id,
+    role: "user",
+    content: "How does elision work?",
+  });
+  expect(writes).toContain("learnforge:messages");
+  expect(writes).toContain("learnforge:sessions");
+  expect(writes).not.toContain("learnforge:milestones");
+  expect(writes).not.toContain("learnforge:srs_cards");
+
+  failMilestones = true;
+  const unit = db.createMilestone({
+    session_id: session.id,
+    title: "Lifetime Elision",
+    prompt: "Trace borrowed references.",
+    starter_code: "",
+    status: "active",
+  });
+  expect(unit.title).toBe("Lifetime Elision");
+  expect(db.isPersisted()).toBe(false);
+  expect(db.getPersistenceError()).toContain("QuotaExceededError");
+
+  // While milestones still exceed quota, unrelated writes do not falsely clear the warning
+  db.addMessage({
+    session_id: session.id,
+    role: "assistant",
+    content: "Let us inspect input lifetimes.",
+  });
+  expect(db.isPersisted()).toBe(false);
+
+  // Once space is available, the next write flushes pending milestones and clears the error
+  failMilestones = false;
+  db.addMessage({
+    session_id: session.id,
+    role: "user",
+    content: "Show an example.",
+  });
+  expect(db.isPersisted()).toBe(true);
+  expect(db.getPersistenceError()).toBe("");
+  expect(new LocalDatabase().getMilestones(session.id)[0].title).toBe(
+    "Lifetime Elision"
+  );
+});

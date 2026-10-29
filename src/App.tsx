@@ -9,7 +9,6 @@ const EditorPane = lazy(() =>
     default: module.EditorPane,
   }))
 );
-import { DailyReviewModal } from "./components/fsrs/DailyReviewModal";
 import { ManageTopicsModal } from "./components/curriculum/ManageTopicsModal";
 import { SettingsModal } from "./components/settings/SettingsModal";
 import {
@@ -32,7 +31,6 @@ import {
   Milestone,
   SupportedLanguage,
   ExecutionResult,
-  FSRSRating,
   LearningCheck,
   CheckAttempt,
 } from "./types";
@@ -46,7 +44,6 @@ import {
   extractRepair,
   isLessonUnlocked,
 } from "./services/learning/adaptation";
-import { executeCode } from "./services/sandbox";
 import {
   extractLearningCheck,
   hideLearningCheckBlocks,
@@ -140,7 +137,6 @@ export default function App() {
     useState<ExecutionResult | null>(null);
 
   // --- FSRS State ---
-  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [dueCards, setDueCards] = useState(db.getDueCardsList());
 
   // --- Sidebar Collapse State ---
@@ -533,9 +529,11 @@ export default function App() {
     setStreamingContent("");
 
     let accumulated = "";
+    let plannerDecidedStay = false;
 
     try {
       if (options?.adapt && activeMilestone) {
+        let plannerFailed = false;
         const proposal = await planAdaptiveRepair(
           activeMilestone,
           activeCheck,
@@ -544,6 +542,7 @@ export default function App() {
           controller.signal
         ).catch((error) => {
           if (controller.signal.aborted) throw error;
+          plannerFailed = true;
           return null;
         });
         if (controller.signal.aborted) return;
@@ -579,12 +578,20 @@ export default function App() {
             return;
           }
         }
+        if (!plannerFailed) {
+          plannerDecidedStay = true;
+        }
       }
+      const effectivePrompt = plannerDecidedStay
+        ? `${
+            options?.prompt ?? userMsg.content
+          }\n\nRoadmap check complete: stay on the current concept (do NOT emit forge-repair) and include ONE simpler, fresh applied question in a forge-check JSON block.`
+        : options?.prompt;
       await streamSocraticChat(
-        options?.prompt
+        effectivePrompt
           ? [
               ...updatedMessages.slice(0, -1),
-              { ...userMsg, content: options.prompt },
+              { ...userMsg, content: effectivePrompt },
             ]
           : updatedMessages,
         activeMilestone || undefined,
@@ -627,7 +634,7 @@ export default function App() {
                   }
                 : undefined;
             const repairProposal =
-              activeMilestone && !options?.teachOnly
+              activeMilestone && !options?.teachOnly && !plannerDecidedStay
                 ? extractRepair(
                     conversationalText,
                     updatedMessages,
@@ -1000,6 +1007,7 @@ export default function App() {
     const runId = ++executionId.current;
     setIsRunningCode(true);
     try {
+      const { executeCode } = await import("./services/sandbox");
       const res = await executeCode(
         language,
         editorCode,
@@ -1039,12 +1047,6 @@ export default function App() {
       handleChangeCode(activeMilestone.starter_code);
       setExecutionResult(null);
     }
-  };
-
-  // Rate FSRS card
-  const handleRateCard = (cardId: string, rating: FSRSRating) => {
-    db.rateCard(cardId, rating);
-    setDueCards(db.getDueCardsList());
   };
 
   // Export Notes
@@ -1217,8 +1219,6 @@ export default function App() {
           setIsSidebarOpen((open) => (isCompactLayout ? false : open));
           setIsManageTopicsOpen(true);
         }}
-        dueCardsCount={dueCards.length}
-        onOpenReview={() => setIsReviewModalOpen(true)}
         onExportNotes={handleExportNotes}
         onOpenSettings={() => {
           setSettingsSection("learning");

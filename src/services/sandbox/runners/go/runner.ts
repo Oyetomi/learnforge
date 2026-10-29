@@ -6,30 +6,14 @@
 import { parseGoTestOutput } from '../../assertions';
 import { ExecutionOptions, ExecutionResult, SandboxRunner, TestResult } from '../../types';
 import { executeGoPlayground } from '../../api';
-import { GoTranspiler } from './interpreter';
-import {
-  GoChannel,
-  GoContext,
-  GoMutex,
-  GoRWMutex,
-  GoScheduler,
-  GoTestingT,
-  GoWaitGroup,
-  formatGoPrintf,
-} from './runtime';
-import { ExternalGoRunner, GoAnalyzedStructures } from './types';
+import { ExternalGoRunner, IGoTestingT } from './types';
 
 export class GoSandboxRunner implements SandboxRunner {
   readonly language = 'go';
-  private transpiler = new GoTranspiler();
   private externalRunner: ExternalGoRunner | null = null;
 
   setExternalRunner(runner: ExternalGoRunner | null): void {
     this.externalRunner = runner;
-  }
-
-  analyzeStructures(code: string): GoAnalyzedStructures {
-    return this.transpiler.analyze(code);
   }
 
   async execute(
@@ -84,9 +68,24 @@ export class GoSandboxRunner implements SandboxRunner {
     });
 
     try {
+      const [{ GoTranspiler }, runtimeMod] = await Promise.all([
+        import('./interpreter'),
+        import('./runtime'),
+      ]);
+      const {
+        GoChannel,
+        GoContext,
+        GoMutex,
+        GoRWMutex,
+        GoScheduler,
+        GoTestingT,
+        GoWaitGroup,
+        formatGoPrintf,
+      } = runtimeMod;
+      const transpiler = new GoTranspiler();
       const combinedCode = [userCode, testCode || ''].join('\n\n');
-      const analysis = this.transpiler.analyze(combinedCode);
-      const jsCode = this.transpiler.transpile(combinedCode);
+      const analysis = transpiler.analyze(combinedCode);
+      const jsCode = transpiler.transpile(combinedCode);
 
       const scheduler = new GoScheduler();
 
@@ -169,7 +168,7 @@ export class GoSandboxRunner implements SandboxRunner {
 
           let pass = false;
           try {
-            await (fn as (t: GoTestingT) => Promise<void>)(t);
+            await (fn as (t: IGoTestingT) => Promise<void>)(t);
             await scheduler.waitAll();
             pass = !t.failed;
           } catch (testErr: unknown) {

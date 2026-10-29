@@ -9,8 +9,6 @@ interface HeaderProps {
   currentTrackId: string;
   onSelectTrack: (trackId: string) => void;
   tracks: { id: string; title: string; language: SupportedLanguage | null }[];
-  dueCardsCount?: number;
-  onOpenReview?: () => void;
   onExportNotes: () => void;
   onOpenSettings: () => void;
   onToggleSidebar: () => void;
