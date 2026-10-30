@@ -11,6 +11,7 @@ import type { VisualExample as VisualSpec } from "../../services/learning/visual
 import { StateWalkthrough } from "./StateWalkthrough";
 import { SlopeGraph } from "./SlopeGraph";
 import { ParameterExplorer } from "./ParameterExplorer";
+import { CanvasSandbox } from "./CanvasSandbox";
 import { TeachingSimulation, PhraseBuilder } from "./TeachingSimulation";
 import { recordVisualSupport } from "../../services/learning/preferences";
 interface Props {
@@ -19,20 +20,23 @@ interface Props {
   supportCheckId?: string;
   defaultOpen?: boolean;
   onTryFreshCase?: () => void;
+  onRepairVisual?: (errorMessage: string) => void;
   isBusy?: boolean;
 }
-/** Owned, text-only renderers. Model output never becomes executable markup. */
+/** Owned declarative renderers plus zero-origin sandboxed canvas micro-simulations. */
 export function VisualExample({
   visual,
   visualId,
   supportCheckId,
   defaultOpen = true,
   onTryFreshCase,
+  onRepairVisual,
   isBusy,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen),
     [selected, setSelected] = useState(0);
   const [resetCount, setResetCount] = useState(0);
+  const [forceTextOpen, setForceTextOpen] = useState(false);
   const ref = useRef<HTMLElement>(null);
   const markSupport = () => {
     if (supportCheckId) recordVisualSupport(supportCheckId, visualId);
@@ -80,6 +84,18 @@ export function VisualExample({
           <p className="visual-summary">{visual.summary}</p>
           {visual.kind === "state-model" && visual.stateModel ? (
             <StateWalkthrough model={visual.stateModel} onInteract={markSupport} notes={visual.items} takeaway={visual.takeaway}/>
+          ) : visual.kind === "canvas" && visual.canvas ? (
+            <CanvasSandbox
+              key={`${visualId}:${resetCount}`}
+              spec={visual.canvas}
+              title={visual.title}
+              summary={visual.summary}
+              takeaway={visual.takeaway}
+              isBusy={isBusy}
+              onInteract={markSupport}
+              onRuntimeError={() => setForceTextOpen(true)}
+              onRepairVisual={onRepairVisual}
+            />
           ) : visual.kind === "explorer" && visual.explorer ? (
             <ParameterExplorer
               key={`${visualId}:${resetCount}`}
@@ -166,7 +182,10 @@ export function VisualExample({
             </>
           )}
           {visual.kind !== "graph" && <p className="visual-takeaway">{visual.takeaway}</p>}
-          <details className="visual-text-version">
+          <details
+            className="visual-text-version"
+            open={forceTextOpen || undefined}
+          >
             <summary>Read as text</summary>
             <ol>
               {visual.items.map((item) => (
@@ -182,6 +201,7 @@ export function VisualExample({
               className="visual-reset"
               onClick={() => {
                 setSelected(0);
+                setForceTextOpen(false);
                 setResetCount((n) => n + 1);
               }}
             >

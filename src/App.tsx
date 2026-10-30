@@ -969,16 +969,28 @@ export default function App() {
 
   // Quick Action Chips
   const handleQuickAction = (
-    action: "hint" | "explain" | "review" | "derivation" | "visual" | "clarify"
+    action: "hint" | "explain" | "review" | "derivation" | "visual" | "clarify",
+    contextNote?: string
   ) => {
     switch (action) {
       case "visual":
-        handleSendMessage("Show me a visual example.", {
-          visual: true,
-          teachOnly: true,
-          prompt:
-            "Show one small interactive visual example of the CURRENT concept using the forge-visual schema. Prefer an applicable simulation or phrase-builder so I can manipulate the idea and observe a consequence; do not default to a row of boxes. Use an owned model only when it fits this exact concept. Use an analogous case, not the answer to the pending check. Preserve my subject and goal. Do not replace the pending question, emit forge-check, or assess readiness. Introduce the visual in one short sentence.",
-        });
+        handleSendMessage(
+          contextNote
+            ? "Repair the visual example."
+            : "Show me a visual example.",
+          {
+            visual: true,
+            teachOnly: true,
+            prompt: `${
+              contextNote
+                ? `The previous generated canvas simulation threw this runtime error: "${contextNote.slice(
+                    0,
+                    200
+                  )}". Replace it with a clean, self-contained, bug-free forge-visual that avoids that error. `
+                : ""
+            }Show one small interactive visual example of the CURRENT concept using the forge-visual schema. Choose the most illuminating interactive format so I can manipulate the idea and observe a consequence—such as kind="canvas" for custom 2D <canvas> drawings, animations, geometry, waves, particles, or spatial dynamics; kind="explorer" for a quantitative formula sweep; kind="state-model" for discrete entity state transitions; kind="graph" for linear slope; or kind="phrase-builder" for phrase ordering—rather than defaulting to a static row of boxes. Use an analogous case, not the answer to the pending check. Preserve my subject and goal. Do not replace the pending question, emit forge-check, or assess readiness. Introduce the visual in one short sentence.`,
+          }
+        );
         break;
       case "clarify":
         handleSendMessage("Can you clarify the question?", {

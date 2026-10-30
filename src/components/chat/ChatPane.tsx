@@ -97,7 +97,8 @@ interface ChatPaneProps {
   onStopStreaming: () => void;
   onApplyCodeToEditor?: (code: string) => void;
   onQuickAction?: (
-    action: "hint" | "explain" | "review" | "derivation" | "visual" | "clarify"
+    action: "hint" | "explain" | "review" | "derivation" | "visual" | "clarify",
+    contextNote?: string
   ) => void;
   onOpenEditor: () => void;
   onNextMilestone?: () => void;
@@ -862,6 +863,11 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                     defaultOpen
                     supportCheckId={latest && !attempt ? latest.id : undefined}
                     onTryFreshCase={onRequestCheck}
+                    onRepairVisual={
+                      onQuickAction
+                        ? (err) => onQuickAction("visual", err)
+                        : undefined
+                    }
                     isBusy={busy}
                   />
                 </div>
@@ -1016,6 +1022,11 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                     defaultOpen
                     supportCheckId={latest && !attempt ? latest.id : undefined}
                     onTryFreshCase={onRequestCheck}
+                    onRepairVisual={
+                      onQuickAction
+                        ? (err) => onQuickAction("visual", err)
+                        : undefined
+                    }
                     isBusy={busy}
                   />
                 </div>
@@ -1095,6 +1106,11 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                 defaultOpen
                 supportCheckId={latest && !attempt ? latest.id : undefined}
                 onTryFreshCase={onRequestCheck}
+                onRepairVisual={
+                  onQuickAction
+                    ? (err) => onQuickAction("visual", err)
+                    : undefined
+                }
                 isBusy={busy}
               />
               <div className="activity-continue">

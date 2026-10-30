@@ -13,6 +13,8 @@ import {
   parsePictogramSpec,
   sanitizeSvgMarkup,
 } from "../learning/SvgIllustration";
+import { CanvasSandbox } from "../learning/CanvasSandbox";
+import { parseCanvasFence } from "../../services/learning/canvasSim";
 
 interface MarkdownViewProps {
   content: string;
@@ -54,6 +56,25 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
             if (language === "ladder" || language === "steps") {
               const ladder = parseLadderMarkdown(source);
               if (ladder) return <DerivationLadder {...ladder} />;
+            }
+            if (language === "forge-canvas" || language === "canvas-sim") {
+              const parsed = parseCanvasFence(source);
+              if (parsed) {
+                return (
+                  <CanvasSandbox
+                    spec={parsed.spec}
+                    title={parsed.title}
+                    summary={parsed.summary}
+                    takeaway={parsed.takeaway}
+                    standalone
+                  />
+                );
+              }
+              return (
+                <div className="canvas-sandbox-pending" role="status">
+                  Preparing interactive simulation…
+                </div>
+              );
             }
             if (
               language === "pictogram" ||

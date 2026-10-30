@@ -960,3 +960,134 @@
   font-size: 9.5px;
   font-family: var(--font-code, monospace);
 }
+
+/* Sandboxed interactive canvas / HTML micro-simulations */
+.canvas-sandbox {
+  display: flex;
+  flex-direction: column;
+  background: #0f1317;
+  border: 1px solid #323942;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.canvas-sandbox-toolbar {
+  padding: 10px 14px;
+  background: #14191f;
+  border-bottom: 1px solid #2b323b;
+}
+.canvas-sandbox-caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  min-width: 0;
+  color: #aebbc9;
+  font-size: 11.5px;
+}
+.canvas-sandbox-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #28231d;
+  border: 1px solid #6b563e;
+  color: #e4c6a4;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.canvas-sandbox-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.canvas-sandbox-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  min-height: 28px;
+  border: 1px solid #353e48;
+  border-radius: 6px;
+  background: #1a2027;
+  color: #c7d2df;
+  font-size: 11px;
+}
+.canvas-sandbox-btn:hover {
+  border-color: #bc9870;
+  color: #f0dfcb;
+}
+.canvas-sandbox-frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: #0f1317;
+}
+.canvas-sandbox-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 10px 14px;
+  background: #271a19;
+  border-bottom: 1px solid #5a3430;
+  color: #f0c5be;
+  font-size: 12px;
+}
+.canvas-sandbox-error-copy {
+  flex: 1 1 220px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.canvas-sandbox-error-copy code {
+  font-size: 11px;
+  color: #e2a9a0;
+  overflow-wrap: anywhere;
+}
+.canvas-sandbox-repair {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #bc9870;
+  border-radius: 6px;
+  background: #2f271e;
+  color: #f3e0c9;
+  font-size: 11.5px;
+}
+.canvas-sandbox-repair:hover:not(:disabled) {
+  background: #3b3024;
+}
+.canvas-sandbox-standalone {
+  margin: 18px 0;
+  padding: 14px 16px;
+  border: 1px solid #323840;
+  border-radius: 12px;
+  background: #14171a;
+}
+.canvas-sandbox-standalone-head {
+  margin-bottom: 12px;
+}
+.canvas-sandbox-standalone-head strong {
+  display: block;
+  color: #e9d2b8;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+.canvas-sandbox-standalone-head p {
+  margin: 0;
+  color: #b8c2cf;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.canvas-sandbox-pending {
+  margin: 14px 0;
+  padding: 14px 16px;
+  border: 1px dashed #39424d;
+  border-radius: 10px;
+  background: #13171b;
+  color: #9fadbd;
+  font-size: 12.5px;
+}
