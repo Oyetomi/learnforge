@@ -15,6 +15,7 @@
  */
 
 import { loadAIConnection } from "../ai/connection";
+import { stripInternalSourceCitations } from "./grounding";
 
 export interface VoiceRecordingStatus {
   active: boolean;
@@ -79,7 +80,7 @@ export function isTauriDesktopRuntime(): boolean {
  */
 export function formatTextForSpeech(raw: string): string {
   if (!raw) return "";
-  let s = raw;
+  let s = stripInternalSourceCitations(raw);
 
   // Omit multi-line fenced code blocks from spoken narration
   s = s.replace(/```[\s\S]*?```/g, " ");

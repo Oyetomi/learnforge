@@ -8,6 +8,7 @@ import {
   replacePlacementAttempt,
 } from "../../services/learning/placement";
 import { MarkdownView } from "../chat/MarkdownView";
+import { stripInternalSourceCitations } from "../../services/learning/grounding";
 
 interface Props {
   track: CourseTrack;
@@ -261,9 +262,9 @@ export const PlanApproval: React.FC<Props> = ({
                 >
                   <div>
                     <strong>
-                      {index + 1}. {milestone.title}
+                      {index + 1}. {stripInternalSourceCitations(milestone.title)}
                     </strong>
-                    <small>{milestone.prompt}</small>
+                    <small>{stripInternalSourceCitations(milestone.prompt)}</small>
                     <span className="plan-concept-note">
                       {proposed.placement!.startMilestoneId === milestone.id
                         ? "Start here · "

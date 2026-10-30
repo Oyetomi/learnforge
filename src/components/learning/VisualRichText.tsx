@@ -2,6 +2,7 @@ import React from "react";
 import { renderToString } from "katex";
 import "katex/dist/katex.min.css";
 import { MATH_RENDER_OPTIONS } from "../../services/learning/math";
+import { stripInternalSourceCitations } from "../../services/learning/grounding";
 import { highlightSource } from "../chat/CodeBlock";
 
 interface VisualRichTextProps {
@@ -49,11 +50,12 @@ function renderKatexSafe(tex: string, displayMode: boolean): string | null {
  * preserving strict XSS escaping on arbitrary strings.
  */
 export function VisualRichText({
-  text,
+  text: rawText,
   language,
   detectCodeLabel = false,
   className,
 }: VisualRichTextProps) {
+  const text = stripInternalSourceCitations(rawText);
   if (!text) return null;
 
   if (detectCodeLabel && looksLikeStandaloneCode(text)) {

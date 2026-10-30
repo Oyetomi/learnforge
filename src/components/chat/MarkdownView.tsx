@@ -16,6 +16,7 @@ import {
 import { CanvasSandbox } from "../learning/CanvasSandbox";
 import { MermaidDiagram } from "../learning/MermaidDiagram";
 import { parseCanvasFence } from "../../services/learning/canvasSim";
+import { stripInternalSourceCitations } from "../../services/learning/grounding";
 
 interface MarkdownViewProps {
   content: string;
@@ -28,6 +29,10 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
   onApplyCode,
   languageHint,
 }) => {
+  const cleanContent = React.useMemo(
+    () => stripInternalSourceCitations(content),
+    [content]
+  );
   return (
     <div className="prose prose-invert max-w-none text-forge-text text-sm leading-relaxed space-y-3">
       <ReactMarkdown
@@ -166,7 +171,7 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
           },
         }}
       >
-        {content}
+        {cleanContent}
       </ReactMarkdown>
     </div>
   );

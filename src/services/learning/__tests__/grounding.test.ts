@@ -1,5 +1,9 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
-import { createLearningReference, referenceContext } from "../grounding";
+import {
+  createLearningReference,
+  referenceContext,
+  stripInternalSourceCitations,
+} from "../grounding";
 import { buildSocraticSystemPrompt } from "../../ai/prompts";
 import { askBtwQuestion } from "../studySheet";
 import type { Milestone } from "../../../types";
@@ -37,4 +41,25 @@ it("uses source excerpts and the same illustration rules in tutoring and side qu
   const body=JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
   expect(body.messages[0].content).toContain("ILLUSTRATIONS AND PICTOGRAMS");
   expect(body.messages[1].content).toContain(reference.id);
+});
+it("strips internal [source-xxx L1-L8] citation clutter from prose while preserving code spans", () => {
+  const raw =
+    'To make each concurrent task predictable and adhere to the core philosophy of Go concurrency—"Don\'t communicate by sharing memory; share memory by communicating" [source-jj2k0b L1-L8, source-hikn91\nL205-L216]—each goroutine must own its specific input.';
+  expect(stripInternalSourceCitations(raw)).toBe(
+    'To make each concurrent task predictable and adhere to the core philosophy of Go concurrency—"Don\'t communicate by sharing memory; share memory by communicating"—each goroutine must own its specific input.'
+  );
+
+  expect(
+    stripInternalSourceCitations(
+      "Goroutines [source-abc12 L1–L12] are multiplexed onto OS threads [source-def34 L5] [source-ghi56 L9-L14]."
+    )
+  ).toBe("Goroutines are multiplexed onto OS threads.");
+
+  expect(
+    stripInternalSourceCitations(
+      "Keep `[source-jj2k0b L1-L8]` inside inline code, and remove (SOURCE source-jj2k0b L4-L9) in prose."
+    )
+  ).toBe(
+    "Keep `[source-jj2k0b L1-L8]` inside inline code, and remove in prose."
+  );
 });

@@ -53,22 +53,18 @@ export const ReferenceShelf: React.FC<{
               </span>
               <small>{lines.length} lines</small>
             </summary>
-            <p className="reference-identifier">
-              Reference: {source.id}
-              {source.url && (
-                <>
-                  {" · "}
-                  <a
-                    href={source.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="reference-external-link"
-                  >
-                    Open source <ExternalLink size={10} />
-                  </a>
-                </>
-              )}
-            </p>
+            {source.url && (
+              <p className="reference-identifier">
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="reference-external-link"
+                >
+                  Open source <ExternalLink size={10} />
+                </a>
+              </p>
+            )}
             {source.truncated && (
               <p>
                 Only an excerpt was saved. The rest of the original file isn’t
