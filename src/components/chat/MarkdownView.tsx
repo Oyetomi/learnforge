@@ -14,6 +14,7 @@ import {
   sanitizeSvgMarkup,
 } from "../learning/SvgIllustration";
 import { CanvasSandbox } from "../learning/CanvasSandbox";
+import { MermaidDiagram } from "../learning/MermaidDiagram";
 import { parseCanvasFence } from "../../services/learning/canvasSim";
 
 interface MarkdownViewProps {
@@ -56,6 +57,9 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
             if (language === "ladder" || language === "steps") {
               const ladder = parseLadderMarkdown(source);
               if (ladder) return <DerivationLadder {...ladder} />;
+            }
+            if (language === "mermaid") {
+              return <MermaidDiagram code={source} />;
             }
             if (language === "forge-canvas" || language === "canvas-sim") {
               const parsed = parseCanvasFence(source);

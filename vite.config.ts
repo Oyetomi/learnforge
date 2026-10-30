@@ -632,6 +632,13 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    proxy: {
+      '/api/exa': {
+        target: 'https://api.exa.ai',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/exa/, ''),
+      },
+    },
   },
   clearScreen: false,
 });

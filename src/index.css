@@ -4951,7 +4951,7 @@ dialog.review-dialog { overflow: hidden; max-height: calc(100dvh - 40px); }
 
 /* Settings Modal Overhaul */
 .settings-dialog { width: min(590px, calc(100vw - 28px)); }
-.settings-sections { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 6px; margin: 14px 24px 8px; border-radius: 8px; background: #13161a; border: 1px solid #2d343e; flex-shrink: 0; }
+.settings-sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; padding: 6px; margin: 14px 24px 8px; border-radius: 8px; background: #13161a; border: 1px solid #2d343e; flex-shrink: 0; }
 .settings-sections button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 12px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #96a4b6; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 140ms ease; }
 .settings-sections button:hover { color: #dce5f0; }
 .settings-sections button[aria-pressed="true"] { background: #21262f; border-color: rgba(210, 180, 151, 0.38); color: #e5c7ac; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25); }
@@ -5016,7 +5016,7 @@ dialog.review-dialog { overflow: hidden; max-height: calc(100dvh - 40px); }
   .session-telemetry-bar { font-size: 10px; }
 }
 
-.settings-dialog .settings-sections { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 6px; margin: 14px 24px 8px; border-radius: 8px; background: #13161a; border: 1px solid #2d343e; flex-shrink: 0; }
+.settings-dialog .settings-sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; padding: 6px; margin: 14px 24px 8px; border-radius: 8px; background: #13161a; border: 1px solid #2d343e; flex-shrink: 0; }
 .settings-dialog .settings-sections button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 8px 12px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #96a4b6; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 140ms ease; }
 .settings-dialog .settings-sections button:hover { color: #dce5f0; }
 .settings-dialog .settings-sections button[aria-pressed="true"] { background: #21262f; border-color: rgba(210, 180, 151, 0.38); color: #e5c7ac; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25); }
@@ -5223,6 +5223,12 @@ dialog.review-dialog { overflow: hidden; max-height: calc(100dvh - 40px); }
 .check-field-header label {
   margin-bottom: 0 !important;
 }
+.voice-dictation-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
 .voice-dictation-button {
   display: inline-flex;
   align-items: center;
@@ -5237,28 +5243,176 @@ dialog.review-dialog { overflow: hidden; max-height: calc(100dvh - 40px); }
   font-size: 11px;
   cursor: pointer;
   flex-shrink: 0;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
 }
 .voice-dictation-button.is-compact {
   padding: 4px 7px;
   min-width: 28px;
   justify-content: center;
 }
+.voice-dictation-button.is-compact.is-listening {
+  padding: 4px 8px;
+}
 .voice-dictation-button:hover:not(:disabled) {
   border-color: #7d8898;
   color: #edf1f7;
 }
 .voice-dictation-button.is-listening {
-  border-color: var(--accent, #cfb292);
-  background: #2b241d;
-  color: #f4dec4;
+  border-color: rgba(248, 113, 113, 0.65);
+  background: rgba(127, 29, 29, 0.35);
+  color: #fecaca;
 }
 .voice-dictation-button:focus-visible {
   outline: 2px solid var(--accent, #cfb292);
   outline-offset: 2px;
+}
+.voice-recording-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f87171;
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.25);
+  transition: transform 90ms ease;
+}
+.voice-live-popover,
+.voice-error-popover {
+  position: absolute;
+  bottom: calc(100% + 7px);
+  right: 0;
+  z-index: 40;
+  width: max-content;
+  max-width: min(300px, 78vw);
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: 11px;
+  line-height: 1.45;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+.voice-live-popover {
+  background: #171c23;
+  border: 1px solid rgba(210, 180, 151, 0.45);
+  color: #e9eff7;
+}
+.voice-error-popover {
+  background: #231618;
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  color: #fecaca;
 }
 .settings-ledger-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 8px;
+}
+
+/* ── Settings Plugins Section (Exa Neural Search & Registry) ── */
+.settings-nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(210, 180, 151, 0.18);
+  border: 1px solid rgba(210, 180, 151, 0.42);
+  color: #f0d5bc;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+.settings-plugin-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid #323944;
+  background: #14181e;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+.settings-plugin-card.is-ready {
+  border-color: rgba(210, 180, 151, 0.42);
+  background: linear-gradient(180deg, rgba(210, 180, 151, 0.05), #14181e 55%);
+}
+.settings-plugin-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.settings-plugin-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.settings-plugin-title-row strong {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #edf2f8;
+}
+.settings-plugin-tagline {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  color: #96a5b8;
+}
+.settings-plugin-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid #38414f;
+  background: #101318;
+  color: #c5d1e0;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+}
+.settings-plugin-switch input {
+  margin: 0;
+  accent-color: #d2b497;
+}
+.settings-plugin-desc {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: #a9b7c8;
+}
+.settings-plugin-caps {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.settings-plugin-caps > span {
+  font-size: 10.5px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid #2e3540;
+  background: #101317;
+  color: #9eb0c4;
+}
+.settings-field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+.settings-inline-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #d2b497;
+  font-size: 11px;
+  text-decoration: none;
+}
+.settings-inline-link:hover {
+  color: #f0d5bc;
+  text-decoration: underline;
 }

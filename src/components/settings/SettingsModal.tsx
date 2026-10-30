@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { connectionDraftError } from "./validation";
 import {
+  Blocks,
   CheckCircle2,
   Cpu,
   ExternalLink,
@@ -46,9 +47,20 @@ import {
   importNotesIntoLedger,
   loadConceptLedger,
 } from "../../services/learning/conceptLedger";
+import {
+  PLUGIN_MANIFESTS,
+  countActivePlugins,
+  isExaPluginReady,
+  loadPluginsState,
+  savePluginsState,
+  type ExaPluginConfig,
+  type ExaSearchType,
+  type PluginsState,
+} from "../../services/plugins/registry";
+import { testExaConnection } from "../../services/plugins/exa";
 
 interface SettingsModalProps {
-  initialSection?: "learning" | "connection";
+  initialSection?: "learning" | "connection" | "plugins";
   onClose: () => void;
 }
 
@@ -76,6 +88,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const mounted = useRef(false),
     connectionVersion = useRef(0),
     testRequest = useRef(0),
+    exaTestRequest = useRef(0),
     modelRequest = useRef(0);
   const loginPoll = useRef<number | null>(null);
   const initialConnection = useRef(loadAIConnection());
@@ -90,6 +103,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     | { kind: "idle" }
     | { kind: "testing" }
     | { kind: "ok"; model: string }
+    | { kind: "error"; message: string }
+  >({ kind: "idle" });
+  const [pluginsDraft, setPluginsDraft] = useState<PluginsState>(() =>
+    loadPluginsState()
+  );
+  const [showExaKey, setShowExaKey] = useState(false);
+  const [exaTestState, setExaTestState] = useState<
+    | { kind: "idle" }
+    | { kind: "testing" }
+    | { kind: "ok"; latencyMs: number; sampleTitle: string }
     | { kind: "error"; message: string }
   >({ kind: "idle" });
   const [usage, setUsage] = useState(() => readUsage());
@@ -121,6 +144,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       mounted.current = false;
       connectionVersion.current += 1;
       testRequest.current += 1;
+      exaTestRequest.current += 1;
       modelRequest.current += 1;
       stopLoginPoll();
       dialog?.close();
@@ -339,9 +363,42 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
-  const showSaveError = (message: string, connection = false) => {
+  const updateExa = (patch: Partial<ExaPluginConfig>) => {
+    exaTestRequest.current += 1;
+    setExaTestState({ kind: "idle" });
+    setSaveError("");
+    setPluginsDraft((prev) => ({
+      ...prev,
+      exa: { ...prev.exa, ...patch },
+    }));
+  };
+
+  const runExaTest = async () => {
+    const request = ++exaTestRequest.current;
+    setExaTestState({ kind: "testing" });
+    try {
+      const result = await testExaConnection(pluginsDraft.exa.apiKey);
+      if (!mounted.current || request !== exaTestRequest.current) return;
+      setExaTestState({
+        kind: "ok",
+        latencyMs: result.latencyMs,
+        sampleTitle: result.sampleTitle,
+      });
+    } catch (err) {
+      if (!mounted.current || request !== exaTestRequest.current) return;
+      setExaTestState({
+        kind: "error",
+        message: (err as Error)?.message || "Exa connection failed.",
+      });
+    }
+  };
+
+  const showSaveError = (
+    message: string,
+    targetSection?: "connection" | "plugins"
+  ) => {
     setSaveError(message);
-    if (connection) setSection("connection");
+    if (targetSection) setSection(targetSection);
     requestAnimationFrame(() => {
       errorRef.current?.focus();
       errorRef.current?.scrollIntoView({ block: "nearest" });
@@ -349,22 +406,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
   const save = () => {
     if (draft.provider === "chatgpt-codex" && !bridgeAvailable) {
-      showSaveError(SUBSCRIPTION_BRIDGE_NOTICE, true);
+      showSaveError(SUBSCRIPTION_BRIDGE_NOTICE, "connection");
       return;
     }
     if (JSON.stringify(draft) !== JSON.stringify(initialConnection.current)) {
       const issue = connectionDraftError(draft, bridgeAvailable);
       if (issue) {
-        showSaveError(issue, true);
+        showSaveError(issue, "connection");
         return;
       }
     }
+    if (pluginsDraft.exa.enabled && !pluginsDraft.exa.apiKey.trim()) {
+      showSaveError(
+        "Paste your Exa API key or turn off Exa Neural Search before saving.",
+        "plugins"
+      );
+      return;
+    }
 
     const previousLearning = loadLearningPreferences();
+    const previousPlugins = loadPluginsState();
     let preferencesSaved = false;
+    let pluginsSaved = false;
     try {
       saveLearningPreferences(learning);
       preferencesSaved = true;
+      savePluginsState({
+        ...pluginsDraft,
+        exa: {
+          ...pluginsDraft.exa,
+          apiKey: pluginsDraft.exa.apiKey.trim(),
+        },
+      });
+      pluginsSaved = true;
       saveAIConnection({
         ...draft,
         url: draft.url.trim(),
@@ -374,6 +448,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       });
       onClose();
     } catch {
+      if (pluginsSaved) {
+        try {
+          savePluginsState(previousPlugins);
+        } catch {}
+      }
       if (preferencesSaved) {
         try {
           saveLearningPreferences(previousLearning);
@@ -386,6 +465,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const totalTokens = usage.prompt + usage.completion;
+  const activePluginCount = countActivePlugins(pluginsDraft);
+  const exaManifest = PLUGIN_MANIFESTS[0];
+  const exaReady = isExaPluginReady(pluginsDraft.exa);
 
   // Ensure current draft model is always selectable in dropdown
   const mergedMainOptions: ModelOption[] = [...modelOptions];
@@ -450,6 +532,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           >
             <Cpu size={14} />
             <span>AI connection</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={section === "plugins"}
+            onClick={() => setSection("plugins")}
+          >
+            <Blocks size={14} />
+            <span>Plugins</span>
+            {activePluginCount > 0 && (
+              <small
+                className="settings-nav-badge"
+                aria-label={`${activePluginCount} active`}
+              >
+                {activePluginCount}
+              </small>
+            )}
           </button>
         </nav>
         <div className="settings-content" key={section}>
@@ -680,6 +778,256 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Reset learning preferences
                 </button>
               </div>
+            </>
+          ) : section === "plugins" ? (
+            <>
+              <p className="settings-intro">
+                Extend LearnForge with local-first learning plugins. Keys stay
+                on this device and feed cited primary documentation into new
+                curricula and focused lessons.
+              </p>
+
+              <section
+                className={`settings-plugin-card ${
+                  exaReady ? "is-ready" : ""
+                }`}
+                aria-label={exaManifest.name}
+              >
+                <div className="settings-plugin-header">
+                  <div>
+                    <div className="settings-plugin-title-row">
+                      <strong>{exaManifest.name}</strong>
+                      <span
+                        className={`codex-status-pill ${
+                          exaReady ? "is-connected" : ""
+                        }`}
+                      >
+                        {exaReady ? (
+                          <>
+                            <CheckCircle2 size={12} /> Active
+                          </>
+                        ) : pluginsDraft.exa.enabled ? (
+                          "Needs API key"
+                        ) : (
+                          "Off"
+                        )}
+                      </span>
+                    </div>
+                    <small className="settings-plugin-tagline">
+                      {exaManifest.tagline}
+                    </small>
+                  </div>
+                  <label className="settings-plugin-switch">
+                    <input
+                      type="checkbox"
+                      checked={pluginsDraft.exa.enabled}
+                      onChange={(e) =>
+                        updateExa({ enabled: e.target.checked })
+                      }
+                    />
+                    <span>
+                      {pluginsDraft.exa.enabled ? "Enabled" : "Enable"}
+                    </span>
+                  </label>
+                </div>
+
+                <p className="settings-plugin-desc">
+                  {exaManifest.description}
+                </p>
+
+                <div className="settings-plugin-caps">
+                  <span>Live topic grounding (/search)</span>
+                  <span>Clean URL &amp; paper reader (/contents)</span>
+                  <a
+                    href={exaManifest.docsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="settings-inline-link"
+                  >
+                    Docs <ExternalLink size={11} />
+                  </a>
+                </div>
+
+                <label className="settings-field">
+                  <span className="settings-field-label-row">
+                    <span>Exa API key</span>
+                    <a
+                      href={exaManifest.keyPortalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="settings-inline-link"
+                    >
+                      dashboard.exa.ai <ExternalLink size={11} />
+                    </a>
+                  </span>
+                  <div className="settings-key">
+                    <input
+                      aria-label="Exa API key"
+                      type={showExaKey ? "text" : "password"}
+                      spellCheck={false}
+                      autoComplete="off"
+                      value={pluginsDraft.exa.apiKey}
+                      placeholder={exaManifest.keyHint}
+                      onChange={(e) => {
+                        const nextKey = e.target.value;
+                        const autoEnable =
+                          !pluginsDraft.exa.apiKey.trim() &&
+                          Boolean(nextKey.trim());
+                        updateExa({
+                          apiKey: nextKey,
+                          ...(autoEnable ? { enabled: true } : {}),
+                        });
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="icon-button"
+                      onClick={() => setShowExaKey((v) => !v)}
+                      aria-label={showExaKey ? "Hide Exa key" : "Show Exa key"}
+                      aria-pressed={showExaKey}
+                    >
+                      {showExaKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                  <small className="settings-field-hint">
+                    Stored locally on this device only. Never sent to code
+                    execution or visual sandboxes.
+                  </small>
+                </label>
+
+                <div className="settings-group">
+                  <span className="settings-group-label">Search mode</span>
+                  <div className="settings-option-grid cols-3">
+                    {(
+                      [
+                        {
+                          value: "auto",
+                          title: "Auto",
+                          desc: "Blends neural & keyword precision",
+                        },
+                        {
+                          value: "neural",
+                          title: "Neural",
+                          desc: "Deep semantic docs & papers",
+                        },
+                        {
+                          value: "fast",
+                          title: "Fast",
+                          desc: "Lowest-latency web lookup",
+                        },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        className={`settings-choice-card ${
+                          pluginsDraft.exa.searchType === opt.value
+                            ? "is-active"
+                            : ""
+                        }`}
+                        aria-pressed={pluginsDraft.exa.searchType === opt.value}
+                        onClick={() =>
+                          updateExa({
+                            searchType: opt.value as ExaSearchType,
+                          })
+                        }
+                      >
+                        <strong>{opt.title}</strong>
+                        <small>{opt.desc}</small>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="settings-group">
+                  <span className="settings-group-label">
+                    Sources per grounded topic
+                  </span>
+                  <div className="settings-option-grid cols-2">
+                    {(
+                      [
+                        {
+                          value: 3,
+                          title: "3 sources",
+                          desc: "Focused, high-signal primary docs",
+                        },
+                        {
+                          value: 5,
+                          title: "5 sources",
+                          desc: "Broader multi-source synthesis",
+                        },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        className={`settings-choice-card ${
+                          pluginsDraft.exa.numResults === opt.value
+                            ? "is-active"
+                            : ""
+                        }`}
+                        aria-pressed={pluginsDraft.exa.numResults === opt.value}
+                        onClick={() => updateExa({ numResults: opt.value })}
+                      >
+                        <strong>{opt.title}</strong>
+                        <small>{opt.desc}</small>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="settings-group">
+                  <label className="retention-setting">
+                    <input
+                      type="checkbox"
+                      checked={pluginsDraft.exa.autoGroundNewTopics}
+                      onChange={(e) =>
+                        updateExa({ autoGroundNewTopics: e.target.checked })
+                      }
+                    />
+                    Pre-select live Exa grounding in New Topic
+                  </label>
+                  <p className="written-grading-note">
+                    You can still toggle Exa grounding on or off per topic, or
+                    paste specific URLs to extract clean reference markdown.
+                  </p>
+                </div>
+
+                <div className="settings-test">
+                  <button
+                    type="button"
+                    className="header-secondary-button"
+                    onClick={runExaTest}
+                    disabled={
+                      exaTestState.kind === "testing" ||
+                      !pluginsDraft.exa.apiKey.trim()
+                    }
+                  >
+                    {exaTestState.kind === "testing" && (
+                      <Loader2 size={14} className="animate-spin" />
+                    )}
+                    {exaTestState.kind === "testing"
+                      ? "Testing Exa…"
+                      : "Test Exa connection"}
+                  </button>
+                  <span
+                    role="status"
+                    className={`settings-test-result is-${exaTestState.kind}`}
+                  >
+                    {exaTestState.kind === "ok" && (
+                      <>
+                        <CheckCircle2 size={14} /> Connected ·{" "}
+                        {exaTestState.latencyMs}ms
+                      </>
+                    )}
+                    {exaTestState.kind === "error" && (
+                      <>
+                        <XCircle size={14} /> {exaTestState.message}
+                      </>
+                    )}
+                  </span>
+                </div>
+              </section>
             </>
           ) : (
             <>

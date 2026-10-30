@@ -30,3 +30,7 @@ src-tauri/target
 .lazyweb/
 scratch/
 
+# Generated offline sandbox vendor assets (rebuilt via scripts/prepare-sandbox-vendors.mjs)
+src/services/learning/vendor/*.raw.js
+src/services/learning/vendor/*.raw.css
+

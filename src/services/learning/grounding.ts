@@ -2,24 +2,58 @@ import type { LearningReference } from "../../types";
 
 const SOURCE_LIMIT = 16000;
 
-export function createLearningReference(name: string, text: string): LearningReference | null {
+export function createLearningReference(
+  name: string,
+  text: string,
+  meta?: { url?: string; pluginId?: string }
+): LearningReference | null {
   const normalized = text.replace(/\r\n?/g, "\n").trim();
   if (!normalized) return null;
   let hash = 2166136261;
   for (const char of normalized) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619) >>> 0;
+  const cleanUrl =
+    typeof meta?.url === "string" && /^https?:\/\//i.test(meta.url.trim())
+      ? meta.url.trim().slice(0, 600)
+      : undefined;
+  const cleanPlugin =
+    typeof meta?.pluginId === "string" && meta.pluginId.trim()
+      ? meta.pluginId.trim().slice(0, 40)
+      : undefined;
   return {
     id: `source-${hash.toString(36)}`,
     name: name.replace(/[\r\n]/g, " ").trim().slice(0, 180) || "Your notes",
     content: normalized.slice(0, SOURCE_LIMIT),
     truncated: normalized.length > SOURCE_LIMIT,
+    ...(cleanUrl ? { url: cleanUrl } : {}),
+    ...(cleanPlugin ? { pluginId: cleanPlugin } : {}),
   };
+}
+
+export function resolveLearningReferences(
+  references?: LearningReference[],
+  referenceMaterial?: { name: string; content: string }
+): LearningReference[] {
+  const list: LearningReference[] = [];
+  const seen = new Set<string>();
+  const push = (ref: LearningReference | null | undefined) => {
+    if (!ref || seen.has(ref.id)) return;
+    seen.add(ref.id);
+    list.push(ref);
+  };
+  if (Array.isArray(references)) {
+    for (const r of references) push(r);
+  }
+  if (referenceMaterial?.content?.trim()) {
+    push(createLearningReference(referenceMaterial.name, referenceMaterial.content));
+  }
+  return list;
 }
 
 /** Topic-owned, bounded excerpts with stable line labels. No remote retrieval. */
 export function referenceContext(references: LearningReference[] | undefined, query = "", budget = 6500): string {
   if (!references?.length) return "";
   const words = new Set(query.toLowerCase().match(/[\p{L}\p{N}_]{3,}/gu) || []);
-  const chunks = references.slice(0, 3).flatMap((source) => {
+  const chunks = references.slice(0, 6).flatMap((source) => {
     const lines = source.content.slice(0, SOURCE_LIMIT).split("\n");
     const parts: { id: string; name: string; start: number; end: number; text: string; score: number }[] = [];
     for (let index = 0; index < lines.length; index += 12) {

@@ -1091,3 +1091,1042 @@
   color: #9fadbd;
   font-size: 12.5px;
 }
+
+.canvas-sandbox-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: radial-gradient(110% 90% at 50% 0%, #17202b 0%, #0d1015 80%);
+  color: #bfcbd8;
+  font-size: 13px;
+}
+
+/* ==========================================================================
+   Posh Editorial Visual Studio, React Flow Blueprint, Mafs & Immersive Layers
+   ========================================================================== */
+
+:root {
+  --font-visual-editorial: "Inter", -apple-system, BlinkMacSystemFont,
+    "SF Pro Text", "Segoe UI", sans-serif;
+}
+
+.app-shell .visual-example,
+.app-shell .session-inline-visual,
+.app-shell .canvas-sandbox-standalone,
+.app-shell .forge-mermaid-card,
+.app-shell .visual-example :is(button, p, span, small, strong, em, summary, div, dt, dd, li):not(.katex):not(.katex *):not(code):not(code *),
+.app-shell .session-inline-visual-bar :is(button, span, strong, em) {
+  font-family: var(--font-visual-editorial);
+}
+
+.app-shell .visual-example :is(code, pre, .visual-code-chip, .visual-inline-code),
+.app-shell .visual-example :is(code, pre, .visual-code-chip, .visual-inline-code) span {
+  font-family: var(--font-code, "Google Sans Code", "JetBrains Mono", monospace);
+}
+
+.visual-example {
+  border: 1px solid rgba(212, 176, 140, 0.24);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #161a21 0%, #11151b 100%);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.visual-example.is-embedded {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.visual-example.is-embedded .visual-example-body {
+  padding-top: 14px;
+}
+
+.session-inline-visual {
+  border-radius: 14px !important;
+  border: 1px solid rgba(212, 176, 140, 0.32) !important;
+  background: linear-gradient(180deg, #161b23 0%, #11151b 100%) !important;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.32);
+}
+
+.session-inline-visual-bar {
+  padding: 11px 18px !important;
+  background: rgba(24, 30, 39, 0.9) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+
+.session-inline-visual-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.session-inline-visual-title em {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #d4b08c;
+}
+
+.session-inline-visual-title strong {
+  font-size: 15.5px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: #f3ede4;
+}
+
+.session-inline-visual-bar button.is-accent-visual-btn {
+  border-color: rgba(212, 176, 140, 0.55) !important;
+  background: linear-gradient(180deg, #2d251d 0%, #221c16 100%) !important;
+  color: #f4e2cc !important;
+  font-weight: 500;
+  padding: 5px 11px !important;
+  border-radius: 999px !important;
+}
+
+.session-inline-visual-bar button.is-accent-visual-btn:hover:not(:disabled) {
+  border-color: #e4c39f !important;
+  background: #382e24 !important;
+}
+
+.visual-masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-right: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(24, 30, 39, 0.65);
+}
+
+.visual-masthead-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.visual-masthead-sim-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  min-height: 30px;
+  border: 1px solid rgba(212, 176, 140, 0.5);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #2d251d 0%, #211b15 100%);
+  color: #f4e2cc;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.visual-masthead-sim-btn:hover:not(:disabled) {
+  border-color: #e6c6a3;
+  background: #382e24;
+  color: #fff5e8;
+}
+
+/* Spacious scrollable studio width when a visual activity or inline visual is open */
+.session-flow:has(.focused-visual),
+.session-flow:has(.session-inline-visual) {
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  padding: 20px max(24px, calc((100% - 960px) / 2)) 72px !important;
+}
+
+.focused-visual .visual-example-body {
+  padding: 0 22px 18px !important;
+}
+
+.focused-visual .visual-summary {
+  font-size: 14.5px !important;
+  line-height: 1.65 !important;
+}
+
+.visual-disclosure {
+  padding: 13px 20px;
+  font-size: 15px !important;
+  color: #f3ede4;
+}
+
+.visual-disclosure-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.visual-eyebrow {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #d4b08c;
+}
+
+.visual-disclosure-copy > span {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.016em;
+  color: #f4efe8;
+}
+
+.visual-intro-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 14px 0 18px;
+}
+
+.visual-intro-row .visual-summary {
+  margin: 0;
+  flex: 1;
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: #c8d2de;
+}
+
+.visual-narrate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 5px 11px;
+  min-height: 30px;
+  border: 1px solid #353f4d;
+  border-radius: 999px;
+  background: #1a212b;
+  color: #c9d4e2;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.visual-narrate-btn:hover {
+  border-color: #d4b08c;
+  color: #f5e6d3;
+}
+
+.visual-narrate-btn.is-active {
+  border-color: #d4b08c;
+  background: #2f261d;
+  color: #f7e6d0;
+}
+
+/* Rich inline code & KaTeX math tokens inside visual cards */
+.visual-inline-code,
+.visual-code-chip {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(13, 17, 23, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e6edf5;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.visual-math-inline .katex {
+  font-size: 1.04em;
+  color: #f4ece1;
+}
+
+.visual-math-display {
+  display: block;
+  margin: 8px 0;
+  overflow-x: auto;
+}
+
+/* Full-Resolution Responsive Editorial Blueprint Architecture Stage (Zero Clipping, Zero Scroll Trap) */
+.concept-schematic-studio {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.concept-schematic-stage {
+  position: relative;
+  width: 100%;
+  padding: 20px;
+  border-radius: 13px;
+  border: 1px solid #2b3544;
+  background-color: #0d1117;
+  background-image: radial-gradient(
+      120% 90% at 50% 0%,
+      rgba(29, 41, 58, 0.65) 0%,
+      rgba(13, 17, 23, 0) 75%
+    ),
+    radial-gradient(#263140 1.15px, transparent 1.15px);
+  background-size: 100% 100%, 20px 20px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.schematic-contrast-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 16px;
+}
+
+.schematic-serpentine {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.schematic-pair-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 10px;
+}
+
+.schematic-serpentine-single {
+  display: flex;
+  justify-content: center;
+}
+
+.schematic-serpentine-single .schematic-card.is-full-span {
+  width: 100%;
+  max-width: 560px;
+}
+
+.schematic-slot-first,
+.schematic-slot-second {
+  display: flex;
+  min-width: 0;
+}
+
+.schematic-slot-first > .schematic-card,
+.schematic-slot-second > .schematic-card {
+  width: 100%;
+}
+
+.schematic-slot-conduit-desktop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.schematic-slot-conduit-mobile {
+  display: none;
+}
+
+/* Node Cards */
+.schematic-card {
+  position: relative;
+  min-width: 0;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(24, 30, 40, 0.96) 0%, rgba(17, 22, 30, 0.96) 100%);
+  border: 1px solid #303b4b;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.schematic-card:hover {
+  border-color: #7d8da3;
+  transform: translateY(-1px);
+}
+
+.schematic-card.is-neighbor {
+  border-color: rgba(212, 176, 140, 0.36);
+}
+
+.schematic-card.is-selected.tone-accent {
+  border-color: #d4b08c;
+  background: linear-gradient(180deg, rgba(49, 40, 29, 0.97) 0%, rgba(25, 22, 19, 0.97) 100%);
+  box-shadow: 0 0 0 1px rgba(212, 176, 140, 0.35), 0 12px 28px rgba(0, 0, 0, 0.42);
+}
+
+.schematic-card.is-selected.tone-teal {
+  border-color: #8fc9bb;
+  background: linear-gradient(180deg, rgba(24, 46, 44, 0.97) 0%, rgba(17, 26, 28, 0.97) 100%);
+  box-shadow: 0 0 0 1px rgba(143, 201, 187, 0.32), 0 12px 28px rgba(0, 0, 0, 0.42);
+}
+
+.schematic-card.is-selected.tone-blue {
+  border-color: #92b6df;
+  background: linear-gradient(180deg, rgba(25, 39, 57, 0.97) 0%, rgba(17, 24, 34, 0.97) 100%);
+  box-shadow: 0 0 0 1px rgba(146, 182, 223, 0.32), 0 12px 28px rgba(0, 0, 0, 0.42);
+}
+
+.schematic-card.is-selected.tone-coral,
+.schematic-card.is-selected.tone-neutral {
+  border-color: #d4b08c;
+  box-shadow: 0 0 0 1px rgba(212, 176, 140, 0.3), 0 12px 28px rgba(0, 0, 0, 0.42);
+}
+
+.schematic-card-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  width: 100%;
+  height: 100%;
+  padding: 13px 15px;
+  border: 0;
+  background: transparent;
+  color: #eaeff6;
+  text-align: left;
+  cursor: pointer;
+}
+
+.schematic-card-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+}
+
+.schematic-card-idx {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 10px;
+  font-weight: 700;
+  color: #aebccb;
+  letter-spacing: 0.05em;
+}
+
+.is-selected .schematic-card-idx {
+  background: rgba(212, 176, 140, 0.22);
+  color: #f6e4cd;
+}
+
+.schematic-card-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: #dfC3A4;
+}
+
+.tone-teal .schematic-card-badge {
+  color: #9ad4c6;
+}
+
+.tone-blue .schematic-card-badge {
+  color: #a4c4e8;
+}
+
+.tone-coral .schematic-card-badge {
+  color: #eba899;
+}
+
+.schematic-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: #f4f7fb;
+}
+
+.schematic-card-preview {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.schematic-card-preview.is-formula {
+  padding: 4px 10px;
+  border-radius: 7px;
+  background: rgba(11, 15, 21, 0.78);
+  border: 1px solid rgba(212, 176, 140, 0.22);
+  font-size: 13px;
+}
+
+.schematic-card-preview.is-code .visual-code-chip {
+  font-size: 12px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Directional Edge Conduits (Zero Overlap, Full Readability) */
+.schematic-conduit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #8f9fb3;
+}
+
+.schematic-conduit.is-right,
+.schematic-conduit.is-left {
+  min-width: 108px;
+  max-width: 196px;
+  padding: 0 2px;
+}
+
+.schematic-conduit.is-down {
+  flex-direction: column;
+  padding: 8px 0;
+  width: 100%;
+}
+
+.schematic-conduit.is-down.align-right {
+  align-items: flex-end;
+  padding-right: 16%;
+}
+
+.schematic-conduit.is-down.align-left {
+  align-items: flex-start;
+  padding-left: 16%;
+}
+
+.schematic-conduit-line {
+  background: #394658;
+  transition: background-color 0.16s ease;
+}
+
+.schematic-conduit.is-right .schematic-conduit-line,
+.schematic-conduit.is-left .schematic-conduit-line {
+  height: 1.5px;
+  flex: 1 1 10px;
+  min-width: 8px;
+}
+
+.schematic-conduit.is-down .schematic-conduit-line {
+  width: 1.5px;
+  height: 9px;
+  align-self: center;
+}
+
+.schematic-conduit.is-down.align-right .schematic-conduit-line,
+.schematic-conduit.is-down.align-left .schematic-conduit-line {
+  display: none;
+}
+
+.schematic-conduit-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #141a23;
+  border: 1px solid #2f3a4a;
+  color: #b9c6d6;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: center;
+  max-width: 185px;
+}
+
+.schematic-conduit.is-active .schematic-conduit-line {
+  background: #d4b08c;
+}
+
+.schematic-conduit.is-active .schematic-conduit-pill {
+  border-color: rgba(212, 176, 140, 0.55);
+  background: rgba(45, 36, 27, 0.92);
+  color: #f3dfc7;
+}
+
+/* Branching Multi-Tier DAG Layout */
+.schematic-dag-stage {
+  position: relative;
+}
+
+.schematic-dag-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes schematic-dash-flow {
+  to {
+    stroke-dashoffset: -18;
+  }
+}
+
+.schematic-svg-animated {
+  animation: schematic-dash-flow 1.1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schematic-svg-animated {
+    animation: none;
+  }
+}
+
+.schematic-dag-edge-pill {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  pointer-events: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(18, 23, 31, 0.94);
+  border: 1px solid #323e4e;
+  color: #bfccd9;
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.schematic-dag-edge-pill.is-active {
+  border-color: rgba(212, 176, 140, 0.55);
+  color: #f3dfc7;
+}
+
+.schematic-dag-tiers {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 44px;
+}
+
+.schematic-dag-tier {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+/* Integrated Layer Spotlight Inspector */
+.schematic-inspector {
+  padding: 15px 18px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(25, 31, 41, 0.92) 0%, rgba(17, 21, 28, 0.95) 100%);
+  border: 1px solid #2e3846;
+  border-left: 3px solid #d4b08c;
+}
+
+.schematic-inspector-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  padding-bottom: 11px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.schematic-inspector-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.schematic-inspector-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(212, 176, 140, 0.14);
+  border: 1px solid rgba(212, 176, 140, 0.38);
+  color: #eed4b7;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.schematic-inspector-pill.tone-teal {
+  background: rgba(143, 201, 187, 0.14);
+  border-color: rgba(143, 201, 187, 0.38);
+  color: #a9ded1;
+}
+
+.schematic-inspector-pill.tone-blue {
+  background: rgba(146, 182, 223, 0.14);
+  border-color: rgba(146, 182, 223, 0.38);
+  color: #b4d0ee;
+}
+
+.schematic-inspector-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #f5efe7;
+}
+
+.schematic-stepper-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.schematic-step-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.schematic-step-arrow,
+.schematic-step-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 27px;
+  min-width: 27px;
+  padding: 0 7px;
+  border-radius: 7px;
+  border: 1px solid #323d4c;
+  background: #151b23;
+  color: #aebccb;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.schematic-step-arrow:hover:not(:disabled),
+.schematic-step-dot:hover {
+  border-color: #96a6ba;
+  color: #f0f4f9;
+}
+
+.schematic-step-arrow:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.schematic-step-dot.is-current {
+  border-color: #d4b08c;
+  background: rgba(212, 176, 140, 0.18);
+  color: #f7e6d0;
+}
+
+.schematic-inspector-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.schematic-inspector-grid.has-plaque {
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
+}
+
+.schematic-inspector-detail {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.66;
+  color: #ced7e3;
+}
+
+.schematic-relations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.schematic-relation-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #2e3847;
+  background: #141921;
+  color: #b4c2d2;
+  font-size: 11.5px;
+}
+
+.schematic-relation-chip:hover {
+  border-color: #d4b08c;
+  color: #f4e4d0;
+}
+
+.schematic-relation-chip strong {
+  color: #e9eff7;
+  font-weight: 600;
+}
+
+.schematic-relation-chip em {
+  font-style: normal;
+  color: #95a4b6;
+}
+
+.schematic-inspector-plaque {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #0d1117;
+  border: 1px solid #27313f;
+}
+
+.schematic-plaque-formula {
+  overflow-x: auto;
+  padding-bottom: 2px;
+  font-size: 1.06em;
+  color: #f5ede2;
+}
+
+.schematic-plaque-code {
+  overflow-x: auto;
+}
+
+.schematic-plaque-code .visual-code-chip {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: rgba(18, 24, 32, 0.9);
+}
+
+@media (max-width: 720px) {
+  .concept-schematic-stage {
+    padding: 14px;
+  }
+  .schematic-pair-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .schematic-slot-conduit-desktop {
+    display: none;
+  }
+  .schematic-slot-conduit-mobile {
+    display: flex;
+  }
+  .schematic-pair-row.is-reversed .schematic-slot-first {
+    order: 1;
+  }
+  .schematic-pair-row.is-reversed .schematic-slot-conduit-mobile {
+    order: 2;
+  }
+  .schematic-pair-row.is-reversed .schematic-slot-second {
+    order: 3;
+  }
+  .schematic-conduit.is-down.align-right,
+  .schematic-conduit.is-down.align-left {
+    align-items: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .schematic-inspector-grid.has-plaque {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Mafs Interactive Mathematical Coordinate Stage */
+.parameter-explorer-formula {
+  padding: 3px 11px;
+  border-radius: 999px;
+  background: rgba(212, 176, 140, 0.11);
+  border: 1px solid rgba(212, 176, 140, 0.28);
+  color: #f5ece0;
+}
+
+.parameter-mafs-stage {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #2b3340;
+  background: #0c1015;
+  --mafs-bg: #0c1015;
+  --mafs-fg: #dce4ee;
+  --mafs-line-color: #26303d;
+  --mafs-origin-color: #556477;
+}
+
+.parameter-mafs-axes-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 12px;
+  background: #141920;
+  border-bottom: 1px solid #242c37;
+  font-size: 11.5px;
+  color: #9ba8b8;
+}
+
+.parameter-mafs-axes-legend strong {
+  color: #e6edf5;
+}
+
+.parameter-mafs-coord {
+  font-family: var(--font-code, monospace) !important;
+  color: #e8c7a4;
+}
+
+.parameter-mafs-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.parameter-mafs-zoom button {
+  height: 22px;
+  min-width: 24px;
+  padding: 0 6px;
+  border-radius: 5px;
+  border: 1px solid #303a48;
+  background: #19202a;
+  color: #c7d3e1;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.parameter-mafs-zoom button:hover {
+  border-color: #d4b08c;
+  color: #f5e6d2;
+}
+
+/* Immersive Exploration Guided Layers below 3D/2D Canvas & Explorer */
+.visual-exploration-layers {
+  margin-top: 16px;
+  padding: 13px 15px;
+  border-radius: 11px;
+  background: rgba(21, 26, 34, 0.85);
+  border: 1px solid #2b3340;
+}
+
+.visual-layers-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #d4b08c;
+}
+
+.visual-layer-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.visual-layer-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid #323c4a;
+  background: #171d25;
+  color: #c5d0dd;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.visual-layer-pill small {
+  font-size: 10px;
+  font-weight: 700;
+  color: #8b99ab;
+}
+
+.visual-layer-pill[aria-pressed="true"] {
+  border-color: #d4b08c;
+  background: linear-gradient(180deg, #322920 0%, #241e17 100%);
+  color: #f6e7d4;
+}
+
+.visual-layer-pill[aria-pressed="true"] small {
+  color: #e4c29d;
+}
+
+.visual-layer-detail {
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.visual-layer-detail p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.64;
+  color: #cad4e0;
+}
+
+/* Posh Takeaway Callout & Footer */
+.visual-takeaway-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 16px 0 12px;
+  padding: 11px 15px;
+  border-radius: 10px;
+  background: rgba(212, 176, 140, 0.07);
+  border: 1px solid rgba(212, 176, 140, 0.22);
+}
+
+.visual-takeaway-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  color: #d4b08c;
+}
+
+.visual-takeaway-card .visual-takeaway {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.62;
+  color: #e6ecf3;
+}
+
+.visual-footer-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.visual-example footer .visual-reimagine {
+  color: #e3c39e;
+  font-weight: 500;
+}
+
+/* Mermaid Architecture Cards in MarkdownView */
+.forge-mermaid-card {
+  margin: 18px 0;
+  border: 1px solid #2e3744;
+  border-radius: 12px;
+  background: #0f1318;
+  overflow: hidden;
+}
+
+.forge-mermaid-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  background: #151a22;
+  border-bottom: 1px solid #262f3b;
+}
+
+.forge-mermaid-stage {
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+}
+
+.forge-mermaid-stage svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.forge-mermaid-card.is-expanded .forge-mermaid-stage svg {
+  max-width: none;
+}

@@ -112,7 +112,7 @@ export default function App() {
   const [isManageTopicsOpen, setIsManageTopicsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<
-    "learning" | "connection"
+    "learning" | "connection" | "plugins"
   >("learning");
 
   // --- Session & Milestones State ---
@@ -973,25 +973,33 @@ export default function App() {
     contextNote?: string
   ) => {
     switch (action) {
-      case "visual":
+      case "visual": {
+        const forceLiveSim = contextNote === "__LIVE_SIM__";
+        const repairError =
+          contextNote && !forceLiveSim ? contextNote : undefined;
         handleSendMessage(
-          contextNote
+          repairError
             ? "Repair the visual example."
+            : forceLiveSim
+            ? "Show me an interactive live simulation."
             : "Show me a visual example.",
           {
             visual: true,
             teachOnly: true,
             prompt: `${
-              contextNote
-                ? `The previous generated canvas simulation threw this runtime error: "${contextNote.slice(
+              repairError
+                ? `The previous generated canvas simulation threw this runtime error: "${repairError.slice(
                     0,
                     200
                   )}". Replace it with a clean, self-contained, bug-free forge-visual that avoids that error. `
+                : forceLiveSim
+                ? `Upgrade the visual into a genuine LIVE INTERACTIVE SIMULATION: you MUST use kind="canvas" (or kind="explorer" for a 1D mathematical function) with tactile interactive controls (clickable toggles/buttons, sliders, or pointer-drag 3D/2D canvas) and live visual feedback — do NOT emit a static diagram. `
                 : ""
-            }Show one small interactive visual example of the CURRENT concept using the forge-visual schema. Choose the most illuminating interactive format so I can manipulate the idea and observe a consequence—such as kind="canvas" for custom 2D <canvas> drawings, animations, geometry, waves, particles, or spatial dynamics; kind="explorer" for a quantitative formula sweep; kind="state-model" for discrete entity state transitions; kind="graph" for linear slope; or kind="phrase-builder" for phrase ordering—rather than defaulting to a static row of boxes. Use an analogous case, not the answer to the pending check. Preserve my subject and goal. Do not replace the pending question, emit forge-check, or assess readiness. Introduce the visual in one short sentence.`,
+            }Craft ONE clear, intuitive, Distill.pub-caliber interactive visual of the CURRENT concept using the forge-visual schema. NEVER emit static kind="parts" or kind="comparison" boxes of code lines. CRITICAL NOTATION RULE: Use plain, concrete human English, real domain terms, and intuitive visual metaphors (e.g. plug-and-socket method matching, animated memory pointers, live timelines); include $LaTeX$ math ONLY if the topic itself is genuinely mathematical, statistical, or physical — NEVER invent academic set-theory, formal logic, or turnstile symbols (like T |= I or sig(I) subseteq methods(T)) for programming or general topics! Prefer kind="canvas" (always call window.setupForgeCanvas("stage", 240) or window.setupForge3D("stage", 260) and draw immediately on load; you also have offline D3.js v7 via window.d3, Rough.js via window.rough, and window.FORGE_DRAW), kind="explorer" (Mafs Cartesian curve plotter for genuine 1D math functions), kind="diagram" (clean architectural schematic with badges and syntax-highlighted code), or kind="state-model". Ensure every canvas layout fits cleanly within 100% width with clear labels and zero overlapping text. Include 2–4 guided exploration layers in items so I can dig deeper layer-by-layer. Use an analogous case, never the answer to the pending check. Preserve my subject and goal. Do not replace the pending question, emit forge-check, or assess readiness. Introduce the visual in one concise sentence.`,
           }
         );
         break;
+      }
       case "clarify":
         handleSendMessage("Can you clarify the question?", {
           teachOnly: true,
@@ -1461,17 +1469,21 @@ export default function App() {
           onClose={() => setIsManageTopicsOpen(false)}
         />
       )}
-      {isSettingsOpen && (
-        <SettingsModal
-          initialSection={settingsSection}
-          onClose={() => setIsSettingsOpen(false)}
-        />
-      )}
       {isNewTopicModalOpen && (
         <NewTopicModal
           isOpen={isNewTopicModalOpen}
           onClose={() => setIsNewTopicModalOpen(false)}
           onTrackCreated={handleTrackCreated}
+          onOpenPlugins={() => {
+            setSettingsSection("plugins");
+            setIsSettingsOpen(true);
+          }}
+        />
+      )}
+      {isSettingsOpen && (
+        <SettingsModal
+          initialSection={settingsSection}
+          onClose={() => setIsSettingsOpen(false)}
         />
       )}
     </div>

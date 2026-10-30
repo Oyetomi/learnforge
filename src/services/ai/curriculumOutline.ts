@@ -7,8 +7,8 @@ import {
 } from "../learning/curriculumPlan";
 import { aiJsonRequest, loadAIConnection, recordUsage } from "./connection";
 import {
-  createLearningReference,
   referenceContext,
+  resolveLearningReferences,
   GROUNDING_INSTRUCTIONS,
 } from "../learning/grounding";
 import {
@@ -158,12 +158,10 @@ export function trackFromOutline(
     throw new Error(
       "The curriculum has incomplete outcomes, repeated coverage or invalid prerequisite connections. Try again."
     );
-  const reference = options.referenceMaterial
-    ? createLearningReference(
-        options.referenceMaterial.name,
-        options.referenceMaterial.content
-      )
-    : null;
+  const resolvedRefs = resolveLearningReferences(
+    options.references,
+    options.referenceMaterial
+  );
   return {
     id,
     curriculum: plan,
@@ -180,7 +178,7 @@ export function trackFromOutline(
       practiceMode: value.practice_mode,
       programmingLanguage: language || undefined,
     },
-    references: reference ? [reference] : undefined,
+    references: resolvedRefs.length > 0 ? resolvedRefs : undefined,
     concepts: plan.modules.map((m) => m.title),
     initialPrompt: "Your outline is saved. We’ll prepare one unit at a time.",
     milestones: curriculumUnits(plan).map((u) => ({
@@ -199,12 +197,10 @@ export async function generateCurriculumOutline(
   options: OutlineOptions,
   onStatus?: (status: string) => void
 ): Promise<CourseTrack> {
-  const reference = options.referenceMaterial
-    ? createLearningReference(
-        options.referenceMaterial.name,
-        options.referenceMaterial.content
-      )
-    : null;
+  const resolvedRefs = resolveLearningReferences(
+    options.references,
+    options.referenceMaterial
+  );
   const matchedPrior =
     options.priorConcepts ??
     relevantPriorConcepts(
@@ -233,7 +229,7 @@ Return JSON only: {"title":"clear course title","destination":"the ability this 
         ? { boundaryEvidence: options.boundaryEvidence }
         : {}),
       references: referenceContext(
-        reference ? [reference] : [],
+        resolvedRefs,
         options.topic,
         8000
       ),
@@ -262,7 +258,7 @@ Return JSON only: {"title":"clear course title","destination":"the ability this 
             ? failure.message
             : "Invalid outline structure",
         references: referenceContext(
-          reference ? [reference] : [],
+          resolvedRefs,
           options.topic,
           8000
         ),
@@ -290,12 +286,7 @@ export async function prepareCurriculumUnit(
     language: track.language || undefined,
     level: track.learningIntent?.level,
     signal,
-    referenceMaterial: track.references?.length
-      ? {
-          name: track.references.map((r) => r.name).join(", "),
-          content: referenceContext(track.references, unit.outcome, 8000),
-        }
-      : undefined,
+    references: track.references,
     unitContext: JSON.stringify({
       originalGoal: plan.originalGoal,
       destination: plan.destination,

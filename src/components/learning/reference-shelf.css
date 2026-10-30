@@ -32,3 +32,31 @@
 .reference-shelf .reference-document ol {
   max-height: 260px;
 }
+.reference-doc-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.reference-plugin-badge {
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(212, 176, 140, 0.14);
+  border: 1px solid rgba(212, 176, 140, 0.35);
+  color: #e6c6a2;
+}
+.reference-external-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #d4b08c;
+  text-decoration: none;
+}
+.reference-external-link:hover {
+  text-decoration: underline;
+}

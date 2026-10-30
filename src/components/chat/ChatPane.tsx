@@ -400,15 +400,20 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   );
   const [replyIndex, setReplyIndex] = useState(0);
   const [overview, setOverview] = useState(preferences.pace === "overview");
-  const [lessonVisual, setLessonVisual] = useState(!lastReply?.visual_example);
+  const latestVisualMessage = [...relevant]
+    .reverse()
+    .find((m) => m.visual_example);
+  const latestReplyVisual = latestVisualMessage?.visual_example;
+  const [lessonVisual, setLessonVisual] = useState(!latestReplyVisual);
   const [inlineVisualOpen, setInlineVisualOpen] = useState(false);
   const [inlineLessonOpen, setInlineLessonOpen] = useState(false);
   const visibleStep = Math.min(stepIndex, Math.max(0, lessonSteps.length - 1));
   const replyStep = Math.min(replyIndex, Math.max(0, replySteps.length - 1));
-  const visual = lessonVisual
-    ? activeMilestone?.visual
-    : lastReply?.visual_example;
-  const availableVisual = lastReply?.visual_example || activeMilestone?.visual;
+  const visual =
+    lessonVisual && !latestReplyVisual
+      ? activeMilestone?.visual
+      : latestReplyVisual || activeMilestone?.visual;
+  const availableVisual = latestReplyVisual || activeMilestone?.visual;
   const busy = isStreaming || isRequestingCheck;
   const tutoringRequest = [...relevant]
     .reverse()
@@ -839,14 +844,29 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
               {inlineVisualOpen && availableVisual && (
                 <div className="session-inline-visual">
                   <div className="session-inline-visual-bar">
-                    <span>Visual companion · {availableVisual.title}</span>
+                    <span className="session-inline-visual-title">
+                      <em>Interactive Studio</em>
+                      <strong>{availableVisual.title}</strong>
+                    </span>
                     <div>
                       <button
                         type="button"
-                        onClick={() => onQuickAction?.("visual")}
+                        className="is-accent-visual-btn"
+                        onClick={() =>
+                          onQuickAction?.(
+                            "visual",
+                            availableVisual.kind === "canvas" ||
+                              availableVisual.kind === "explorer"
+                              ? undefined
+                              : "__LIVE_SIM__"
+                          )
+                        }
                         disabled={busy}
                       >
-                        Fresh visual
+                        {availableVisual.kind === "canvas" ||
+                        availableVisual.kind === "explorer"
+                          ? "Fresh scene"
+                          : "Live sim"}
                       </button>
                       <button
                         type="button"
@@ -857,12 +877,26 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                     </div>
                   </div>
                   <VisualExample
-                    key={`inline-lesson:${activeMilestone?.id}:${lastReply?.id}`}
+                    key={`inline-lesson:${activeMilestone?.id}:${latestVisualMessage?.id || "seed"}`}
                     visual={availableVisual}
-                    visualId={`inline-lesson:${activeMilestone?.id}:${lastReply?.id}`}
+                    visualId={`inline-lesson:${activeMilestone?.id}:${latestVisualMessage?.id || "seed"}`}
                     defaultOpen
+                    embedded
+                    language={language}
                     supportCheckId={latest && !attempt ? latest.id : undefined}
                     onTryFreshCase={onRequestCheck}
+                    onRequestFreshVisual={
+                      onQuickAction
+                        ? () =>
+                            onQuickAction(
+                              "visual",
+                              availableVisual.kind === "canvas" ||
+                                availableVisual.kind === "explorer"
+                                ? undefined
+                                : "__LIVE_SIM__"
+                            )
+                        : undefined
+                    }
                     onRepairVisual={
                       onQuickAction
                         ? (err) => onQuickAction("visual", err)
@@ -998,14 +1032,29 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
               {inlineVisualOpen && availableVisual && (
                 <div className="session-inline-visual">
                   <div className="session-inline-visual-bar">
-                    <span>Visual companion · {availableVisual.title}</span>
+                    <span className="session-inline-visual-title">
+                      <em>Interactive Studio</em>
+                      <strong>{availableVisual.title}</strong>
+                    </span>
                     <div>
                       <button
                         type="button"
-                        onClick={() => onQuickAction?.("visual")}
+                        className="is-accent-visual-btn"
+                        onClick={() =>
+                          onQuickAction?.(
+                            "visual",
+                            availableVisual.kind === "canvas" ||
+                              availableVisual.kind === "explorer"
+                              ? undefined
+                              : "__LIVE_SIM__"
+                          )
+                        }
                         disabled={busy}
                       >
-                        Fresh visual
+                        {availableVisual.kind === "canvas" ||
+                        availableVisual.kind === "explorer"
+                          ? "Fresh scene"
+                          : "Live sim"}
                       </button>
                       <button
                         type="button"
@@ -1016,12 +1065,26 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                     </div>
                   </div>
                   <VisualExample
-                    key={`inline:${activeMilestone?.id}:${lastReply?.id}`}
+                    key={`inline:${activeMilestone?.id}:${latestVisualMessage?.id || "seed"}`}
                     visual={availableVisual}
-                    visualId={`inline:${activeMilestone?.id}:${lastReply?.id}`}
+                    visualId={`inline:${activeMilestone?.id}:${latestVisualMessage?.id || "seed"}`}
                     defaultOpen
+                    embedded
+                    language={language}
                     supportCheckId={latest && !attempt ? latest.id : undefined}
                     onTryFreshCase={onRequestCheck}
+                    onRequestFreshVisual={
+                      onQuickAction
+                        ? () =>
+                            onQuickAction(
+                              "visual",
+                              availableVisual.kind === "canvas" ||
+                                availableVisual.kind === "explorer"
+                                ? undefined
+                                : "__LIVE_SIM__"
+                            )
+                        : undefined
+                    }
                     onRepairVisual={
                       onQuickAction
                         ? (err) => onQuickAction("visual", err)
@@ -1097,15 +1160,31 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
             <div className="focused-visual">
               <VisualExample
                 key={`${
-                  lessonVisual ? activeMilestone?.id : lastReply?.id
+                  lessonVisual && !latestReplyVisual
+                    ? activeMilestone?.id
+                    : latestVisualMessage?.id || lastReply?.id
                 }:visual`}
                 visual={visual}
                 visualId={`${
-                  lessonVisual ? activeMilestone?.id : lastReply?.id
+                  lessonVisual && !latestReplyVisual
+                    ? activeMilestone?.id
+                    : latestVisualMessage?.id || lastReply?.id
                 }:visual`}
                 defaultOpen
+                language={language}
                 supportCheckId={latest && !attempt ? latest.id : undefined}
                 onTryFreshCase={onRequestCheck}
+                onRequestFreshVisual={
+                  onQuickAction
+                    ? () =>
+                        onQuickAction(
+                          "visual",
+                          visual.kind === "canvas" || visual.kind === "explorer"
+                            ? undefined
+                            : "__LIVE_SIM__"
+                        )
+                    : undefined
+                }
                 onRepairVisual={
                   onQuickAction
                     ? (err) => onQuickAction("visual", err)

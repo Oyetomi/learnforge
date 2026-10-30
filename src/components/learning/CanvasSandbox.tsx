@@ -1,15 +1,19 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Download, RotateCcw, Sparkles } from "lucide-react";
+import { AlertTriangle, Download, Loader2, Maximize2, Minimize2, RotateCcw } from "lucide-react";
 import {
   buildCanvasSimSrcDoc,
   buildStandaloneCanvasHtml,
   CANVAS_DEFAULT_HEIGHT,
-  CANVAS_MAX_HEIGHT,
   INITIAL_CANVAS_BRIDGE_STATE,
   reduceCanvasBridgeState,
   type CanvasBridgeState,
   type CanvasSimSpec,
 } from "../../services/learning/canvasSim";
+import {
+  detectCanvasVendors,
+  loadCanvasVendorScripts,
+} from "../../services/learning/canvasVendors";
+import { VisualRichText } from "./VisualRichText";
 
 export interface CanvasSandboxProps {
   spec: CanvasSimSpec;
@@ -46,12 +50,37 @@ export function CanvasSandbox({
 }: CanvasSandboxProps) {
   const reactId = useId();
   const [runCount, setRunCount] = useState(0);
+  const [expanded, setExpanded] = useState(false);
   const [bridge, setBridge] = useState<CanvasBridgeState>(
     INITIAL_CANVAS_BRIDGE_STATE
   );
+  const neededVendors = useMemo(() => detectCanvasVendors(spec.js), [spec.js]);
+  const [vendorScripts, setVendorScripts] = useState<string[] | null>(
+    neededVendors.any ? null : []
+  );
+
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const reportedInteract = useRef(false);
   const reportedError = useRef<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    if (!neededVendors.any) {
+      setVendorScripts([]);
+      return;
+    }
+    setVendorScripts(null);
+    loadCanvasVendorScripts(spec.js)
+      .then((scripts) => {
+        if (active) setVendorScripts(scripts);
+      })
+      .catch(() => {
+        if (active) setVendorScripts([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [spec.js, neededVendors.any]);
 
   const channelToken = useMemo(
     () => `lf-${reactId.replace(/[^a-zA-Z0-9_-]/g, "")}-${runCount}`,
@@ -59,18 +88,13 @@ export function CanvasSandbox({
   );
 
   const srcDoc = useMemo(
-    () => buildCanvasSimSrcDoc(spec, channelToken),
-    [spec, channelToken]
+    () => buildCanvasSimSrcDoc(spec, channelToken, vendorScripts ?? []),
+    [spec, channelToken, vendorScripts]
   );
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (
-        !iframeRef.current ||
-        event.source !== iframeRef.current.contentWindow
-      ) {
-        return;
-      }
+      if (!event.data || typeof event.data !== "object") return;
       setBridge((prev) => reduceCanvasBridgeState(prev, event.data, channelToken));
     };
     window.addEventListener("message", handleMessage);
@@ -100,7 +124,12 @@ export function CanvasSandbox({
 
   const handleDownloadHtml = () => {
     if (typeof document === "undefined" || typeof Blob === "undefined") return;
-    const html = buildStandaloneCanvasHtml(title, spec, { summary, takeaway });
+    const html = buildStandaloneCanvasHtml(
+      title,
+      spec,
+      { summary, takeaway },
+      vendorScripts ?? []
+    );
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -112,20 +141,43 @@ export function CanvasSandbox({
     setTimeout(() => URL.revokeObjectURL(url), 500);
   };
 
-  const frameHeight = bridge.height ?? spec.height ?? CANVAS_DEFAULT_HEIGHT;
-  const allowInnerScroll = frameHeight >= CANVAS_MAX_HEIGHT;
+  const engineBadge = neededVendors.three
+    ? "3D Interactive Scene"
+    : neededVendors.d3
+    ? "D3 Interactive Lab"
+    : neededVendors.rough
+    ? "Sketched Interactive Studio"
+    : "Interactive Studio";
+
+  const baseHeight = bridge.height ?? spec.height ?? CANVAS_DEFAULT_HEIGHT;
+  const frameHeight = expanded ? Math.max(baseHeight, 480) : baseHeight;
+  const waitingForVendors =
+    typeof window !== "undefined" && vendorScripts === null;
 
   const sandboxBody = (
     <div
-      className="teaching-lab canvas-sandbox"
+      className={`teaching-lab canvas-sandbox ${expanded ? "is-expanded" : ""}`}
       aria-label={`Interactive simulation: ${title}`}
     >
       <div className="lab-toolbar canvas-sandbox-toolbar">
         <span className="canvas-sandbox-caption">
-          <strong className="canvas-sandbox-badge">Interactive sandbox</strong>
-          {spec.controlsHint && <span>{spec.controlsHint}</span>}
+          <strong className="canvas-sandbox-badge">{engineBadge}</strong>
+          {spec.controlsHint && (
+            <span>
+              <VisualRichText text={spec.controlsHint} />
+            </span>
+          )}
         </span>
         <div className="canvas-sandbox-actions">
+          <button
+            type="button"
+            className="canvas-sandbox-btn"
+            onClick={() => setExpanded((v) => !v)}
+            title={expanded ? "Compact stage height" : "Expand stage height"}
+          >
+            {expanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+            <span>{expanded ? "Compact" : "Expand"}</span>
+          </button>
           <button
             type="button"
             className="canvas-sandbox-btn"
@@ -162,29 +214,40 @@ export function CanvasSandbox({
               disabled={isBusy}
               onClick={() => onRepairVisual(bridge.error!)}
             >
-              <Sparkles size={12} />
+              <RotateCcw size={12} />
               <span>Repair visual</span>
             </button>
           )}
         </div>
       )}
 
-      <iframe
-        key={runCount}
-        ref={iframeRef}
-        className="canvas-sandbox-frame"
-        title={`Interactive simulation: ${title}`}
-        // Strictly allow-scripts ONLY (never allow-same-origin): opaque null
-        // origin isolates storage, cookies, parent DOM, and Tauri IPC.
-        sandbox="allow-scripts"
-        referrerPolicy="no-referrer"
-        scrolling={allowInnerScroll ? "yes" : "no"}
-        srcDoc={srcDoc}
-        style={{
-          height: `${frameHeight}px`,
-          boxSizing: "content-box",
-        }}
-      />
+      {waitingForVendors ? (
+        <div
+          className="canvas-sandbox-loading"
+          style={{ height: `${frameHeight}px` }}
+          role="status"
+        >
+          <Loader2 size={16} className="animate-spin" />
+          <span>Loading {engineBadge.toLowerCase()} runtime…</span>
+        </div>
+      ) : (
+        <iframe
+          key={`${runCount}:${vendorScripts?.length ?? 0}`}
+          ref={iframeRef}
+          className="canvas-sandbox-frame"
+          title={`Interactive simulation: ${title}`}
+          // Strictly allow-scripts ONLY (never allow-same-origin): opaque null
+          // origin isolates storage, cookies, parent DOM, and Tauri IPC.
+          sandbox="allow-scripts"
+          referrerPolicy="no-referrer"
+          scrolling="auto"
+          srcDoc={srcDoc}
+          style={{
+            height: `${frameHeight}px`,
+            boxSizing: "content-box",
+          }}
+        />
+      )}
     </div>
   );
 
@@ -194,10 +257,18 @@ export function CanvasSandbox({
     <figure className="canvas-sandbox-standalone">
       <figcaption className="canvas-sandbox-standalone-head">
         <strong>{title}</strong>
-        {summary && <p>{summary}</p>}
+        {summary && (
+          <p>
+            <VisualRichText text={summary} />
+          </p>
+        )}
       </figcaption>
       {sandboxBody}
-      {takeaway && <p className="visual-takeaway">{takeaway}</p>}
+      {takeaway && (
+        <p className="visual-takeaway">
+          <VisualRichText text={takeaway} />
+        </p>
+      )}
     </figure>
   );
 }

@@ -14,11 +14,15 @@ import { MATH_INSTRUCTIONS, TABLE_INSTRUCTIONS } from "../learning/visualContrac
 import { loadLearningPreferences } from "../learning/preferences";
 import { CourseTrack } from "./types";
 import { aiJsonRequest, loadAIConnection, recordUsage } from "./connection";
-import { SupportedLanguage } from "../../types";
+import { LearningReference, SupportedLanguage } from "../../types";
 import { validPrerequisiteGraph } from "../learning/roadmap";
 import { validateLearningCheck } from "../learning/checks";
 import { FREE_RESPONSE_INSTRUCTIONS } from "../learning/freeResponse";
-import { createLearningReference, referenceContext, GROUNDING_INSTRUCTIONS } from "../learning/grounding";
+import {
+  referenceContext,
+  resolveLearningReferences,
+  GROUNDING_INSTRUCTIONS,
+} from "../learning/grounding";
 import {
   formatPriorConceptsForPrompt,
   relevantPriorConcepts,
@@ -31,6 +35,7 @@ export interface GenerateTrackOptions {
   signal?: AbortSignal;
   language?: SupportedLanguage;
   level?: "Beginner" | "Intermediate" | "Advanced";
+  references?: LearningReference[];
   referenceMaterial?: {
     name: string;
     content: string;
@@ -58,8 +63,10 @@ export async function generateCustomTrack(
 ): Promise<CourseTrack> {
   const { topic, level = "Beginner" } = options;
   const interest = options.interest?.trim() || topic;
-  const reference = options.referenceMaterial
-    ? createLearningReference(options.referenceMaterial.name, options.referenceMaterial.content) : null;
+  const resolvedRefs = resolveLearningReferences(
+    options.references,
+    options.referenceMaterial
+  );
   onStatusUpdate?.("Preparing your learning plan…");
 
   const systemPrompt = `You design LearnForge learning plans for ANY subject, at the learner's requested level and for their actual purpose.
@@ -81,7 +88,7 @@ Each activity teaches one small idea with a short concrete example and an intera
 
 VISUAL SUPPORT
 Learner presentation preferences: ${JSON.stringify(loadLearningPreferences())}.
-When visuals=auto, optionally add a visual object to a milestone when a contrast, phrase breakdown, process or state change would clarify the idea. Use a different example from the assessment. Otherwise omit it. The object follows the schema below, but must be a JSON field named visual, not a fenced block in lesson. Do not force a visual onto every activity.
+When visuals=auto, optionally add a visual object to a milestone ONLY when a genuine interactive illustration (kind="canvas" 3D/D3/Rough/2D simulation with $LaTeX$, kind="explorer" Mafs mathematical curve lab, kind="diagram" React Flow + Dagre node-edge blueprint schematic, kind="state-model", kind="graph", or spoken-language kind="phrase-builder") makes the concept tactile and crystal clear. NEVER attach static kind="parts" or kind="comparison" boxes of code lines. Use an analogous example different from the assessment. The object follows the schema below as a JSON field named visual, not a fenced block in lesson.
 ${VISUAL_INSTRUCTIONS}
 ${MATH_INSTRUCTIONS}
 ${TABLE_INSTRUCTIONS}
@@ -113,7 +120,7 @@ Return valid JSON only, using this structure. The single milestone here is a sch
  }]
 }`;
   onStatusUpdate?.("Creating lessons and interactive questions…");
-  const hasReference = Boolean(options.referenceMaterial?.content?.trim());
+  const hasReference = resolvedRefs.length > 0;
   const matchedPrior = relevantPriorConcepts(`${interest} ${topic}`, {
     limit: 6,
   });
@@ -132,8 +139,9 @@ Return valid JSON only, using this structure. The single milestone here is a sch
     ...(hasReference
       ? {
           referenceMaterial: {
-            name: options.referenceMaterial!.name || "Uploaded reference",
-            excerpt: referenceContext(reference ? [reference] : [], topic, 8000),
+            name:
+              resolvedRefs.map((r) => r.name).join(", ") || "Uploaded reference",
+            excerpt: referenceContext(resolvedRefs, topic, 8000),
           },
         }
       : {}),
@@ -245,7 +253,7 @@ Return valid JSON only, using this structure. The single milestone here is a sch
     );
 
   const track: CourseTrack = {
-    references: reference ? [reference] : undefined,
+    references: resolvedRefs.length > 0 ? resolvedRefs : undefined,
     id: trackId,
     title: parsed.title || topic,
     tagline: parsed.tagline || `Master ${topic}`,

@@ -31,6 +31,8 @@ export interface LearningReference {
   name: string;
   content: string;
   truncated: boolean;
+  url?: string;
+  pluginId?: string;
 }
 
 export interface LearningSession {

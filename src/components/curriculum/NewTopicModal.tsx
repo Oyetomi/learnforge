@@ -2,13 +2,29 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   X,
   ArrowRight,
+  Blocks,
+  ExternalLink,
+  Globe,
   Loader2,
   Compass,
   FileText,
-  Sparkles,
+  Search,
   Target,
   Upload,
 } from "lucide-react";
+import {
+  PLUGINS_CHANGED_EVENT,
+  getExaPluginConfig,
+  isExaPluginReady,
+  type ExaPluginConfig,
+} from "../../services/plugins/registry";
+import {
+  ExaPluginError,
+  fetchExaGrounding,
+  parseDirectUrls,
+  searchExaReferences,
+  type ExaGroundedSource,
+} from "../../services/plugins/exa";
 import { generateCustomTrack } from "../../services/ai/curriculum";
 import {
   generateCurriculumOutline,
@@ -69,11 +85,13 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onTrackCreated: (track: CourseTrack) => void;
+  onOpenPlugins?: () => void;
 }
 export const NewTopicModal: React.FC<Props> = ({
   isOpen,
   onClose,
   onTrackCreated,
+  onOpenPlugins,
 }) => {
   const [interest, setInterest] = useState(() => savedDraft().interest || "");
   const [destination, setDestination] = useState(
@@ -86,6 +104,17 @@ export const NewTopicModal: React.FC<Props> = ({
   );
   const [referenceName, setReferenceName] = useState(""),
     [referenceContent, setReferenceContent] = useState("");
+  const [exaConfig, setExaConfig] = useState<ExaPluginConfig>(() =>
+    getExaPluginConfig()
+  );
+  const exaReady = isExaPluginReady(exaConfig);
+  const [autoGroundWithExa, setAutoGroundWithExa] = useState<boolean>(() => {
+    const cfg = getExaPluginConfig();
+    return isExaPluginReady(cfg) && cfg.autoGroundNewTopics;
+  });
+  const [exaSources, setExaSources] = useState<ExaGroundedSource[]>([]);
+  const [exaQuery, setExaQuery] = useState("");
+  const [isFetchingExa, setIsFetchingExa] = useState(false);
   const [proposal, setProposal] = useState<ScopeProposal | null>(null),
     [scope, setScope] = useState<LearningScope>("curriculum");
   const [task, setTask] = useState<
@@ -112,7 +141,7 @@ export const NewTopicModal: React.FC<Props> = ({
     return relevantPriorConcepts(query, { entries: ledgerEntries, limit: 6 });
   }, [interest, destination, ledgerEntries]);
 
-  const busy = task !== "idle" || isReadingFile;
+  const busy = task !== "idle" || isReadingFile || isFetchingExa;
   const [draftTrack, setDraftTrack] = useState<CourseTrack | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null),
     formRef = useRef<HTMLFormElement>(null),
@@ -120,11 +149,35 @@ export const NewTopicModal: React.FC<Props> = ({
     inputRef = useRef<HTMLInputElement>(null),
     headingRef = useRef<HTMLHeadingElement>(null),
     fileRef = useRef<HTMLInputElement>(null),
+    referenceDetailsRef = useRef<HTMLDetailsElement>(null),
     requestRef = useRef<AbortController | null>(null),
+    exaControllerRef = useRef<AbortController | null>(null),
     errorRef = useRef<HTMLDivElement>(null),
     readSequence = useRef(0),
     readingFile = useRef(false),
     mounted = useRef(false);
+  useEffect(() => {
+    const syncPlugins = () => {
+      const next = getExaPluginConfig();
+      const nextReady = isExaPluginReady(next);
+      setExaConfig((prev) => {
+        const wasReady = isExaPluginReady(prev);
+        if (!wasReady && nextReady) {
+          setAutoGroundWithExa(next.autoGroundNewTopics);
+        } else if (!nextReady) {
+          setAutoGroundWithExa(false);
+        }
+        return next;
+      });
+    };
+    window.addEventListener(PLUGINS_CHANGED_EVENT, syncPlugins);
+    return () => window.removeEventListener(PLUGINS_CHANGED_EVENT, syncPlugins);
+  }, []);
+  useEffect(() => {
+    if (exaSources.length > 0 && referenceDetailsRef.current) {
+      referenceDetailsRef.current.open = true;
+    }
+  }, [exaSources.length]);
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -143,6 +196,7 @@ export const NewTopicModal: React.FC<Props> = ({
     return () => {
       mounted.current = false;
       requestRef.current?.abort();
+      exaControllerRef.current?.abort();
       readSequence.current += 1;
       readingFile.current = false;
       dialogRef.current?.close();
@@ -166,7 +220,7 @@ export const NewTopicModal: React.FC<Props> = ({
     formRef.current?.scrollTo({ top: 0 });
   }, [draftTrack]);
   useEffect(() => {
-    if (task === "idle" && !isReadingFile) return;
+    if (task === "idle" && !isReadingFile && !isFetchingExa) return;
     const frame = requestAnimationFrame(() => {
       const form = formRef.current,
         status = statusRef.current;
@@ -185,19 +239,100 @@ export const NewTopicModal: React.FC<Props> = ({
       });
     });
     return () => cancelAnimationFrame(frame);
-  }, [task, isReadingFile]);
+  }, [task, isReadingFile, isFetchingExa]);
   const close = () => {
     requestRef.current?.abort();
+    exaControllerRef.current?.abort();
     onClose();
   };
   const cancel = () => {
     requestRef.current?.abort();
+    exaControllerRef.current?.abort();
     readSequence.current += 1;
     readingFile.current = false;
     setIsReadingFile(false);
+    setIsFetchingExa(false);
     setNotice(
       "Preparation cancelled. Your goal is still here; continue when you’re ready."
     );
+  };
+
+  const resolveGoalText = () =>
+    interest.trim() ||
+    (exaSources.length > 0
+      ? `Teach me the key concepts in ${exaSources[0].title}`
+      : referenceContent.trim()
+      ? `Teach me the key concepts in ${referenceName || "my reference"}`
+      : "");
+
+  const handleFetchExaSources = async (explicitInput?: string) => {
+    const rawInput = (explicitInput ?? exaQuery).trim() || interest.trim();
+    if (
+      task !== "idle" ||
+      readingFile.current ||
+      isFetchingExa ||
+      !rawInput
+    ) {
+      return;
+    }
+    const controller = new AbortController();
+    exaControllerRef.current = controller;
+    setIsFetchingExa(true);
+    setError("");
+    setNotice("");
+    try {
+      const { mode, sources } = await fetchExaGrounding(rawInput, {
+        config: exaConfig,
+        signal: controller.signal,
+      });
+      if (!mounted.current || controller.signal.aborted) return;
+      if (sources.length === 0) {
+        setNotice("Exa returned no readable sources for that query. Try more specific keywords or a direct URL.");
+        return;
+      }
+      setExaSources((prev) => {
+        const merged = [...prev];
+        for (const src of sources) {
+          const exists = merged.some(
+            (item) => item.url === src.url || item.id === src.id
+          );
+          if (!exists && merged.length < 6) {
+            merged.push(src);
+          }
+        }
+        return merged;
+      });
+      if (explicitInput === undefined) {
+        setExaQuery("");
+      }
+      setInterest((prev) =>
+        prev.trim()
+          ? prev
+          : `Teach me the key concepts in ${sources[0].title}`
+      );
+      setNotice(
+        mode === "urls"
+          ? `Extracted ${sources.length} web ${
+              sources.length === 1 ? "source" : "sources"
+            } via Exa.`
+          : `Attached ${sources.length} live Exa ${
+              sources.length === 1 ? "source" : "sources"
+            } to ground your learning plan.`
+      );
+    } catch (e) {
+      if (mounted.current && !controller.signal.aborted) {
+        setError(
+          e instanceof Error
+            ? e.message
+            : "Could not fetch sources from Exa."
+        );
+      }
+    } finally {
+      if (mounted.current) setIsFetchingExa(false);
+      if (exaControllerRef.current === controller) {
+        exaControllerRef.current = null;
+      }
+    }
   };
 
   const updateProbeResponse = (
@@ -219,12 +354,14 @@ export const NewTopicModal: React.FC<Props> = ({
   };
 
   const startBoundaryProbe = async () => {
-    const goal =
-      interest.trim() ||
-      (referenceContent.trim()
-        ? `Teach me the key concepts in ${referenceName || "my reference"}`
-        : "");
-    if (task !== "idle" || requestRef.current || readingFile.current || !goal)
+    const goal = resolveGoalText();
+    if (
+      task !== "idle" ||
+      requestRef.current ||
+      readingFile.current ||
+      isFetchingExa ||
+      !goal
+    )
       return;
     const controller = new AbortController();
     requestRef.current = controller;
@@ -275,12 +412,14 @@ export const NewTopicModal: React.FC<Props> = ({
   };
 
   const run = async () => {
-    const goal =
-      interest.trim() ||
-      (referenceContent.trim()
-        ? `Teach me the key concepts in ${referenceName || "my reference"}`
-        : "");
-    if (task !== "idle" || requestRef.current || readingFile.current || !goal)
+    const goal = resolveGoalText();
+    if (
+      task !== "idle" ||
+      requestRef.current ||
+      readingFile.current ||
+      isFetchingExa ||
+      !goal
+    )
       return;
     const controller = new AbortController();
     requestRef.current = controller;
@@ -315,10 +454,46 @@ export const NewTopicModal: React.FC<Props> = ({
         setScope(proposed.scope);
         setProposal(proposed);
       } else {
+        let activeExaSources = exaSources;
+        if (exaReady && autoGroundWithExa && activeExaSources.length === 0) {
+          updateStatus("Searching live documentation & sources with Exa…");
+          try {
+            const fetched = await searchExaReferences(
+              `${goal} ${destination}`.trim(),
+              { config: exaConfig, signal: controller.signal }
+            );
+            if (!mounted.current || controller.signal.aborted) return;
+            if (fetched.length > 0) {
+              activeExaSources = fetched;
+              setExaSources(fetched);
+            }
+          } catch (exaErr) {
+            if (controller.signal.aborted) return;
+            if (
+              exaErr instanceof ExaPluginError &&
+              (exaErr.status === 401 || exaErr.status === 403)
+            ) {
+              throw exaErr;
+            }
+            if (mounted.current) {
+              setNotice(
+                `Exa live grounding was unavailable (${
+                  exaErr instanceof Error ? exaErr.message : "network error"
+                }); preparing plan without web sources.`
+              );
+            }
+          }
+          updateStatus("Preparing the scope and outcomes…");
+        }
+
         const options = {
           topic: goal,
           interest: goal,
           signal: controller.signal,
+          references:
+            activeExaSources.length > 0
+              ? activeExaSources.map((s) => s.reference)
+              : undefined,
           referenceMaterial: referenceContent.trim()
             ? {
                 name: referenceName || "Reference notes",
@@ -488,14 +663,71 @@ export const NewTopicModal: React.FC<Props> = ({
               }}
               disabled={busy}
               maxLength={400}
-              required={!referenceContent.trim()}
+              required={!referenceContent.trim() && exaSources.length === 0}
               autoComplete="off"
               placeholder="What would you like to be able to do?"
             />
+            {exaReady ? (
+              <div
+                className={`exa-grounding-bar ${
+                  autoGroundWithExa || exaSources.length > 0 ? "is-active" : ""
+                }`}
+              >
+                <label className="exa-grounding-toggle">
+                  <input
+                    type="checkbox"
+                    checked={autoGroundWithExa || exaSources.length > 0}
+                    disabled={busy || exaSources.length > 0}
+                    onChange={(e) => setAutoGroundWithExa(e.target.checked)}
+                  />
+                  <Globe size={13} aria-hidden="true" />
+                  <span>
+                    {exaSources.length > 0
+                      ? `Grounded with ${exaSources.length} live Exa ${
+                          exaSources.length === 1 ? "source" : "sources"
+                        }`
+                      : "Ground with live Exa docs & papers"}
+                  </span>
+                </label>
+                {interest.trim() && (
+                  <button
+                    type="button"
+                    className="exa-mini-action"
+                    disabled={busy}
+                    onClick={() =>
+                      void handleFetchExaSources(
+                        `${interest} ${destination}`.trim()
+                      )
+                    }
+                  >
+                    {exaSources.length > 0
+                      ? "Fetch more sources"
+                      : "Preview sources"}
+                  </button>
+                )}
+              </div>
+            ) : (
+              onOpenPlugins && (
+                <div className="exa-grounding-promo">
+                  <span>
+                    <Blocks size={13} aria-hidden="true" /> Learning a
+                    fast-moving library, API, or paper?
+                  </span>
+                  <button
+                    type="button"
+                    className="exa-mini-action"
+                    disabled={busy}
+                    onClick={onOpenPlugins}
+                  >
+                    Connect Exa plugin
+                  </button>
+                </div>
+              )
+            )}
             {matchedPrior.length > 0 && (
               <details className="prior-ledger-pill">
                 <summary>
-                  <Sparkles size={13} aria-hidden="true" />
+                  <Compass size={13} aria-hidden="true" />
                   <span>
                     Prior knowledge recognized:{" "}
                     <strong>
@@ -742,7 +974,12 @@ export const NewTopicModal: React.FC<Props> = ({
               </section>
             )}
             <details
-              className="new-topic-reference"
+              ref={referenceDetailsRef}
+              className={`new-topic-reference ${
+                referenceContent.trim() || exaSources.length > 0
+                  ? "has-file"
+                  : ""
+              }`}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault();
@@ -751,10 +988,133 @@ export const NewTopicModal: React.FC<Props> = ({
               }}
             >
               <summary>
-                <FileText size={14} /> Teach from my own material{" "}
-                {referenceContent.trim() && <em>Attached</em>}
+                <FileText size={14} />{" "}
+                {exaReady
+                  ? "Teach from live docs, URLs, or my own material"
+                  : "Teach from my own material"}{" "}
+                {(exaSources.length > 0 || referenceContent.trim()) && (
+                  <em>
+                    {exaSources.length > 0 && referenceContent.trim()
+                      ? `${exaSources.length} Exa + 1 note`
+                      : exaSources.length > 0
+                      ? `${exaSources.length} Exa ${
+                          exaSources.length === 1 ? "source" : "sources"
+                        }`
+                      : "Attached"}
+                  </em>
+                )}
               </summary>
               <div className="new-topic-reference-body">
+                {exaReady && (
+                  <div className="exa-importer-box">
+                    <div className="exa-importer-row">
+                      <input
+                        type="text"
+                        aria-label="Search docs or paste URLs for Exa"
+                        value={exaQuery}
+                        disabled={busy}
+                        placeholder="Paste https:// URL(s) or search docs & papers with Exa…"
+                        onChange={(e) => setExaQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            if (exaQuery.trim() || interest.trim()) {
+                              void handleFetchExaSources();
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="check-coach-button"
+                        disabled={busy || (!exaQuery.trim() && !interest.trim())}
+                        onClick={() => void handleFetchExaSources()}
+                      >
+                        {isFetchingExa ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <Search size={13} />
+                        )}
+                        {parseDirectUrls(exaQuery).length > 0
+                          ? "Extract URL"
+                          : "Fetch with Exa"}
+                      </button>
+                    </div>
+                    <small className="exa-importer-hint">
+                      Paste 1–5 URLs to extract clean markdown via Exa{" "}
+                      <code>/contents</code>, or enter a topic to pull live
+                      documentation.
+                    </small>
+                  </div>
+                )}
+
+                {exaSources.length > 0 && (
+                  <div className="exa-source-list-wrap">
+                    <div className="exa-source-list-header">
+                      <span>
+                        Attached Exa sources ({exaSources.length})
+                      </span>
+                      <button
+                        type="button"
+                        className="exa-mini-action"
+                        disabled={busy}
+                        onClick={() => setExaSources([])}
+                      >
+                        Clear all
+                      </button>
+                    </div>
+                    <ul
+                      className="exa-source-list"
+                      aria-label="Attached Exa sources"
+                    >
+                      {exaSources.map((src) => (
+                        <li key={src.id} className="exa-source-card">
+                          <div className="exa-source-card-main">
+                            <div className="exa-source-card-title">
+                              <span className="exa-source-badge">Exa</span>
+                              <strong>{src.title}</strong>
+                              <span className="exa-source-domain">
+                                {src.domain}
+                              </span>
+                              {src.publishedDate && (
+                                <span className="exa-source-date">
+                                  {src.publishedDate}
+                                </span>
+                              )}
+                            </div>
+                            {src.snippet && <p>{src.snippet}</p>}
+                          </div>
+                          <div className="exa-source-card-actions">
+                            <a
+                              href={src.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="icon-button"
+                              aria-label={`Open ${src.title}`}
+                              title={src.url}
+                            >
+                              <ExternalLink size={13} />
+                            </a>
+                            <button
+                              type="button"
+                              className="icon-button"
+                              disabled={busy}
+                              aria-label={`Remove ${src.title}`}
+                              onClick={() =>
+                                setExaSources((prev) =>
+                                  prev.filter((item) => item.id !== src.id)
+                                )
+                              }
+                            >
+                              <X size={13} />
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 <input
                   ref={fileRef}
                   type="file"
@@ -768,15 +1128,17 @@ export const NewTopicModal: React.FC<Props> = ({
                     e.target.value = "";
                   }}
                 />
-                <button
-                  type="button"
-                  className="check-coach-button"
-                  disabled={busy}
-                  onClick={() => fileRef.current?.click()}
-                >
-                  <Upload size={13} /> Choose file
-                </button>
-                {referenceName && <small>{referenceName}</small>}
+                <div className="new-topic-file-row">
+                  <button
+                    type="button"
+                    className="check-coach-button"
+                    disabled={busy}
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    <Upload size={13} /> Choose local file
+                  </button>
+                  {referenceName && <small>{referenceName}</small>}
+                </div>
                 <textarea
                   rows={3}
                   aria-label="Reference notes"
@@ -814,6 +1176,8 @@ export const NewTopicModal: React.FC<Props> = ({
                   <strong>
                     {isReadingFile
                       ? "Reading your material"
+                      : isFetchingExa
+                      ? "Fetching live sources with Exa"
                       : task === "scoping"
                       ? "Finding the right scope"
                       : task === "probing"
@@ -825,6 +1189,8 @@ export const NewTopicModal: React.FC<Props> = ({
                   <p>
                     {isReadingFile
                       ? "Extracting the text before planning. Your material stays attached to this goal."
+                      : isFetchingExa
+                      ? "Pulling clean documentation excerpts and citations to ground your learning plan."
                       : status}
                   </p>
                   <small>You can cancel. Your goal stays saved.</small>
@@ -858,7 +1224,10 @@ export const NewTopicModal: React.FC<Props> = ({
                 className="dialog-primary-button"
                 type="submit"
                 disabled={
-                  busy || (!interest.trim() && !referenceContent.trim())
+                  busy ||
+                  (!interest.trim() &&
+                    !referenceContent.trim() &&
+                    exaSources.length === 0)
                 }
               >
                 {busy ? (

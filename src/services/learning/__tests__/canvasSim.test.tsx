@@ -8,11 +8,17 @@ import {
   CANVAS_MAX_HEIGHT,
   CANVAS_MIN_HEIGHT,
   INITIAL_CANVAS_BRIDGE_STATE,
-  parseCanvasFence,
   reduceCanvasBridgeState,
+  renderLatexInCanvasHtml,
   validateCanvasSim,
 } from "../canvasSim";
+import { detectCanvasVendors } from "../canvasVendors";
+import {
+  deriveSchematicFromLegacyItems,
+  validateConceptDiagram,
+} from "../conceptDiagram";
 import { extractVisualExample, validateVisualExample } from "../visuals";
+import { analyzeDiagramTopology } from "../../../components/learning/ConceptSchematicGraph";
 import { VisualExample } from "../../../components/learning/VisualExample";
 import { MarkdownView } from "../../../components/chat/MarkdownView";
 
@@ -292,5 +298,145 @@ describe("sandboxed interactive canvas simulation contract", () => {
     expect(exported).toContain(CANVAS_INNER_CSP);
     expect(exported).toContain("var TOKEN = null;");
     expect(exported).toContain("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;");
+    expect(exported).toContain("window.__forgeReportError");
+    expect(exported).not.toContain('"use strict";');
+  });
+
+  it("typesets inline and display KaTeX inside canvas HTML without corrupting attributes or scripts", () => {
+    const html = renderLatexInCanvasHtml(
+      '<div class="formula-bar" data-price="$10">Loss: $L(w) = \\alpha w^2$</div><script>const x = "$notMath$";</script>'
+    );
+    expect(html).toContain("katex");
+    expect(html).toContain('data-price="$10"');
+    expect(html).toContain('const x = "$notMath$";');
+  });
+
+  it("detects offline 3D Three.js, D3, Rough.js, and dynamic KaTeX vendor usage", () => {
+    expect(
+      detectCanvasVendors(
+        'const { THREE, scene } = window.setupForge3D("stage", 260);'
+      )
+    ).toEqual({ katex: false, rough: false, d3: false, three: true, any: true });
+
+    expect(
+      detectCanvasVendors(
+        'd3.select("svg"); rough.canvas(c); katex.render("x^2", el);'
+      )
+    ).toEqual({ katex: true, rough: true, d3: true, three: false, any: true });
+  });
+
+  it("validates kind='diagram' schematics and automatically upgrades legacy code 'parts' into syntax-highlighted blueprints", () => {
+    const diagramVisual = validateVisualExample({
+      kind: "diagram",
+      title: "Interface Contract vs Concrete Type",
+      summary:
+        "A concrete type satisfies `$\\text{Scorer}$` implicitly when its method set includes `Score() int`.",
+      diagram: {
+        direction: "LR",
+        nodes: [
+          {
+            id: "contract",
+            badge: "INTERFACE CONTRACT",
+            label: "Scorer",
+            formula: "\\tau \\models \\text{Scorer}",
+            code: "type Scorer interface { Score() int }",
+            detail: "Specifies required method signature `Score() int`.",
+            tone: "accent",
+          },
+          {
+            id: "guard",
+            badge: "CONCRETE STRUCT",
+            label: "Guard",
+            code: "type Guard struct { Points int }",
+            detail: "Provides field storage `Points int`.",
+            tone: "blue",
+          },
+        ],
+        edges: [{ from: "guard", to: "contract", label: "satisfies" }],
+      },
+      items: [
+        {
+          id: "i1",
+          label: "Contract role",
+          description: "Method set requirement `$\\operatorname{sig}(I)$`.",
+        },
+        {
+          id: "i2",
+          label: "Concrete struct",
+          description: "Implements `Score() int` without `implements` keyword.",
+        },
+      ],
+      takeaway: "Satisfaction is structural: `$\\text{Guard} \\models \\text{Scorer}$`.",
+    });
+
+    expect(diagramVisual).not.toBeNull();
+    expect(validateConceptDiagram(diagramVisual?.diagram)).not.toBeNull();
+
+    const html = renderToStaticMarkup(
+      <VisualExample
+        visual={diagramVisual!}
+        visualId="diag-1"
+        embedded
+        language="go"
+      />
+    );
+    expect(html).toContain("katex");
+    expect(html).toContain("visual-code-chip");
+    // Embedded mode omits the duplicate outer disclosure header
+    expect(html).not.toContain("visual-disclosure");
+
+    // Legacy 3-item Go interface "parts" automatically upgrades to CONTRACT / CONCRETE TYPE / IMPLEMENTATION edges
+    const upgraded = deriveSchematicFromLegacyItems("parts", [
+      {
+        id: "p1",
+        label: "type Scorer interface { Score() int }",
+        description: "The contract.",
+      },
+      {
+        id: "p2",
+        label: "type Guard struct { Points int }",
+        description: "The struct.",
+      },
+      {
+        id: "p3",
+        label: "func (g Guard) Score() int { return g.Points }",
+        description: "The method.",
+      },
+    ]);
+    expect(upgraded.direction).toBe("LR");
+    expect(upgraded.nodes[0].formula).toBeUndefined();
+    expect(upgraded.nodes.map((n) => n.badge)).toEqual([
+      "CONTRACT",
+      "CONCRETE TYPE",
+      "IMPLEMENTATION",
+    ]);
+    expect(upgraded.edges.map((e) => e.label)).toEqual([
+      "defines method",
+      "satisfies",
+    ]);
+
+    // Out-of-order 4-node Go diagram topologically sorts into 01 -> 02 -> 03 -> 04 serpentine chain
+    const fourNodeSpec = validateConceptDiagram({
+      direction: "LR",
+      nodes: [
+        { id: "contract", label: "Shooter Role", badge: "INTERFACE CONTRACT", detail: "Contract" },
+        { id: "guard", label: "Guard Value", badge: "CONCRETE TYPE", detail: "Struct" },
+        { id: "method", label: "Value Receiver", badge: "METHOD SET", detail: "Receiver" },
+        { id: "assign", label: "Implicit Binding", badge: "INTERFACE ASSIGNMENT", detail: "Assign" },
+      ],
+      edges: [
+        { from: "guard", to: "method", label: "binds receiver" },
+        { from: "method", to: "contract", label: "matches signature" },
+        { from: "contract", to: "assign", label: "validates T |= I" },
+      ],
+    })!;
+    const topo = analyzeDiagramTopology(fourNodeSpec);
+    expect(topo.isChain).toBe(true);
+    expect(topo.orderedNodes.map((n) => n.id)).toEqual([
+      "guard",
+      "method",
+      "contract",
+      "assign",
+    ]);
   });
 });

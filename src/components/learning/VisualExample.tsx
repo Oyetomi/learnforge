@@ -1,47 +1,95 @@
 import "./visual-example.css";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
-  ChevronLeft,
-  ChevronRight,
   Eye,
+  Layers,
+  RefreshCw,
   RotateCcw,
+  Square,
+  Volume2,
 } from "lucide-react";
 import type { VisualExample as VisualSpec } from "../../services/learning/visuals";
+import {
+  isSpeechOutputSupported,
+  speakNaturalText,
+  stopNaturalSpeech,
+} from "../../services/learning/speech";
+import { deriveSchematicFromLegacyItems } from "../../services/learning/conceptDiagram";
 import { StateWalkthrough } from "./StateWalkthrough";
 import { SlopeGraph } from "./SlopeGraph";
 import { ParameterExplorer } from "./ParameterExplorer";
 import { CanvasSandbox } from "./CanvasSandbox";
+import {
+  analyzeDiagramTopology,
+  ConceptSchematicGraph,
+} from "./ConceptSchematicGraph";
 import { TeachingSimulation, PhraseBuilder } from "./TeachingSimulation";
+import { VisualRichText } from "./VisualRichText";
 import { recordVisualSupport } from "../../services/learning/preferences";
+
 interface Props {
   visual: VisualSpec;
   visualId: string;
   supportCheckId?: string;
   defaultOpen?: boolean;
+  /** Omit duplicate outer disclosure bar when mounted inside `.session-inline-visual`. */
+  embedded?: boolean;
+  language?: string;
   onTryFreshCase?: () => void;
+  onRequestFreshVisual?: () => void;
   onRepairVisual?: (errorMessage: string) => void;
   isBusy?: boolean;
 }
-/** Owned declarative renderers plus zero-origin sandboxed canvas micro-simulations. */
+
+const KIND_EYEBROW: Record<VisualSpec["kind"], string> = {
+  canvas: "Immersive Simulation",
+  explorer: "Mathematical Curve Lab",
+  diagram: "Architecture Schematic",
+  "state-model": "Interactive State Model",
+  graph: "Coordinate Geometry",
+  "phrase-builder": "Phrase Studio",
+  simulation: "Interactive Model",
+  parts: "Interactive Blueprint",
+  comparison: "Contrast Schematic",
+  flow: "Process Blueprint",
+  steps: "Layered Walkthrough",
+};
+
+/** Owned declarative renderers, blueprint schematics, Mafs math plotters, and zero-origin 3D/2D sandboxes. */
 export function VisualExample({
   visual,
   visualId,
   supportCheckId,
   defaultOpen = true,
+  embedded = false,
+  language,
   onTryFreshCase,
+  onRequestFreshVisual,
   onRepairVisual,
   isBusy,
 }: Props) {
-  const [open, setOpen] = useState(defaultOpen),
-    [selected, setSelected] = useState(0);
+  const [open, setOpen] = useState(defaultOpen);
+  const [selected, setSelected] = useState(0);
   const [resetCount, setResetCount] = useState(0);
   const [forceTextOpen, setForceTextOpen] = useState(false);
+  const [narrating, setNarrating] = useState(false);
   const ref = useRef<HTMLElement>(null);
+
+  const speechAvailable = isSpeechOutputSupported();
+
   const markSupport = () => {
     if (supportCheckId) recordVisualSupport(supportCheckId, visualId);
   };
+
   useEffect(() => setOpen(defaultOpen), [defaultOpen]);
+
+  useEffect(() => {
+    return () => {
+      stopNaturalSpeech();
+    };
+  }, [visualId]);
+
   useEffect(() => {
     if (!open || !supportCheckId || !ref.current) return;
     if (typeof IntersectionObserver === "undefined") return;
@@ -57,33 +105,163 @@ export function VisualExample({
     observer.observe(ref.current);
     return () => observer.disconnect();
   }, [open, supportCheckId, visualId]);
-  const current = visual.items[Math.min(selected, visual.items.length - 1)];
+
+  const safeIndex = Math.min(selected, Math.max(0, visual.items.length - 1));
+  const current = visual.items[safeIndex];
+
+  const derivedSchematic = useMemo(() => {
+    if (visual.kind === "diagram" && visual.diagram) return visual.diagram;
+    if (
+      visual.kind === "parts" ||
+      visual.kind === "comparison" ||
+      visual.kind === "flow" ||
+      visual.kind === "steps"
+    ) {
+      return deriveSchematicFromLegacyItems(visual.kind, visual.items);
+    }
+    return null;
+  }, [visual]);
+
+  const orderedSchematicNodes = useMemo(
+    () =>
+      derivedSchematic ? analyzeDiagramTopology(derivedSchematic).orderedNodes : null,
+    [derivedSchematic]
+  );
+
+  const toggleNarration = () => {
+    if (!speechAvailable) return;
+    if (narrating) {
+      stopNaturalSpeech();
+      setNarrating(false);
+      return;
+    }
+    markSupport();
+    const activeNode =
+      orderedSchematicNodes?.[
+        Math.min(selected, Math.max(0, orderedSchematicNodes.length - 1))
+      ];
+    const layerSpeech = activeNode
+      ? `${activeNode.label}. ${activeNode.detail}`
+      : current
+      ? `${current.label}. ${current.description}`
+      : "";
+    const script = [
+      visual.title,
+      visual.summary,
+      layerSpeech,
+      `Key takeaway: ${visual.takeaway}`,
+    ]
+      .filter(Boolean)
+      .join(". ");
+
+    setNarrating(true);
+    void speakNaturalText(script, {
+      onEnd: () => setNarrating(false),
+      onError: () => setNarrating(false),
+    });
+  };
+
+  const showExplorationLayers =
+    (visual.kind === "canvas" || visual.kind === "explorer") &&
+    visual.items.length >= 2;
+
   return (
     <section
       ref={ref}
-      className={`visual-example visual-${visual.kind}`}
+      className={`visual-example visual-${visual.kind} ${
+        embedded ? "is-embedded" : ""
+      }`}
       aria-label={`Visual example: ${visual.title}`}
     >
-      <header>
-        <button
-          type="button"
-          className="visual-disclosure"
-          aria-expanded={open}
-          onClick={() => {
-            if (!open) markSupport();
-            setOpen((v) => !v);
-          }}
-        >
-          <Eye size={15} />
-          <span>{visual.title}</span>
-          <small>{open ? "Hide" : "Show"}</small>
-        </button>
-      </header>
-      {open && (
+      {!embedded && (
+        <header className="visual-masthead">
+          <button
+            type="button"
+            className="visual-disclosure"
+            aria-expanded={open}
+            onClick={() => {
+              if (!open) markSupport();
+              setOpen((v) => !v);
+            }}
+          >
+            <Eye size={15} />
+            <span className="visual-disclosure-copy">
+              <em className="visual-eyebrow">{KIND_EYEBROW[visual.kind]}</em>
+              <span>{visual.title}</span>
+            </span>
+            <small>{open ? "Hide" : "Show"}</small>
+          </button>
+          {open && (onRequestFreshVisual || speechAvailable) && (
+            <div className="visual-masthead-actions">
+              {onRequestFreshVisual && (
+                <button
+                  type="button"
+                  className="visual-masthead-sim-btn"
+                  disabled={isBusy}
+                  onClick={onRequestFreshVisual}
+                  title="Generate a fresh interactive simulation"
+                >
+                  <RefreshCw size={12} />
+                  <span>
+                    {visual.kind === "canvas" || visual.kind === "explorer"
+                      ? "Fresh scene"
+                      : "Live sim"}
+                  </span>
+                </button>
+              )}
+              {speechAvailable && (
+                <button
+                  type="button"
+                  className={`visual-narrate-btn ${
+                    narrating ? "is-active" : ""
+                  }`}
+                  aria-pressed={narrating}
+                  onClick={toggleNarration}
+                  title={
+                    narrating
+                      ? "Stop audio walkthrough"
+                      : "Listen to guided audio walkthrough"
+                  }
+                >
+                  {narrating ? <Square size={11} /> : <Volume2 size={13} />}
+                  <span>{narrating ? "Stop" : "Narrate"}</span>
+                </button>
+              )}
+            </div>
+          )}
+        </header>
+      )}
+      {(open || embedded) && (
         <div className="visual-example-body">
-          <p className="visual-summary">{visual.summary}</p>
+          <div className="visual-intro-row">
+            <p className="visual-summary">
+              <VisualRichText text={visual.summary} language={language} />
+            </p>
+            {embedded && speechAvailable && (
+              <button
+                type="button"
+                className={`visual-narrate-btn ${narrating ? "is-active" : ""}`}
+                aria-pressed={narrating}
+                onClick={toggleNarration}
+                title={
+                  narrating
+                    ? "Stop audio walkthrough"
+                    : "Listen to guided audio walkthrough"
+                }
+              >
+                {narrating ? <Square size={11} /> : <Volume2 size={13} />}
+                <span>{narrating ? "Stop" : "Narrate"}</span>
+              </button>
+            )}
+          </div>
+
           {visual.kind === "state-model" && visual.stateModel ? (
-            <StateWalkthrough model={visual.stateModel} onInteract={markSupport} notes={visual.items} takeaway={visual.takeaway}/>
+            <StateWalkthrough
+              model={visual.stateModel}
+              onInteract={markSupport}
+              notes={visual.items}
+              takeaway={visual.takeaway}
+            />
           ) : visual.kind === "canvas" && visual.canvas ? (
             <CanvasSandbox
               key={`${visualId}:${resetCount}`}
@@ -104,7 +282,13 @@ export function VisualExample({
               onInteract={markSupport}
             />
           ) : visual.kind === "graph" && visual.graph ? (
-            <SlopeGraph key={`${visualId}:${resetCount}`} graph={visual.graph} onInteract={markSupport} notes={visual.items} takeaway={visual.takeaway}/>
+            <SlopeGraph
+              key={`${visualId}:${resetCount}`}
+              graph={visual.graph}
+              onInteract={markSupport}
+              notes={visual.items}
+              takeaway={visual.takeaway}
+            />
           ) : visual.kind === "simulation" && visual.model ? (
             <TeachingSimulation
               key={resetCount}
@@ -117,71 +301,71 @@ export function VisualExample({
               visual={visual}
               onInteract={markSupport}
             />
-          ) : (
-            <>
-              <div
-                className="visual-items"
-                role="group"
-                aria-label={
-                  visual.kind === "parts"
-                    ? "Explore each part"
-                    : "Explore this example"
-                }
-              >
-                {visual.items.map((item, index) => (
-                  <React.Fragment key={item.id}>
-                    {index > 0 && visual.kind === "flow" && (
-                      <span className="visual-flow-arrow" aria-hidden="true">
-                        <ArrowRight size={18} />
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      aria-pressed={index === selected}
-                      onClick={() => {
-                        markSupport();
-                        setSelected(index);
-                      }}
-                      className="visual-item"
-                    >
-                      {(visual.kind === "steps" || visual.kind === "flow") && (
-                        <small>{index + 1}</small>
-                      )}
-                      <span>{item.label}</span>
-                    </button>
-                  </React.Fragment>
+          ) : derivedSchematic ? (
+            <ConceptSchematicGraph
+              spec={derivedSchematic}
+              selectedIndex={safeIndex}
+              onSelectIndex={(idx) => {
+                markSupport();
+                setSelected(idx);
+              }}
+              language={language}
+              showStepControls={
+                visual.kind === "steps" || visual.kind === "flow"
+              }
+            />
+          ) : null}
+
+          {showExplorationLayers && (
+            <div
+              className="visual-exploration-layers"
+              aria-label="Guided exploration layers"
+            >
+              <div className="visual-layers-header">
+                <Layers size={12} aria-hidden="true" />
+                <span>Guided Layers — tap to dig deeper</span>
+              </div>
+              <div className="visual-layer-pills" role="group">
+                {visual.items.map((item, idx) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-pressed={idx === safeIndex}
+                    className="visual-layer-pill"
+                    onClick={() => {
+                      markSupport();
+                      setSelected(idx);
+                    }}
+                  >
+                    <small>0{idx + 1}</small>
+                    <span>
+                      <VisualRichText text={item.label} language={language} />
+                    </span>
+                  </button>
                 ))}
               </div>
-              <div className="visual-caption" aria-live="polite">
-                <span className="visual-caption-label">{current.label}</span>
-                <p>{current.description}</p>
-              </div>
-              {(visual.kind === "steps" || visual.kind === "flow") && (
-                <div className="visual-step-controls">
-                  <button
-                    type="button"
-                    disabled={selected === 0}
-                    onClick={() => setSelected((i) => i - 1)}
-                    aria-label="Previous visual step"
-                  >
-                    <ChevronLeft size={15} />
-                  </button>
-                  <span>
-                    Step {selected + 1} of {visual.items.length}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={selected === visual.items.length - 1}
-                    onClick={() => setSelected((i) => i + 1)}
-                    aria-label="Next visual step"
-                  >
-                    <ChevronRight size={15} />
-                  </button>
+              {current && (
+                <div className="visual-layer-detail" aria-live="polite">
+                  <p>
+                    <VisualRichText
+                      text={current.description}
+                      language={language}
+                    />
+                  </p>
                 </div>
               )}
-            </>
+            </div>
           )}
-          {visual.kind !== "graph" && <p className="visual-takeaway">{visual.takeaway}</p>}
+
+          {visual.kind !== "graph" && (
+            <div className="visual-takeaway-card">
+              <span className="visual-takeaway-label">Key Takeaway</span>
+              <p className="visual-takeaway">
+                <VisualRichText text={visual.takeaway} language={language} />
+              </p>
+            </div>
+          )}
+
           <details
             className="visual-text-version"
             open={forceTextOpen || undefined}
@@ -190,24 +374,34 @@ export function VisualExample({
             <ol>
               {visual.items.map((item) => (
                 <li key={item.id}>
-                  <strong>{item.label}</strong> — {item.description}
+                  <strong>
+                    <VisualRichText text={item.label} language={language} />
+                  </strong>{" "}
+                  —{" "}
+                  <VisualRichText
+                    text={item.description}
+                    language={language}
+                  />
                 </li>
               ))}
             </ol>
           </details>
+
           <footer>
-            <button
-              type="button"
-              className="visual-reset"
-              onClick={() => {
-                setSelected(0);
-                setForceTextOpen(false);
-                setResetCount((n) => n + 1);
-              }}
-            >
-              <RotateCcw size={13} />
-              Start again
-            </button>
+            <div className="visual-footer-left">
+              <button
+                type="button"
+                className="visual-reset"
+                onClick={() => {
+                  setSelected(0);
+                  setForceTextOpen(false);
+                  setResetCount((n) => n + 1);
+                }}
+              >
+                <RotateCcw size={13} />
+                Start again
+              </button>
+            </div>
             {onTryFreshCase && visual.kind !== "graph" && (
               <button
                 type="button"
