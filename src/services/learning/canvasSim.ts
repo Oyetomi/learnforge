@@ -446,7 +446,14 @@ code {
   border-radius: 5px;
   background: rgba(255, 255, 255, 0.06);
   color: #ebd5bc;
+  overflow-wrap: anywhere;
 }
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+#forge-sim-root > * { min-width: 0; max-width: 100%; }
 .metric-grid, .readout, .forge-readout {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));

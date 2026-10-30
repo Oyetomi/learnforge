@@ -149,8 +149,13 @@ export function CanvasSandbox({
     ? "Sketched Interactive Studio"
     : "Interactive Studio";
 
-  const baseHeight = bridge.height ?? spec.height ?? CANVAS_DEFAULT_HEIGHT;
-  const frameHeight = expanded ? Math.max(baseHeight, 480) : baseHeight;
+  // Fit the frame to the reported content height so there is never dead space
+  // below the simulation. Compact mode caps tall scenes; Expand reveals all.
+  const COMPACT_CAP = 460;
+  const contentHeight = bridge.height ?? spec.height ?? CANVAS_DEFAULT_HEIGHT;
+  const canExpand = contentHeight > COMPACT_CAP;
+  const frameHeight =
+    expanded || !canExpand ? contentHeight : COMPACT_CAP;
   const waitingForVendors =
     typeof window !== "undefined" && vendorScripts === null;
 
@@ -162,43 +167,43 @@ export function CanvasSandbox({
       <div className="lab-toolbar canvas-sandbox-toolbar">
         <span className="canvas-sandbox-caption">
           <strong className="canvas-sandbox-badge">{engineBadge}</strong>
-          {spec.controlsHint && (
-            <span>
-              <VisualRichText text={spec.controlsHint} />
-            </span>
-          )}
         </span>
         <div className="canvas-sandbox-actions">
-          <button
-            type="button"
-            className="canvas-sandbox-btn"
-            onClick={() => setExpanded((v) => !v)}
-            title={expanded ? "Compact stage height" : "Expand stage height"}
-          >
-            {expanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-            <span>{expanded ? "Compact" : "Expand"}</span>
-          </button>
+          {canExpand && (
+            <button
+              type="button"
+              className="canvas-sandbox-btn"
+              onClick={() => setExpanded((v) => !v)}
+              aria-label={expanded ? "Show less" : "Show full simulation"}
+            >
+              {expanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+              <span className="lbl">{expanded ? "Less" : "Full"}</span>
+            </button>
+          )}
           <button
             type="button"
             className="canvas-sandbox-btn"
             onClick={handleReset}
-            title="Reset simulation to initial state"
+            aria-label="Restart simulation"
           >
             <RotateCcw size={12} />
-            <span>Reset</span>
+            <span className="lbl">Restart</span>
           </button>
           <button
             type="button"
-            className="canvas-sandbox-btn"
+            className="canvas-sandbox-btn is-icon"
             onClick={handleDownloadHtml}
             aria-label={`Save ${title} as standalone HTML`}
-            title="Save as standalone offline HTML file"
           >
             <Download size={12} />
-            <span>Save HTML</span>
           </button>
         </div>
       </div>
+      {spec.controlsHint && (
+        <p className="canvas-sandbox-hint">
+          <VisualRichText text={spec.controlsHint} />
+        </p>
+      )}
 
       {bridge.error && (
         <div className="canvas-sandbox-error" role="alert">
@@ -235,7 +240,7 @@ export function CanvasSandbox({
           key={`${runCount}:${vendorScripts?.length ?? 0}`}
           ref={iframeRef}
           className="canvas-sandbox-frame"
-          title={`Interactive simulation: ${title}`}
+          aria-label={`Interactive simulation: ${title}`}
           // Strictly allow-scripts ONLY (never allow-same-origin): opaque null
           // origin isolates storage, cookies, parent DOM, and Tauri IPC.
           sandbox="allow-scripts"

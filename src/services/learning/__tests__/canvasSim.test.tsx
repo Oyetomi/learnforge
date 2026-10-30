@@ -262,7 +262,7 @@ describe("sandboxed interactive canvas simulation contract", () => {
     // Guaranteed text equivalent remains present
     expect(markup).toContain("Read as text");
     expect(markup).toContain("180° phase offset (destructive)");
-    expect(markup).toContain("Save HTML");
+    expect(markup).toContain("as standalone HTML");
   });
 
   it("renders inline ```forge-canvas blocks in MarkdownView and hides incomplete streaming JSON gracefully", () => {
