@@ -59,10 +59,10 @@ export const CANVAS_MIN_HEIGHT = 180;
 export const CANVAS_MAX_HEIGHT = 1200;
 export const CANVAS_DEFAULT_HEIGHT = 340;
 
-const MAX_HTML_LEN = 20_000;
-const MAX_JS_LEN = 26_000;
-const MAX_CSS_LEN = 12_000;
-const MAX_TOTAL_LEN = 42_000;
+const MAX_HTML_LEN = 28_000;
+const MAX_JS_LEN = 48_000;
+const MAX_CSS_LEN = 16_000;
+const MAX_TOTAL_LEN = 64_000;
 
 /** Strict inner CSP injected as the very first tag in `<head>` of every srcDoc. */
 export const CANVAS_INNER_CSP =

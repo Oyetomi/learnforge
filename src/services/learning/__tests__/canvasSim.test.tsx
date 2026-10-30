@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -438,5 +440,35 @@ describe("sandboxed interactive canvas simulation contract", () => {
       "contract",
       "assign",
     ]);
+  });
+
+  it("prevents Tauri CSP sha256 asset-hash injection from blocking srcDoc simulation scripts in WKWebView", () => {
+    const tauriConfPath = path.resolve(
+      __dirname,
+      "../../../../src-tauri/tauri.conf.json"
+    );
+    const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, "utf8"));
+    const disabled =
+      tauriConf?.app?.security?.dangerousDisableAssetCspModification;
+    expect(
+      disabled === true ||
+        (Array.isArray(disabled) && disabled.includes("script-src"))
+    ).toBe(true);
+  });
+
+  it("recovers loose LLM forge-visual JSON with raw newlines, top-level canvas fields, or missing item ids", () => {
+    const looseMessage = [
+      "Here is a live memory simulation:",
+      "```forge-visual",
+      `{"title":"Loop Capture Lab","summary":"Observe shared vs copied worker slots.","html":"<canvas id=\\"stage\\" width=\\"580\\" height=\\"200\\"></canvas><button id=\\"step\\">Step</button>","js":"const { ctx, width, height } = window.setupForgeCanvas('stage', 200);
+ctx.fillRect(0, 0, width, height);","items":[{"label":"Shared slot","description":"All workers read one variable."}]}`,
+      "```",
+    ].join("\n");
+
+    const parsed = extractVisualExample(looseMessage);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.kind).toBe("canvas");
+    expect(parsed?.canvas?.js).toContain("setupForgeCanvas");
+    expect(parsed?.items.length).toBeGreaterThanOrEqual(2);
   });
 });

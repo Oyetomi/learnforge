@@ -32,9 +32,69 @@ export interface VisualExample {
 const clean = (v: unknown, max: number) =>
   typeof v === "string" && v.trim().length <= max ? v.trim() : "";
 
+const clampClean = (v: unknown, max: number) =>
+  typeof v === "string" ? v.trim().slice(0, max) : "";
+
+const RICH_INTERACTIVE_KINDS = new Set([
+  "canvas",
+  "diagram",
+  "explorer",
+  "state-model",
+]);
+
+function repairLooseJson(raw: string): string {
+  // Escape raw control newlines/tabs inside JSON double-quoted string literals
+  // and strip trailing commas before `}` or `]`.
+  let out = "";
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (inString) {
+      if (escaped) {
+        out += ch;
+        escaped = false;
+      } else if (ch === "\\") {
+        out += ch;
+        escaped = true;
+      } else if (ch === '"') {
+        out += ch;
+        inString = false;
+      } else if (ch === "\n") {
+        out += "\\n";
+      } else if (ch === "\r") {
+        // skip CR inside string literal
+      } else if (ch === "\t") {
+        out += "\\t";
+      } else {
+        out += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inString = true;
+      }
+      out += ch;
+    }
+  }
+  return out.replace(/,\s*([}\]])/g, "$1");
+}
+
 export function validateVisualExample(value: unknown): VisualExample | null {
   if (!value || typeof value !== "object") return null;
   const v = value as Record<string, unknown>;
+  const inferredKind =
+    v.kind !== undefined && v.kind !== null && String(v.kind).trim() !== ""
+      ? String(v.kind)
+      : v.canvas || (typeof v.html === "string" && typeof v.js === "string")
+      ? "canvas"
+      : v.diagram || Array.isArray(v.nodes)
+      ? "diagram"
+      : v.explorer || v.curve
+      ? "explorer"
+      : v.stateModel || (Array.isArray(v.entities) && Array.isArray(v.states))
+      ? "state-model"
+      : "";
+  const kindStr = inferredKind;
   if (
     ![
       "parts",
@@ -48,59 +108,105 @@ export function validateVisualExample(value: unknown): VisualExample | null {
       "explorer",
       "canvas",
       "diagram",
-    ].includes(String(v.kind))
+    ].includes(kindStr)
   )
     return null;
   if (
-    v.kind === "simulation" &&
+    kindStr === "simulation" &&
     !["go-channel", "http-response", "go-slice"].includes(String(v.model))
   )
     return null;
   const stateModel =
-    v.kind === "state-model" ? validateStateModel(v.stateModel) : null;
-  if (v.kind === "state-model" && !stateModel) return null;
-  const graph = v.kind === "graph" ? validateSlopeGraph(v.graph) : null;
-  if (v.kind === "graph" && !graph) return null;
+    kindStr === "state-model"
+      ? validateStateModel(v.stateModel ?? v)
+      : null;
+  if (kindStr === "state-model" && !stateModel) return null;
+  const graph = kindStr === "graph" ? validateSlopeGraph(v.graph ?? v) : null;
+  if (kindStr === "graph" && !graph) return null;
   const explorer =
-    v.kind === "explorer" ? validateParameterSim(v.explorer) : null;
-  if (v.kind === "explorer" && !explorer) return null;
-  const canvas = v.kind === "canvas" ? validateCanvasSim(v.canvas) : null;
-  if (v.kind === "canvas" && !canvas) return null;
+    kindStr === "explorer"
+      ? validateParameterSim(v.explorer ?? v)
+      : null;
+  if (kindStr === "explorer" && !explorer) return null;
+  const canvas =
+    kindStr === "canvas" ? validateCanvasSim(v.canvas ?? v) : null;
+  if (kindStr === "canvas" && !canvas) return null;
   const diagram =
-    v.kind === "diagram" ? validateConceptDiagram(v.diagram) : null;
-  if (v.kind === "diagram" && !diagram) return null;
+    kindStr === "diagram" ? validateConceptDiagram(v.diagram ?? v) : null;
+  if (kindStr === "diagram" && !diagram) return null;
 
-  const title = clean(v.title, 140),
-    summary = clean(v.summary, 600),
-    takeaway = clean(v.takeaway, 400);
-  if (
-    !title ||
-    !summary ||
-    !takeaway ||
-    !Array.isArray(v.items) ||
-    v.items.length < 2 ||
-    v.items.length > 6
-  )
-    return null;
-  const items = v.items.map((raw: unknown) => {
+  const isRich = RICH_INTERACTIVE_KINDS.has(kindStr);
+  const title = isRich
+    ? clampClean(v.title, 140) || "Interactive exploration"
+    : clean(v.title, 140);
+  const summary = isRich
+    ? clampClean(v.summary, 600) ||
+      "Interact with the controls below to explore how this mechanism behaves."
+    : clean(v.summary, 600);
+  const takeaway = isRich
+    ? clampClean(v.takeaway, 400) || summary.slice(0, 400)
+    : clean(v.takeaway, 400);
+
+  let rawItems = Array.isArray(v.items) ? v.items : [];
+  if (isRich && rawItems.length > 6) {
+    rawItems = rawItems.slice(0, 6);
+  }
+
+  let items = rawItems.map((raw: unknown, idx: number) => {
     const r = (raw && typeof raw === "object" ? raw : {}) as Record<
       string,
       unknown
     >;
     return {
-      id: clean(r.id, 48),
-      label: clean(r.label, 90),
-      description: clean(r.description, 500),
+      id: isRich
+        ? clampClean(r.id, 48) || `layer-${idx + 1}`
+        : clean(r.id, 48),
+      label: isRich ? clampClean(r.label, 90) : clean(r.label, 90),
+      description: isRich
+        ? clampClean(r.description, 500)
+        : clean(r.description, 500),
     };
   });
+
+  if (isRich) {
+    items = items.filter((i) => i.id && i.label && i.description);
+    if (items.length < 2) {
+      if (diagram && diagram.nodes.length >= 2) {
+        items = diagram.nodes.slice(0, 4).map((n, idx) => ({
+          id: `node-${n.id}-${idx}`,
+          label: n.label.slice(0, 90),
+          description: n.detail.slice(0, 500),
+        }));
+      } else {
+        items = [
+          items[0] || {
+            id: "layer-core",
+            label: "Core mechanism",
+            description: summary.slice(0, 500),
+          },
+          {
+            id: "layer-takeaway",
+            label: "Key principle",
+            description: takeaway.slice(0, 500),
+          },
+        ];
+      }
+    }
+  }
+
   if (
+    !title ||
+    !summary ||
+    !takeaway ||
+    items.length < 2 ||
+    items.length > 6 ||
     items.some((i) => !i.id || !i.label || !i.description) ||
     new Set(items.map((i) => i.id)).size !== items.length
   )
     return null;
   return {
-    kind: v.kind as VisualExample["kind"],
-    ...(v.kind === "simulation"
+    kind: kindStr as VisualExample["kind"],
+    ...(kindStr === "simulation"
       ? { model: v.model as VisualExample["model"] }
       : {}),
     ...(graph ? { graph } : {}),
@@ -117,14 +223,19 @@ export function validateVisualExample(value: unknown): VisualExample | null {
 
 export function extractVisualExample(content: string): VisualExample | null {
   const block =
-    /^[ \t]*```forge-visual[^\r\n]*\r?\n([\s\S]*?)^[ \t]*```[ \t]*$/im.exec(
+    /```(?:forge-visual|forge-canvas)[^\r\n]*\r?\n([\s\S]*?)```/i.exec(
       content
     );
-  if (!block) return null;
+  const candidate = block ? block[1].trim() : "";
+  if (!candidate) return null;
   try {
-    return validateVisualExample(JSON.parse(block[1]));
+    return validateVisualExample(JSON.parse(candidate));
   } catch {
-    return null;
+    try {
+      return validateVisualExample(JSON.parse(repairLooseJson(candidate)));
+    } catch {
+      return null;
+    }
   }
 }
 
