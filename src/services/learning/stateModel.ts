@@ -2,7 +2,9 @@
 export type StateTone = 'neutral' | 'active' | 'waiting' | 'done';
 export interface StateEntity { id: string; label: string }
 export interface EntitySnapshot { entityId: string; status: string; value: string; tone: StateTone }
-export interface ConceptState { id: string; label: string; description: string; entities: EntitySnapshot[] }
+export interface FigureRelation { id: string; from: string; to: string; label?: string; kind: 'value' | 'reference' | 'flow' }
+export interface ScientificPresentation { style: 'scientific'; layout: 'lanes' | 'comparison' }
+export interface ConceptState { id: string; label: string; description: string; entities: EntitySnapshot[]; relations?: FigureRelation[] }
 export interface ConceptTransition { id: string; from: string; to: string; label: string; explanation: string; sourceLines: number[] }
 export interface StateModel {
   version: 1;
@@ -11,6 +13,7 @@ export interface StateModel {
   states: ConceptState[];
   transitions: ConceptTransition[];
   source?: { language: string; code: string };
+  presentation?: ScientificPresentation;
 }
 const text = (value: unknown, max: number) => typeof value === 'string' && value.trim().length <= max ? value.trim() : '';
 const id = (value: unknown) => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,48}$/.test(value) ? value : '';
@@ -25,6 +28,12 @@ export function validateStateModel(input: unknown): StateModel | null {
     entities.push({ id: id(e.id), label: text(e.label, 48) });
   }
   if (!distinct(entities.map(e => e.id))) return null;
+  let presentation: ScientificPresentation | undefined;
+  if (v.presentation !== undefined) {
+    const p = record(v.presentation);
+    if (!p || p.style !== 'scientific' || !['lanes', 'comparison'].includes(String(p.layout))) return null;
+    presentation = { style: 'scientific', layout: p.layout as ScientificPresentation['layout'] };
+  }
   const states: ConceptState[] = [];
   for (const raw of v.states) {
     const s = record(raw);
@@ -36,7 +45,20 @@ export function validateStateModel(input: unknown): StateModel | null {
       snapshots.push({ entityId: String(e.entityId), status: text(e.status, 32), value: e.value, tone: e.tone as StateTone });
     }
     if (!distinct(snapshots.map(e => e.entityId))) return null;
-    states.push({ id: id(s.id), label: text(s.label, 100), description: text(s.description, 500), entities: snapshots });
+    let relations: FigureRelation[] | undefined;
+    if (s.relations !== undefined) {
+      if (!Array.isArray(s.relations) || s.relations.length > 12) return null;
+      relations = [];
+      for (const rawRelation of s.relations) {
+        const r = record(rawRelation);
+        if (!r || !id(r.id) || !entities.some(e => e.id === r.from) || !entities.some(e => e.id === r.to) || r.from === r.to || !['value', 'reference', 'flow'].includes(String(r.kind))) return null;
+        if (r.label !== undefined && (typeof r.label !== 'string' || r.label.length > 90)) return null;
+        const label = text(r.label, 90);
+        relations.push({ id: id(r.id), from: String(r.from), to: String(r.to), kind: r.kind as FigureRelation['kind'], ...(label ? { label } : {}) });
+      }
+      if (!distinct(relations.map(r => r.id))) return null;
+    }
+    states.push({ id: id(s.id), label: text(s.label, 100), description: text(s.description, 500), entities: snapshots, ...(relations ? { relations } : {}) });
   }
   if (!distinct(states.map(s => s.id)) || !states.some(s => s.id === v.initialStateId)) return null;
   let source: StateModel['source'];
@@ -58,7 +80,7 @@ export function validateStateModel(input: unknown): StateModel | null {
   const reachable = new Set([String(v.initialStateId)]);
   for (let i = 0; i < states.length; i++) for (const t of transitions) if (reachable.has(t.from)) reachable.add(t.to);
   if (reachable.size !== states.length) return null;
-  return { version: 1, initialStateId: String(v.initialStateId), entities, states, transitions, ...(source ? { source } : {}) };
+  return { version: 1, initialStateId: String(v.initialStateId), entities, states, transitions, ...(source ? { source } : {}), ...(presentation ? { presentation } : {}) };
 }
 export interface WalkthroughVisit { stateId: string; transitionId?: string }
 export interface WalkthroughHistory { visits: WalkthroughVisit[]; index: number }

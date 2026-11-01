@@ -38,7 +38,7 @@ import { approvedLessonIds } from "../../services/learning/adaptation";
 import {
   readLessonStep,
   saveLessonStep,
-  splitLessonIntoSlides,
+  splitLessonIntoActivities,
   writeLessonProgress,
 } from "../../services/learning/steps";
 import { MarkdownView } from "./MarkdownView";
@@ -75,6 +75,10 @@ import {
   STORAGE_STATUS_EVENT,
   type StorageStatusDetail,
 } from "../../services/db/storage";
+import { LearningHelpPanel } from "./LearningHelpPanel";
+import type { HelpKind } from "../../services/learning/sessionHelp";
+import { canRestorePosition, readSessionPosition, saveSessionPosition } from "../../services/learning/sessionPosition";
+import "./learning-help.css";
 import { estimatePromptTokens } from "../../services/ai/prompts";
 
 interface ChatPaneProps {
@@ -163,6 +167,13 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   allowCoding = true,
 }) => {
   const preferences = useLearningPreferences();
+  const positionKey = `${trackId}:${activeMilestone?.id || "none"}`;
+  const savedPosition = React.useMemo(() => readSessionPosition(positionKey), [positionKey]);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [narrowHelp, setNarrowHelp] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(savedPosition?.helpOpen || false);
+  const [helpKind, setHelpKind] = useState<HelpKind>(savedPosition?.helpKind || "walkthrough");
+  const helpOpener = useRef<HTMLElement | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<HTMLDialogElement>(null);
@@ -352,12 +363,12 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
     ? learningEvidence(messages, activeMilestone.id)
     : null;
   const lessonSteps = React.useMemo(
-    () => splitLessonIntoSlides(activeMilestone?.lesson),
+    () => splitLessonIntoActivities(activeMilestone?.lesson),
     [activeMilestone?.lesson]
   );
   const replySteps = React.useMemo(
     () =>
-      splitLessonIntoSlides(hideLearningCheckBlocks(lastReply?.content || "")),
+      splitLessonIntoActivities(hideLearningCheckBlocks(lastReply?.content || "")),
     [lastReply?.content]
   );
   const referenceFor = (check: LearningCheck) => {
@@ -383,7 +394,9 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
     messages.findIndex((m) => m.check_attempt?.checkId === latest?.id) >
       messages.findIndex((m) => m.id === lastReply?.id);
   const entryActivity = (): Activity =>
-    awaitingReview
+    canRestorePosition(savedPosition, { hasLesson: lessonSteps.length > 0, hasVisual: !!activeMilestone?.visual || relevant.some(message => !!message.visual_example), replyId: lastReply?.id, questionId: latest?.id })
+      ? savedPosition!.activity
+      : awaitingReview
       ? "check"
       : lastReply?.visual_example
       ? "visual"
@@ -396,9 +409,9 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
       : checkEntry();
   const [activity, setActivity] = useState<Activity>(entryActivity);
   const [stepIndex, setStepIndex] = useState(() =>
-    readLessonStep(activeMilestone?.id)
+    savedPosition?.stepIndex ?? readLessonStep(activeMilestone?.id)
   );
-  const [replyIndex, setReplyIndex] = useState(0);
+  const [replyIndex, setReplyIndex] = useState(savedPosition?.replyIndex || 0);
   const [overview, setOverview] = useState(preferences.pace === "overview");
   const latestVisualMessage = [...relevant]
     .reverse()
@@ -462,9 +475,34 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
         tutoringMatchesAttempt(m, reviewAttempt)
     );
   const held = !!heldCheck;
+  const helpCheck = activity === "check" ? reviewCheck : latest;
+  const helpAttempt = activity === "check" ? reviewAttempt : attempt;
+  const helpContextKey = `${positionKey}:${activity}:${activity === "reply" ? `${lastReply?.id || ""}:${replyStep}` : activity === "lesson" ? visibleStep : helpCheck?.id || ""}:${helpAttempt?.submittedAt || "pending"}`;
+  const [helpForKey, setHelpForKey] = useState(helpContextKey);
+  const shownHelp = helpOpen && helpForKey === helpContextKey;
+  const helpContext = activity === "reply" ? replySteps[replyStep] || lastReply?.content || ""
+    : activity === "lesson" ? lessonSteps[visibleStep] || activeMilestone?.lesson || ""
+    : `${helpCheck?.question || activeMilestone?.prompt || ""}\n${helpCheck?.context || ""}${helpAttempt ? `\nSubmitted answer: ${helpAttempt.response || helpCheck?.options.filter(option => helpAttempt.selectedIds.includes(option.id)).map(option => option.label).join("; ") || "I do not know"}\nReasoning: ${helpAttempt.thinking}\nCommitted feedback: ${helpCheck?.explanation || ""}` : ""}`;
+  const openHelp = (kind: HelpKind, _note?: string) => {
+    if (!shownHelp && typeof document !== "undefined") helpOpener.current = document.activeElement as HTMLElement;
+    setHelpForKey(helpContextKey); setHelpKind(kind); setHelpOpen(true);
+  };
+  const closeRequested = useRef(false);
+  const closeHelp = () => { closeRequested.current = true; setHelpOpen(false); };
   useEffect(() => {
-    setStepIndex(readLessonStep(activeMilestone?.id));
-    setReplyIndex(0);
+    if (!stageRef.current || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(entries => setNarrowHelp(entries[0].contentRect.width < 900));
+    observer.observe(stageRef.current); return () => observer.disconnect();
+  }, []);
+  useEffect(() => { scrollRef.current?.toggleAttribute("inert", shownHelp && narrowHelp); }, [shownHelp, narrowHelp]);
+  useEffect(() => { if (!shownHelp && closeRequested.current) { closeRequested.current = false; (helpOpener.current || composerRef.current?.querySelector<HTMLElement>(`[data-help-kind="${helpKind}"]`))?.focus({ preventScroll: true }); } }, [shownHelp]);
+
+  useEffect(() => {
+    setStepIndex(savedPosition?.stepIndex ?? readLessonStep(activeMilestone?.id));
+    setReplyIndex(savedPosition?.replyIndex || 0);
+    setHelpOpen(savedPosition?.helpOpen || false);
+    setHelpKind(savedPosition?.helpKind || "walkthrough");
+    setHelpForKey(helpContextKey);
     setOverview(preferences.pace === "overview");
     setLessonVisual(!lastReply?.visual_example);
     setInlineVisualOpen(false);
@@ -538,11 +576,19 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
         lessonSteps.length
       );
   }, [activeMilestone?.id, lessonSteps.length, visibleStep, overview]);
+  const lastPositionKey = useRef(positionKey);
+  const currentPosition = { activity, stepIndex, replyIndex, replyId: lastReply?.id, questionId: latest?.id, scrollTop: scrollRef.current?.scrollTop || 0, helpOpen: shownHelp, helpKind };
+  useEffect(() => {
+    if (lastPositionKey.current !== positionKey) { lastPositionKey.current = positionKey; return; }
+    saveSessionPosition(positionKey, { ...currentPosition, scrollTop: scrollRef.current?.scrollTop || 0 });
+  }, [positionKey, activity, stepIndex, replyIndex, lastReply?.id, latest?.id, shownHelp, helpKind]);
   const useReadingLayout =
     typeof window === "undefined" ? useEffect : useLayoutEffect;
   useReadingLayout(() => {
     // A focused activity always opens at its beginning; no conversation-length scroll.
-    scrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    const restored = readSessionPosition(positionKey);
+    const samePlace = restored?.activity === activity && restored.stepIndex === stepIndex && restored.replyIndex === replyIndex && (activity !== "reply" || restored.replyId === lastReply?.id) && (activity !== "check" || restored.questionId === reviewCheck?.id);
+    scrollRef.current?.scrollTo({ top: samePlace ? restored.scrollTop : 0, behavior: "auto" });
   }, [
     activity,
     stepIndex,
@@ -557,6 +603,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
       reviewAttempt ||
       busy ||
       !reviewCheck ||
+      shownHelp ||
       document.querySelector("dialog[open]")
     )
       return;
@@ -622,7 +669,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
             ? "overview"
             : `step ${visibleStep + 1} of ${Math.max(1, lessonSteps.length)}`
         }`
-      : `Coach · step ${replyStep + 1} of ${Math.max(1, replySteps.length)}`;
+      : `Explanation · part ${replyStep + 1} of ${Math.max(1, replySteps.length)}`;
   const slideCount =
     activity === "lesson"
       ? overview
@@ -755,7 +802,8 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
         activeMilestone={activeMilestone}
         messages={messages}
       />
-      <div className="session-flow" ref={scrollRef}>
+      <div className={`session-stage ${narrowHelp ? "is-narrow" : ""}`} ref={stageRef}>
+      <div className="session-flow" ref={scrollRef} onScroll={() => saveSessionPosition(positionKey, { ...currentPosition, scrollTop: scrollRef.current?.scrollTop || 0 })}>
         {(activity === "lesson" || activity === "reply" || !latest) && (
           <div className="lesson-heading">
             <div className="lesson-position">
@@ -845,29 +893,9 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                 <div className="session-inline-visual">
                   <div className="session-inline-visual-bar">
                     <span className="session-inline-visual-title">
-                      <em>Interactive Studio</em>
                       <strong>{availableVisual.title}</strong>
                     </span>
                     <div>
-                      <button
-                        type="button"
-                        className="is-accent-visual-btn"
-                        onClick={() =>
-                          onQuickAction?.(
-                            "visual",
-                            availableVisual.kind === "canvas" ||
-                              availableVisual.kind === "explorer"
-                              ? undefined
-                              : "__LIVE_SIM__"
-                          )
-                        }
-                        disabled={busy}
-                      >
-                        {availableVisual.kind === "canvas" ||
-                        availableVisual.kind === "explorer"
-                          ? "Fresh scene"
-                          : "Live sim"}
-                      </button>
                       <button
                         type="button"
                         onClick={() => setInlineVisualOpen(false)}
@@ -888,18 +916,12 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                     onRequestFreshVisual={
                       onQuickAction
                         ? () =>
-                            onQuickAction(
-                              "visual",
-                              availableVisual.kind === "canvas" ||
-                                availableVisual.kind === "explorer"
-                                ? undefined
-                                : "__LIVE_SIM__"
-                            )
+                            openHelp("visual")
                         : undefined
                     }
                     onRepairVisual={
                       onQuickAction
-                        ? (err) => onQuickAction("visual", err)
+                        ? (err) => openHelp("visual", err)
                         : undefined
                     }
                     isBusy={busy}
@@ -1033,29 +1055,9 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                 <div className="session-inline-visual">
                   <div className="session-inline-visual-bar">
                     <span className="session-inline-visual-title">
-                      <em>Interactive Studio</em>
                       <strong>{availableVisual.title}</strong>
                     </span>
                     <div>
-                      <button
-                        type="button"
-                        className="is-accent-visual-btn"
-                        onClick={() =>
-                          onQuickAction?.(
-                            "visual",
-                            availableVisual.kind === "canvas" ||
-                              availableVisual.kind === "explorer"
-                              ? undefined
-                              : "__LIVE_SIM__"
-                          )
-                        }
-                        disabled={busy}
-                      >
-                        {availableVisual.kind === "canvas" ||
-                        availableVisual.kind === "explorer"
-                          ? "Fresh scene"
-                          : "Live sim"}
-                      </button>
                       <button
                         type="button"
                         onClick={() => setInlineVisualOpen(false)}
@@ -1076,18 +1078,12 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                     onRequestFreshVisual={
                       onQuickAction
                         ? () =>
-                            onQuickAction(
-                              "visual",
-                              availableVisual.kind === "canvas" ||
-                                availableVisual.kind === "explorer"
-                                ? undefined
-                                : "__LIVE_SIM__"
-                            )
+                            openHelp("visual")
                         : undefined
                     }
                     onRepairVisual={
                       onQuickAction
-                        ? (err) => onQuickAction("visual", err)
+                        ? (err) => openHelp("visual", err)
                         : undefined
                     }
                     isBusy={busy}
@@ -1177,30 +1173,25 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                 onRequestFreshVisual={
                   onQuickAction
                     ? () =>
-                        onQuickAction(
-                          "visual",
-                          visual.kind === "canvas" || visual.kind === "explorer"
-                            ? undefined
-                            : "__LIVE_SIM__"
-                        )
+                        openHelp("visual")
                     : undefined
                 }
                 onRepairVisual={
                   onQuickAction
-                    ? (err) => onQuickAction("visual", err)
+                    ? (err) => openHelp("visual", err)
                     : undefined
                 }
                 isBusy={busy}
               />
-              <div className="activity-continue">
+              {attempt && <div className="activity-continue">
                 <button
                   className="dialog-primary-button"
                   onClick={continueFromTeaching}
                 >
-                  {attempt ? "Continue" : "Try the question"}
+                  Continue
                   <ArrowRight size={14} />
                 </button>
-              </div>
+              </div>}
             </div>
           )}
           {activity === "reply" && !busy && lastReply && (
@@ -1327,6 +1318,12 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
             </details>
           )}
       </div>
+      <LearningHelpPanel key={`${helpContextKey}:${helpKind}`} open={shownHelp} kind={helpKind} contextKey={helpContextKey} context={helpContext}
+        milestone={activeMilestone} check={helpCheck || null} answered={!!helpAttempt} existingVisual={activity === "lesson" || activity === "visual" ? availableVisual : undefined}
+        narrow={narrowHelp} onClose={closeHelp} onKind={openHelp} onSupport={() => {
+          if (helpCheck && !helpAttempt) recordVisualSupport(helpCheck.id, `help:${helpKind}:${helpContextKey}`);
+        }}/>
+      </div>
       {btwState && (
         <aside className="btw-popover" aria-label="Quick side question">
           <div className="btw-popover-header">
@@ -1393,7 +1390,8 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
             </button>
             <button
               disabled={busy}
-              onClick={() => onQuickAction?.("hint")}
+              data-help-kind="hint"
+              onClick={() => openHelp("hint")}
               title="Give me a hint"
             >
               <Lightbulb size={13} />
@@ -1401,43 +1399,22 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
             </button>
             <button
               disabled={busy}
-              aria-pressed={inlineVisualOpen || activity === "visual"}
-              onClick={() => {
-                if (activity === "visual") {
-                  continueFromTeaching();
-                } else if (
-                  availableVisual?.kind === "graph" ||
-                  availableVisual?.kind === "state-model"
-                ) {
-                  openVisualCompanion();
-                } else if (
-                  availableVisual &&
-                  (activity === "check" || activity === "lesson")
-                ) {
-                  setInlineVisualOpen((v) => !v);
-                } else {
-                  onQuickAction?.("visual");
-                }
-              }}
-              title={
-                availableVisual?.kind === "graph" ||
-                availableVisual?.kind === "state-model"
-                  ? "Explore the interactive visual in its own step"
-                  : availableVisual
-                  ? "Toggle inline visual companion alongside this step"
-                  : "Show me visually"
-              }
+              aria-pressed={shownHelp && helpKind === "visual"}
+              data-help-kind="visual"
+              onClick={() => openHelp("visual")}
+              title="Open a visual alongside this activity"
             >
               <Eye size={13} />
               <span>Visual</span>
             </button>
             <button
               disabled={busy}
-              onClick={() => onQuickAction?.("derivation")}
-              title="Show the steps"
+              data-help-kind="walkthrough"
+              onClick={() => openHelp("walkthrough")}
+              title="Open a walkthrough alongside this activity"
             >
               <ListTree size={13} />
-              <span>Steps</span>
+              <span>Walkthrough</span>
             </button>
           </div>
           <Composer

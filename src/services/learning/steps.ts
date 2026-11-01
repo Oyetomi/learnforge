@@ -9,8 +9,10 @@
  * - A step closes after `maxParas` prose paragraphs.
  */
 
+import { stripInternalSourceCitations } from "./grounding";
+
 const ATTACHED = /^(\$\$|```|~~~|[-*+]\s|\d+[.)]\s|>|\|)/;
-const HEADING = /^#{1,6}\s/;
+const HEADING = /^(?:#{1,6}\s|\*\*[^*\n]{2,120}\*\*:?(?:\n|$))/;
 
 function toBlocks(markdown: string): string[] {
   const blocks: string[] = [];
@@ -129,7 +131,14 @@ export function splitLessonIntoSlides(markdown: string | undefined): string[] {
   if (!markdown?.trim()) return [];
   const slides: string[] = [];
   let heading = "";
-  for (const block of toBlocks(markdown)) {
+  for (const rawBlock of toBlocks(markdown)) {
+    // Pagination must use visible content, just as MarkdownView does. A rule,
+    // comment or hidden citation cannot become a reading activity by itself.
+    const block = stripInternalSourceCitations(rawBlock);
+    if (!/^\s*(`{3,}|~{3,})/.test(block)) {
+      const visibleLines = block.replace(/<!--[\s\S]*?(?:-->|$)/g, "").split("\n");
+      if (!visibleLines.some(line => line.trim() && !/^ {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$/.test(line))) continue;
+    }
     if (HEADING.test(block) && !block.includes("\n\n")) {
       // A heading belongs with the next information unit, never a slide on its own.
       const lines = block.split("\n");
@@ -143,4 +152,10 @@ export function splitLessonIntoSlides(markdown: string | undefined): string[] {
   }
   if (heading) slides.push(heading);
   return slides;
+}
+
+/** A heading defines a learning idea; its prose, example and explanation stay together. */
+export function splitLessonIntoActivities(markdown: string | undefined): string[] {
+  const clean = splitLessonIntoSlides(markdown).join("\n\n");
+  return splitLessonIntoSteps(clean, Number.POSITIVE_INFINITY);
 }

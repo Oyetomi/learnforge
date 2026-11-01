@@ -16,10 +16,6 @@ const copyTargets = [
     dest: path.join(vendorDir, "katexSandbox.raw.js"),
   },
   {
-    src: path.join(rootDir, "node_modules", "katex", "dist", "katex.min.css"),
-    dest: path.join(vendorDir, "katexSandbox.raw.css"),
-  },
-  {
     src: path.join(rootDir, "node_modules", "roughjs", "bundled", "rough.js"),
     dest: path.join(vendorDir, "roughSandbox.raw.js"),
   },
@@ -41,6 +37,30 @@ for (const { src, dest } of copyTargets) {
   if (needsCopy) {
     fs.copyFileSync(src, dest);
   }
+}
+
+// The opaque sandbox cannot resolve KaTeX's relative fonts/ URLs. Keep every
+// supplied alphabet, weight and delimiter size, using WOFF2 data URLs allowed
+// by its font-src data: CSP. This also makes standalone exports fully offline.
+const katexDir = path.join(rootDir, "node_modules", "katex");
+const katexCss = fs.readFileSync(path.join(katexDir, "dist", "katex.min.css"), "utf8");
+const katexLicense = fs.readFileSync(path.join(katexDir, "LICENSE"), "utf8");
+const fontFaces = katexCss.match(/@font-face\s*\{[^}]*\}/g) || [];
+if (fontFaces.length === 0) throw new Error("KaTeX CSS has no bundled font faces");
+const offlineKatexCss = katexCss.replace(/@font-face\s*\{[^}]*\}/g, (fontFace) => {
+  const fontUrl = /url\(["']?([^\s)"']+\.woff2)["']?\)/.exec(fontFace)?.[1];
+  if (!fontUrl || !/^fonts\/KaTeX_[\w-]+\.woff2$/.test(fontUrl)) {
+    throw new Error("KaTeX font face does not contain an expected local WOFF2 asset");
+  }
+  const font = fs.readFileSync(path.join(katexDir, "dist", fontUrl));
+  return fontFace.replace(/src\s*:[^;}]*(;|(?=\}))/,
+    `src:url(data:font/woff2;base64,${font.toString("base64")}) format("woff2");`);
+});
+// Retain the upstream notice in the copied CSS and in every exported figure.
+const preparedKatexCss = `/*! KaTeX CSS and bundled fonts\n${katexLicense.replace(/\*\//g, "* /")}*/\n${offlineKatexCss}`;
+const katexCssDest = path.join(vendorDir, "katexSandbox.raw.css");
+if (force || !fs.existsSync(katexCssDest) || fs.readFileSync(katexCssDest, "utf8") !== preparedKatexCss) {
+  fs.writeFileSync(katexCssDest, preparedKatexCss);
 }
 
 const threeDest = path.join(vendorDir, "threeSandbox.raw.js");

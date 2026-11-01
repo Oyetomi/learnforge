@@ -1165,16 +1165,16 @@
 }
 
 .session-inline-visual {
-  border-radius: 14px !important;
-  border: 1px solid rgba(212, 176, 140, 0.32) !important;
-  background: linear-gradient(180deg, #161b23 0%, #11151b 100%) !important;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.32);
+  border-radius: 9px !important;
+  border: 1px solid #343b44 !important;
+  background: #15191e !important;
+  box-shadow: none;
 }
 
 .session-inline-visual-bar {
-  padding: 11px 18px !important;
-  background: rgba(24, 30, 39, 0.9) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+  padding: 10px 16px !important;
+  background: transparent !important;
+  border-bottom: 1px solid #2b323a !important;
 }
 
 .session-inline-visual-title {
@@ -1194,10 +1194,11 @@
 }
 
 .session-inline-visual-title strong {
-  font-size: 15.5px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  color: #f3ede4;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  color: #e1e6ec;
 }
 
 .session-inline-visual-bar button.is-accent-visual-btn {

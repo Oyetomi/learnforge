@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Download, Loader2, Maximize2, Minimize2, RotateCcw } from "lucide-react";
+import { AlertTriangle, Download, Loader2, MoreHorizontal, RotateCcw } from "lucide-react";
+import "./canvas-sandbox.css";
 import {
   buildCanvasSimSrcDoc,
   buildStandaloneCanvasHtml,
@@ -26,6 +27,8 @@ export interface CanvasSandboxProps {
   onInteract?: () => void;
   onRuntimeError?: (errorMessage: string) => void;
   onRepairVisual?: (errorMessage: string) => void;
+  /** Visual-level actions share the figure's single secondary-action menu. */
+  extraTools?: React.ReactNode;
 }
 
 const slugifyFilename = (title: string): string =>
@@ -47,10 +50,10 @@ export function CanvasSandbox({
   onInteract,
   onRuntimeError,
   onRepairVisual,
+  extraTools,
 }: CanvasSandboxProps) {
   const reactId = useId();
   const [runCount, setRunCount] = useState(0);
-  const [expanded, setExpanded] = useState(false);
   const [bridge, setBridge] = useState<CanvasBridgeState>(
     INITIAL_CANVAS_BRIDGE_STATE
   );
@@ -60,6 +63,8 @@ export function CanvasSandbox({
   );
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const toolsRef = useRef<HTMLDetailsElement | null>(null);
+  const frameRevision = useRef(0);
   const reportedInteract = useRef(false);
   const reportedError = useRef<string | null>(null);
 
@@ -83,8 +88,8 @@ export function CanvasSandbox({
   }, [spec.js, neededVendors.any]);
 
   const channelToken = useMemo(
-    () => `lf-${reactId.replace(/[^a-zA-Z0-9_-]/g, "")}-${runCount}`,
-    [reactId, runCount]
+    () => `lf-${reactId.replace(/[^a-zA-Z0-9_-]/g, "")}-${runCount}-${++frameRevision.current}`,
+    [reactId, runCount, spec]
   );
 
   const srcDoc = useMemo(
@@ -93,7 +98,11 @@ export function CanvasSandbox({
   );
 
   useEffect(() => {
+    reportedInteract.current = false;
+    reportedError.current = null;
+    setBridge(INITIAL_CANVAS_BRIDGE_STATE);
     const handleMessage = (event: MessageEvent) => {
+      if (event.source !== iframeRef.current?.contentWindow) return;
       if (!event.data || typeof event.data !== "object") return;
       setBridge((prev) => reduceCanvasBridgeState(prev, event.data, channelToken));
     };
@@ -122,6 +131,12 @@ export function CanvasSandbox({
     setRunCount((c) => c + 1);
   };
 
+  const closeTools = () => {
+    if (!toolsRef.current) return;
+    toolsRef.current.open = false;
+    toolsRef.current.querySelector("summary")?.focus();
+  };
+
   const handleDownloadHtml = () => {
     if (typeof document === "undefined" || typeof Blob === "undefined") return;
     const html = buildStandaloneCanvasHtml(
@@ -141,76 +156,70 @@ export function CanvasSandbox({
     setTimeout(() => URL.revokeObjectURL(url), 500);
   };
 
-  const engineBadge = neededVendors.three
-    ? "3D Interactive Scene"
-    : neededVendors.d3
-    ? "D3 Interactive Lab"
-    : neededVendors.rough
-    ? "Sketched Interactive Studio"
-    : "Interactive Studio";
-
-  // Fit the frame to the reported content height so there is never dead space
-  // below the simulation. Compact mode caps tall scenes; Expand reveals all.
-  const COMPACT_CAP = 460;
+  // The lesson owns scrolling. Fit every ordinary model, including its controls,
+  // rather than clipping the frame at an unrelated compact-view threshold.
   const contentHeight = bridge.height ?? spec.height ?? CANVAS_DEFAULT_HEIGHT;
-  const canExpand = contentHeight > COMPACT_CAP;
-  const frameHeight =
-    expanded || !canExpand ? contentHeight : COMPACT_CAP;
+  const frameHeight = contentHeight;
   const waitingForVendors =
     typeof window !== "undefined" && vendorScripts === null;
 
   const sandboxBody = (
     <div
-      className={`teaching-lab canvas-sandbox ${expanded ? "is-expanded" : ""}`}
+      className="teaching-lab canvas-sandbox is-auto-sized"
       aria-label={`Interactive simulation: ${title}`}
     >
       <div className="lab-toolbar canvas-sandbox-toolbar">
-        <span className="canvas-sandbox-caption">
-          <strong className="canvas-sandbox-badge">{engineBadge}</strong>
-        </span>
-        <div className="canvas-sandbox-actions">
-          {canExpand && (
+        {spec.controlsHint ? (
+          <p className="canvas-sandbox-hint">
+            <VisualRichText text={spec.controlsHint} />
+          </p>
+        ) : <span className="canvas-sandbox-caption">Explore the model</span>}
+        <details
+          ref={toolsRef}
+          className="canvas-sandbox-tools"
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && toolsRef.current?.open) {
+              event.preventDefault();
+              event.stopPropagation();
+              closeTools();
+            }
+          }}
+        >
+          <summary aria-label="More visual options">
+            <MoreHorizontal size={16} aria-hidden="true" />
+            <span>More options</span>
+          </summary>
+          <div
+            className="canvas-sandbox-tools-menu"
+            onClick={(event) => {
+              const button = (event.target as Element).closest("button") as HTMLButtonElement | null;
+              if (button && !button.disabled) closeTools();
+            }}
+          >
+            <button type="button" onClick={handleReset}>
+              <RotateCcw size={13} aria-hidden="true" />
+              Restart model
+            </button>
             <button
               type="button"
-              className="canvas-sandbox-btn"
-              onClick={() => setExpanded((v) => !v)}
-              aria-label={expanded ? "Show less" : "Show full simulation"}
+              disabled={waitingForVendors}
+              onClick={handleDownloadHtml}
+              aria-label={`Save ${title} as standalone HTML`}
             >
-              {expanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-              <span className="lbl">{expanded ? "Less" : "Full"}</span>
+              <Download size={13} aria-hidden="true" />
+              Save interactive HTML
             </button>
-          )}
-          <button
-            type="button"
-            className="canvas-sandbox-btn"
-            onClick={handleReset}
-            aria-label="Restart simulation"
-          >
-            <RotateCcw size={12} />
-            <span className="lbl">Restart</span>
-          </button>
-          <button
-            type="button"
-            className="canvas-sandbox-btn is-icon"
-            onClick={handleDownloadHtml}
-            aria-label={`Save ${title} as standalone HTML`}
-          >
-            <Download size={12} />
-          </button>
-        </div>
+            {extraTools && <div className="canvas-sandbox-extra-tools">{extraTools}</div>}
+          </div>
+        </details>
       </div>
-      {spec.controlsHint && (
-        <p className="canvas-sandbox-hint">
-          <VisualRichText text={spec.controlsHint} />
-        </p>
-      )}
 
       {bridge.error && (
         <div className="canvas-sandbox-error" role="alert">
           <AlertTriangle size={14} aria-hidden="true" />
           <div className="canvas-sandbox-error-copy">
-            <strong>This generated simulation hit a script error.</strong>
-            <code>{bridge.error}</code>
+            <strong>This model couldn’t run.</strong>
+            <details><summary>Technical details</summary><code>{bridge.error}</code></details>
           </div>
           {onRepairVisual && (
             <button
@@ -226,14 +235,21 @@ export function CanvasSandbox({
         </div>
       )}
 
-      {waitingForVendors ? (
+      {bridge.heightLimited && (
+        <p className="canvas-sandbox-size-notice" role="status">
+          This model needs more space. Scroll inside it to reach all controls,
+          or save it from More options to open separately.
+        </p>
+      )}
+
+      {bridge.error ? null : waitingForVendors ? (
         <div
           className="canvas-sandbox-loading"
           style={{ height: `${frameHeight}px` }}
           role="status"
         >
           <Loader2 size={16} className="animate-spin" />
-          <span>Loading {engineBadge.toLowerCase()} runtime…</span>
+          <span>Preparing the model…</span>
         </div>
       ) : (
         <iframe
@@ -245,7 +261,7 @@ export function CanvasSandbox({
           // origin isolates storage, cookies, parent DOM, and Tauri IPC.
           sandbox="allow-scripts"
           referrerPolicy="no-referrer"
-          scrolling="auto"
+          scrolling={bridge.heightLimited ? "auto" : "no"}
           srcDoc={srcDoc}
           style={{
             height: `${frameHeight}px`,

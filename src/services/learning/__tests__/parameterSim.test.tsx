@@ -91,7 +91,7 @@ describe("Declarative ParameterExplorer and safe math evaluator", () => {
     expect(html).toContain("0.04"); // (0.2)^2 = 0.04
     expect(html).toContain("parameter-plot-curve");
     expect(html).toContain("parameter-plot-marker");
-    expect(html).toContain("Read as text");
+    expect(html).toContain("How it works");
   });
 
   it("rejects broken explorer specs referencing undeclared variables or invalid bounds", () => {

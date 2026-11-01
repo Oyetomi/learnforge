@@ -88,7 +88,7 @@ Each activity teaches one small idea with a short concrete example and an intera
 
 VISUAL SUPPORT
 Learner presentation preferences: ${JSON.stringify(loadLearningPreferences())}.
-When visuals=auto, optionally add a visual object to a milestone ONLY when a genuine interactive illustration (kind="canvas" 3D/D3/Rough/2D simulation with $LaTeX$, kind="explorer" Mafs mathematical curve lab, kind="diagram" React Flow + Dagre node-edge blueprint schematic, kind="state-model", kind="graph", or spoken-language kind="phrase-builder") makes the concept tactile and crystal clear. NEVER attach static kind="parts" or kind="comparison" boxes of code lines. Use an analogous example different from the assessment. The object follows the schema below as a JSON field named visual, not a fenced block in lesson.
+When visuals=auto, optionally add a visual object to a milestone ONLY when a figure makes the current concept easier to understand. Prefer kind="state-model" with stateModel.presentation={"style":"scientific","layout":"lanes"} for discrete explanatory mechanisms: the app owns a restrained vector figure and typography, with actual state and relation changes. Use owned graph/explorer for quantitative curves, phrase-builder for word order, diagram for structural relationships, and custom canvas only when continuous behavior cannot be expressed by the owned formats. Never attach a decorative card dashboard or use code/LaTeX on a nontechnical subject just for appearance. Use an analogous example different from the assessment. The object follows the shared schema below as a JSON field named visual, not a fenced block in lesson.
 ${VISUAL_INSTRUCTIONS}
 ${MATH_INSTRUCTIONS}
 ${TABLE_INSTRUCTIONS}

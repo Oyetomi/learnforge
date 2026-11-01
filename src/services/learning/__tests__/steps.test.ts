@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { splitLessonIntoSteps } from "../steps";
+import { splitLessonIntoSteps, splitLessonIntoSlides } from "../steps";
+
+it("does not turn Markdown separators and invisible comments into empty reading steps", () => {
+  expect(splitLessonIntoSlides("First idea.\n\n---\n\n<!-- internal note -->\n\n***\n\n_ _ _\n\nNext idea.")).toEqual(["First idea.", "Next idea."]);
+  expect(splitLessonIntoSlides("## Next idea\n\n---\n\nExplain it here.")).toEqual(["## Next idea\n\nExplain it here."]);
+  expect(splitLessonIntoSlides("<!-- not rendered -->\n\n---")).toEqual([]);
+});
+
+it("preserves separators, blank lines and comments inside authored code and derivation fences", () => {
+  const fence = "```ladder\ninitial: waiting\n\n---\nrule: Move\nstate: arrived\n```";
+  expect(splitLessonIntoSlides(fence)).toEqual([fence]);
+  expect(splitLessonIntoSlides("```html\n<!-- visible source code -->\n```" )).toHaveLength(1);
+});
 
 describe("splitLessonIntoSteps", () => {
   it("returns no steps for empty lessons", () => {

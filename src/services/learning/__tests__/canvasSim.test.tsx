@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { runInNewContext } from "node:vm";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -23,6 +24,7 @@ import { extractVisualExample, validateVisualExample } from "../visuals";
 import { analyzeDiagramTopology } from "../../../components/learning/ConceptSchematicGraph";
 import { VisualExample } from "../../../components/learning/VisualExample";
 import { MarkdownView } from "../../../components/chat/MarkdownView";
+import { CanvasSandbox } from "../../../components/learning/CanvasSandbox";
 
 const waveCanvasVisual = {
   kind: "canvas" as const,
@@ -222,6 +224,7 @@ describe("sandboxed interactive canvas simulation contract", () => {
       token
     );
     expect(high.height).toBe(CANVAS_MAX_HEIGHT);
+    expect(high.heightLimited).toBe(true);
 
     // Valid interact + error transitions
     const interacted = reduceCanvasBridgeState(
@@ -244,6 +247,148 @@ describe("sandboxed interactive canvas simulation contract", () => {
     expect(errored.error).toBe("ReferenceError: boidVelocity is not defined");
   });
 
+  it("fits tall ordinary figures and shrinks after a state change without keeping a scroll trap", () => {
+    const resize = (state: typeof INITIAL_CANVAS_BRIDGE_STATE, height: number, token = "current") =>
+      reduceCanvasBridgeState(state, { source: "learnforge-canvas", token, type: "resize", height }, "current");
+    const tall = resize(INITIAL_CANVAS_BRIDGE_STATE, 760);
+    expect(tall.height).toBe(760);
+    expect(tall.heightLimited).toBe(false);
+    expect(resize(tall, 260)).toMatchObject({ height: 260, heightLimited: false });
+    expect(resize(tall, 999, "previous-run")).toBe(tall);
+    const limited = resize(tall, 4000);
+    expect(limited).toMatchObject({ height: CANVAS_MAX_HEIGHT, heightLimited: true });
+    expect(resize(limited, CANVAS_MAX_HEIGHT)).toMatchObject({ height: CANVAS_MAX_HEIGHT, heightLimited: false });
+    for (const invalid of [Number.NaN, Number.POSITIVE_INFINITY, -1, 0]) {
+      expect(resize(tall, invalid)).toBe(tall);
+    }
+  });
+
+  it("measures actual content rather than preserving the old iframe viewport height", () => {
+    let contentHeight = 760;
+    const sent: Array<{ type: string; height?: number }> = [];
+    const root = {
+      get scrollHeight() { return contentHeight; },
+      getBoundingClientRect: () => ({ height: contentHeight }),
+    };
+    const sandboxWindow: Record<string, any> = { addEventListener() {}, matchMedia: () => ({ matches: false }) };
+    const source = buildCanvasSimSrcDoc(waveCanvasVisual.canvas, "fit-test");
+    const bootstrap = /<script>([\s\S]*?)<\/script>/.exec(source)![1];
+    runInNewContext(bootstrap, {
+      window: sandboxWindow,
+      parent: { postMessage: (message: any) => sent.push(message) },
+      document: { getElementById: () => root, addEventListener() {} },
+    });
+    sandboxWindow.__forgeReportHeight();
+    contentHeight = 254;
+    sandboxWindow.__forgeReportHeight();
+    expect(sent).toMatchObject([
+      { type: "resize", height: 762 },
+      { type: "resize", height: 256 },
+    ]);
+  });
+
+  it("keeps authored canvas coordinates visible on narrow screens without inflating repeated setup", () => {
+    const attrs = new Map([['width', '580'], ['height', '240']]);
+    const ctx = { setTransform() {} };
+    const canvas: Record<string, any> = {
+      style: {}, clientWidth: 320,
+      getBoundingClientRect: () => ({ width: 320 }),
+      getAttribute: (name: string) => attrs.get(name) ?? null,
+      setAttribute: (name: string, value: string) => attrs.set(name, value),
+      getContext: () => ctx,
+    };
+    const sandboxWindow: Record<string, any> = { devicePixelRatio: 2, addEventListener() {}, matchMedia: () => ({ matches: false }) };
+    const bootstrap = /<script>([\s\S]*?)<\/script>/.exec(buildCanvasSimSrcDoc(waveCanvasVisual.canvas, "scale-test"))![1];
+    runInNewContext(bootstrap, {
+      window: sandboxWindow,
+      document: { getElementById: () => canvas, addEventListener() {} },
+    });
+    const first = sandboxWindow.setupForgeCanvas("stage", 240);
+    expect(first.width).toBe(580);
+    expect(canvas.style.height).toBe("auto");
+    expect(canvas.style.aspectRatio).toBe("580 / 240");
+    expect(canvas.width).toBe(1160);
+    const next = sandboxWindow.setupForgeCanvas("stage", 240);
+    expect(next.width).toBe(580);
+    expect(canvas.style.height).toBe("auto");
+    expect(canvas.style.aspectRatio).toBe("580 / 240");
+    // A later host resize preserves aspect without re-running model setup.
+    canvas.getBoundingClientRect = () => ({ width: 820 });
+    expect(canvas.style.aspectRatio).toBe("580 / 240");
+    expect(sandboxWindow.setupForgeCanvas("stage", 240).width).toBe(820);
+  });
+
+  it("initializes embedded figures once after host layout settles while exports still start immediately", () => {
+    let layoutWidth = 580;
+    const frames: Array<() => void> = [];
+    const spec = {
+      html: '<canvas id="stage" width="580" height="240"></canvas>',
+      js: 'const viewport = window.setupForgeCanvas("stage", 240); window.initializations = (window.initializations || 0) + 1; window.measuredWidth = viewport.width;',
+    };
+    const lastScript = (html: string) => [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)![1];
+    const sandboxWindow: Record<string, any> = { dispatchEvent() {}, setupForgeCanvas: () => ({ width: layoutWidth }) };
+    const environment = {
+      window: sandboxWindow,
+      document: { getElementById: () => ({ getBoundingClientRect: () => ({ width: layoutWidth }) }) },
+      requestAnimationFrame: (callback: () => void) => frames.push(callback),
+      Event: class {},
+    };
+    runInNewContext(lastScript(buildCanvasSimSrcDoc(spec, "layout-test")), environment);
+    expect(sandboxWindow.initializations).toBeUndefined();
+    layoutWidth = 874;
+    frames.shift()!();
+    expect(sandboxWindow.initializations).toBe(1);
+    expect(sandboxWindow.measuredWidth).toBe(874);
+    frames.splice(0).forEach((callback) => callback());
+    expect(sandboxWindow.initializations).toBe(1);
+
+    const exportWindow: Record<string, any> = { setupForgeCanvas: () => ({ width: layoutWidth }) };
+    runInNewContext(lastScript(buildStandaloneCanvasHtml("Saved model", spec)), { ...environment, window: exportWindow });
+    expect(exportWindow.initializations).toBe(1);
+    expect(exportWindow.measuredWidth).toBe(874);
+  });
+
+  it("keeps saved load and DOM-ready handlers registered before their event fires", () => {
+    const lastScript = (html: string) => [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)![1];
+    for (const registration of [
+      'document.addEventListener("DOMContentLoaded", initialize);',
+      'window.addEventListener("load", initialize);',
+      'window.onload = initialize;',
+    ]) {
+      const events = new Map<string, () => void>();
+      const sandboxWindow: Record<string, any> = {
+        dispatchEvent() {},
+        setupForgeCanvas: () => ({ width: 874 }),
+        addEventListener: (name: string, callback: () => void) => events.set(name, callback),
+      };
+      const spec = {
+        html: '<canvas id="stage" width="580" height="240"></canvas>',
+        js: 'function initialize() { window.setupForgeCanvas("stage", 240); window.initializations = (window.initializations || 0) + 1; } ' + registration,
+      };
+      runInNewContext(lastScript(buildCanvasSimSrcDoc(spec, "ready-test")), {
+        window: sandboxWindow,
+        document: { addEventListener: (name: string, callback: () => void) => events.set(name, callback) },
+        requestAnimationFrame() {},
+      });
+      // No animation-frame callback has run, but the listener is already ready.
+      const ready = events.get("DOMContentLoaded") || events.get("load") || sandboxWindow.onload;
+      expect(ready).toBeTypeOf("function");
+      expect(sandboxWindow.initializations).toBeUndefined();
+      ready();
+      expect(sandboxWindow.initializations).toBe(1);
+    }
+  });
+
+  it("renders a full-height ordinary frame with secondary tools instead of a compact clipping control", () => {
+    const markup = renderToStaticMarkup(<CanvasSandbox spec={{ ...waveCanvasVisual.canvas, height: 640 }} title="Wave model" />);
+    expect(markup).toContain('height:640px');
+    expect(markup).toContain('scrolling="no"');
+    expect(markup).toContain('aria-label="More visual options"');
+    expect(markup).toContain('Restart model');
+    expect(markup).not.toContain('Interactive Studio');
+    expect(markup).not.toContain('Show full simulation');
+  });
+
   it("renders zero-origin sandbox='allow-scripts' iframe (never allow-same-origin) with escaped text equivalent", () => {
     const validated = validateVisualExample({
       ...waveCanvasVisual,
@@ -260,7 +405,7 @@ describe("sandboxed interactive canvas simulation contract", () => {
     expect(markup).toContain("&lt;img src=x onerror=attack()&gt;");
     expect(markup).not.toContain("<img src=x");
     // Guaranteed text equivalent remains present
-    expect(markup).toContain("Read as text");
+    expect(markup).toContain("How it works");
     expect(markup).toContain("180° phase offset (destructive)");
     expect(markup).toContain("as standalone HTML");
   });

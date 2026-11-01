@@ -45,12 +45,15 @@ export interface ParsedCanvasFence {
 
 export interface CanvasBridgeState {
   height: number | null;
+  /** Unusually long generated content keeps an explicit scroll fallback. */
+  heightLimited: boolean;
   error: string | null;
   interacted: boolean;
 }
 
 export const INITIAL_CANVAS_BRIDGE_STATE: CanvasBridgeState = {
   height: null,
+  heightLimited: false,
   error: null,
   interacted: false,
 };
@@ -69,11 +72,11 @@ export const CANVAS_INNER_CSP =
   "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none';";
 
 /**
- * Strip external relative `@font-face` URLs from KaTeX CSS so zero font 404s
- * occur inside the opaque `null`-origin iframe while keeping complete KaTeX
- * fraction, radical, matrix, script, and serif typesetting rules intact.
+ * The preparation script embeds KaTeX's complete WOFF2 font set as data URLs.
+ * Preserve those faces: KaTeX layout metrics require its own math fonts, not
+ * system serif substitutes. No external requests or origin access are needed.
  */
-const SANDBOX_KATEX_CSS = katexCssRaw.replace(/@font-face\s*\{[^}]*\}/g, "");
+const SANDBOX_KATEX_CSS = katexCssRaw;
 
 const FORBIDDEN_MARKUP_RE =
   /<(?:script\b[^>]*\bsrc\s*=|iframe\b|object\b|embed\b|applet\b|meta\b[^>]*http-equiv|link\b[^>]*\bhref\s*=\s*["']?(?:https?:)?\/\/)/i;
@@ -297,10 +300,10 @@ const escapeClosingScript = (js: string): string =>
 
 const BASE_THEME_CSS = `
 :root {
-  --bg: #0d1015;
-  --surface: #151a21;
-  --surface-alt: #1b222c;
-  --border: #2c3542;
+  --bg: #14171b;
+  --surface: #1a1e24;
+  --surface-alt: #22272e;
+  --border: #363d47;
   --grid: #1e2530;
   --text: #eaeff6;
   --muted: #9ba8b8;
@@ -310,7 +313,7 @@ const BASE_THEME_CSS = `
   --coral: #e59888;
   --blue: #92b6df;
   --violet: #b8a5e3;
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
   --font-serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
   --font-code: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
   color-scheme: dark;
@@ -333,7 +336,7 @@ html, body {
   overflow-x: hidden;
 }
 #forge-sim-root {
-  padding: 14px 16px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -345,27 +348,22 @@ html, body {
   justify-content: space-between;
   gap: 10px 18px;
   padding: 10px 16px;
-  background: linear-gradient(180deg, rgba(28, 34, 44, 0.92) 0%, rgba(18, 22, 29, 0.95) 100%);
-  border: 1px solid rgba(212, 176, 140, 0.28);
-  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
   color: #f3ece2;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 .formula-bar .katex, .math-banner .katex {
   font-size: 1.08em;
   color: #f6efe6;
 }
-.katex {
-  font-family: "Times New Roman", "Iowan Old Style", Georgia, Cambria, serif;
-}
 canvas {
   display: block;
   width: 100%;
   max-width: 100%;
-  background: radial-gradient(120% 95% at 50% 0%, #161e29 0%, #0a0d12 78%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  background: var(--bg);
+  border: 0;
+  border-radius: 4px;
   touch-action: none;
 }
 svg {
@@ -373,19 +371,30 @@ svg {
   width: 100%;
   max-width: 100%;
   height: auto;
-  background: radial-gradient(120% 95% at 50% 0%, #161e29 0%, #0a0d12 78%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
+  background: var(--bg);
+  border: 0;
+  border-radius: 4px;
 }
 .controls, .forge-controls {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px 18px;
-  padding: 10px 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  gap: 8px 14px;
+  padding: 12px 0 0;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+}
+.controls :where(div, label), .forge-controls :where(div, label) {
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+.controls :where(button, select), .forge-controls :where(button, select) {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .pill-group {
   display: inline-flex;
@@ -416,9 +425,9 @@ button, select {
   color: var(--text);
   background: var(--surface-alt);
   border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 5px 13px;
-  min-height: 30px;
+  border-radius: 6px;
+  padding: 7px 12px;
+  min-height: 36px;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s, color 0.15s;
 }
@@ -426,11 +435,16 @@ button:hover, select:hover {
   border-color: var(--accent);
   color: #f7ebdc;
 }
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #171a1e;
+}
+button.primary:hover { background: var(--accent-strong); color: #171a1e; }
 button[aria-pressed="true"], button.active {
-  background: linear-gradient(180deg, #342b21 0%, #272018 100%);
+  background: #302a23;
   border-color: var(--accent);
   color: #f6e6d2;
-  box-shadow: 0 0 0 1px rgba(212, 176, 140, 0.2);
 }
 button:focus-visible,
 input:focus-visible,
@@ -493,10 +507,10 @@ function buildBootstrapScript(token: string | null): string {
     } catch (_e) {}
   };
   window.FORGE_THEME = Object.freeze({
-    bg: "#0b0e13",
-    surface: "#151a21",
-    surfaceAlt: "#1c232e",
-    border: "#2f3947",
+    bg: "#14171b",
+    surface: "#1a1e24",
+    surfaceAlt: "#22272e",
+    border: "#363d47",
     grid: "rgba(155, 168, 184, 0.07)",
     text: "#eaeff6",
     muted: "#9ba8b8",
@@ -513,10 +527,22 @@ function buildBootstrapScript(token: string | null): string {
     if (!canvas) throw new Error("Canvas element not found");
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
     var rect = canvas.getBoundingClientRect();
-    var rawW = rect.width || canvas.clientWidth || Number(canvas.getAttribute("width")) || 580;
-    var w = Math.max(240, Math.round(rawW < 40 ? (Number(canvas.getAttribute("width")) || 580) : rawW));
-    var h = Math.max(140, Math.round(cssHeight || Number(canvas.getAttribute("height")) || 250));
-    canvas.style.height = h + "px";
+    // Persisted figures sometimes use authored pixel coordinates. Keep their
+    // logical width on narrow screens and scale the presentation, rather than
+    // cutting off objects drawn beyond the current CSS viewport.
+    var storedWidth = canvas.getAttribute("data-forge-logical-width");
+    var authoredW = Math.max(0, Math.min(2400, Math.round(Number(storedWidth !== null ? storedWidth : canvas.getAttribute("width")) || 0)));
+    canvas.setAttribute("data-forge-logical-width", String(authoredW));
+    var rawW = rect.width || canvas.clientWidth || authoredW || 580;
+    var displayW = Math.max(1, Math.round(rawW < 40 ? (authoredW || 580) : rawW));
+    var w = Math.max(240, authoredW, displayW);
+    var storedHeight = canvas.getAttribute("data-forge-logical-height");
+    var h = Math.max(140, Math.min(1200, Math.round(cssHeight || Number(storedHeight !== null ? storedHeight : canvas.getAttribute("height")) || 250)));
+    canvas.setAttribute("data-forge-logical-height", String(h));
+    // Keep the bitmap's logical aspect ratio if the host frame settles to a
+    // different width after load, without resetting the learner's model state.
+    canvas.style.aspectRatio = w + " / " + h;
+    canvas.style.height = "auto";
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     var ctx = canvas.getContext("2d");
@@ -754,6 +780,10 @@ export function buildCanvasSimSrcDoc(
     .join("");
   const safeJs = escapeClosingScript(spec.js);
   const renderedHtml = renderLatexInCanvasHtml(spec.html);
+  // Saved models may register their own document/load lifecycle callback.
+  // Register those synchronously so deferral cannot cause a missed event.
+  const ownsReadyLifecycle = /\b(?:DOMContentLoaded|onload|onreadystatechange|readyState)\b|\baddEventListener\s*\(\s*["'`]load["'`]/.test(spec.js);
+  const deferGeometryInit = /\bsetupForge(?:Canvas|3D)\s*\(/.test(spec.js) && !ownsReadyLifecycle;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -767,6 +797,9 @@ export function buildCanvasSimSrcDoc(
 <div id="forge-sim-root">${renderedHtml}</div>
 <script>
 (function(){
+// Direct geometry-based models wait for host layout once. Models that register
+// their own ready/load callback keep synchronous registration for compatibility.
+var initialize = function() {
 try {
 ${safeJs}
 } catch (__forgeErr) {
@@ -779,6 +812,10 @@ if (typeof requestAnimationFrame === "function") {
     if (window.__forgeReportHeight) window.__forgeReportHeight();
   });
 }
+};
+${deferGeometryInit
+  ? 'if (typeof requestAnimationFrame === "function") requestAnimationFrame(initialize); else initialize();'
+  : 'initialize();'}
 })();
 </script>
 </body>
@@ -868,7 +905,10 @@ export function reduceCanvasBridgeState(
       Math.max(Math.round(msg.height), CANVAS_MIN_HEIGHT),
       CANVAS_MAX_HEIGHT
     );
-    return clamped === state.height ? state : { ...state, height: clamped };
+    const heightLimited = msg.height > CANVAS_MAX_HEIGHT;
+    return clamped === state.height && heightLimited === state.heightLimited
+      ? state
+      : { ...state, height: clamped, heightLimited };
   }
   if (msg.type === "interact") {
     return state.interacted ? state : { ...state, interacted: true };

@@ -3,8 +3,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { VisualExample as VisualCard } from "../../../components/learning/VisualExample";
 import { PhraseBuilder } from "../../../components/learning/TeachingSimulation";
+import { VisualRichText } from "../../../components/learning/VisualRichText";
 import {
   extractVisualExample,
+  hideCustomCanvasBlocks,
+  visualForScientificPresentation,
   validateVisualExample,
   type VisualExample,
 } from "../visuals";
@@ -48,6 +51,47 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 describe("visual teaching boundary", () => {
+  it("typesets numeric results and spaced math without interpreting currency ranges as equations", () => {
+    for (const text of ["$11$", "$2 x + 3$", "$\\frac{1}{2}$"])
+      expect(renderToStaticMarkup(<VisualRichText text={text} />)).toContain('class="katex"');
+    const currency = renderToStaticMarkup(<VisualRichText text="Between $10 and $20" />);
+    expect(currency).not.toContain('class="katex"');
+    expect(currency).toContain("Between $10 and $20");
+  });
+  it("rejects custom-runtime and legacy-card responses to an explicit typeset figure request", () => {
+    const model = { version: 1, presentation: { style: "scientific", layout: "lanes" }, initialStateId: "before", entities: [{ id: "item", label: "Item" }], states: [
+      { id: "before", label: "Before", description: "The item is waiting.", entities: [{ entityId: "item", status: "Waiting", value: "At source", tone: "waiting" }] },
+      { id: "after", label: "After", description: "The item has arrived.", entities: [{ entityId: "item", status: "Received", value: "At destination", tone: "done" }] },
+    ], transitions: [{ id: "move", from: "before", to: "after", label: "Move item", explanation: "The destination receives the item." }] };
+    const figure = validateVisualExample({ ...visual, kind: "state-model", stateModel: model });
+    expect(figure).not.toBeNull();
+    expect(visualForScientificPresentation(figure)).toBe(figure);
+    const frozen = validateVisualExample({ ...visual, kind: "state-model", stateModel: { ...model,
+      states: model.states.map(state => ({ ...state, entities: model.states[0].entities })) } });
+    expect(frozen).not.toBeNull();
+    expect(visualForScientificPresentation(frozen)).toBeNull();
+    const legacy = validateVisualExample({ ...visual, kind: "state-model", stateModel: { ...model, presentation: undefined } });
+    expect(legacy).not.toBeNull();
+    expect(visualForScientificPresentation(legacy)).toBeNull();
+    expect(visualForScientificPresentation(visual)).toBeNull();
+    expect(visualForScientificPresentation(validateVisualExample({ ...visual, kind: "canvas", canvas: { html: "<canvas></canvas>", js: "console.log('custom');" } }))).toBeNull();
+    expect(visualForScientificPresentation(null)).toBeNull();
+  });
+  it("keeps custom canvas responses out of a paper-figure turn, including while streaming", () => {
+    for (const language of ["forge-canvas", "canvas-sim"]) {
+      for (const fence of ["```", "````", "~~~", "~~~~"]) {
+        expect(hideCustomCanvasBlocks(`Before.\n${fence}${language}\n{}\n${fence}\nAfter.`)).toBe("Before.\nAfter.");
+        expect(hideCustomCanvasBlocks(`Before.\n${fence}${language}\n{`)).toBe("Before.");
+      }
+      for (const prefix of ["> ", "- ", "1. ", "- > ", "    "])
+        expect(hideCustomCanvasBlocks(`Before.\n${prefix}~~~${language}\n${prefix}{}\n${prefix}~~~\nAfter.`)).toBe("Before.\nAfter.");
+      for (const ending of ["", '\n{"html":"<button>Runtime</button>"', '\n{"html":"<button>Runtime</button>"}\n```'])
+        expect(hideCustomCanvasBlocks(`A short explanation.\n\`\`\`${language}${ending}`)).toBe("A short explanation.");
+      expect(hideCustomCanvasBlocks(`Before.\n\`\`\`${language}\n{}\n\`\`\`\nAfter.`)).toBe("Before.\nAfter.");
+    }
+    expect(hideCustomCanvasBlocks("```go\nfunc main() {}\n```" )).toContain("func main()");
+    expect(hideCustomCanvasBlocks("````text\n```forge-canvas\n{}\n```\n````")).toContain("```forge-canvas");
+  });
   it("validates the owned formats and preserves Yoruba diacritics", () => {
     for (const kind of ["parts", "comparison", "flow", "steps"])
       expect(validateVisualExample({ ...visual, kind })?.items[0].label).toBe(

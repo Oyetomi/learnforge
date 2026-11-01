@@ -17,6 +17,8 @@ import { ManageTopicsModal } from "./components/curriculum/ManageTopicsModal";
 import { SettingsModal } from "./components/settings/SettingsModal";
 import {
   extractVisualExample,
+  hideCustomCanvasBlocks,
+  visualForScientificPresentation,
   visualForSubject,
 } from "./services/learning/visuals";
 import { visualSupportFor } from "./services/learning/preferences";
@@ -500,6 +502,7 @@ export default function App() {
       internal?: boolean;
       adapt?: boolean;
       visual?: boolean;
+      scientificFigure?: boolean;
       teachOnly?: boolean;
       independent?: boolean;
       answerTutoringFor?: string;
@@ -606,7 +609,7 @@ export default function App() {
           onChunk: (chunk) => {
             if (controller.signal.aborted) return;
             accumulated += chunk;
-            setStreamingContent(accumulated);
+            setStreamingContent(options?.scientificFigure ? hideCustomCanvasBlocks(accumulated) : accumulated);
           },
           onComplete: (fullText) => {
             if (controller.signal.aborted) return;
@@ -617,12 +620,14 @@ export default function App() {
             const { challenge, conversationalText, hasChallenge } =
               extractCleanResponse(fullText);
 
-            const visual = options?.independent || options?.answerTutoringFor
+            const candidateVisual = options?.independent || options?.answerTutoringFor
               ? null
               : visualForSubject(
                   extractVisualExample(conversationalText),
                   currentSession.language
                 );
+            const visual = options?.scientificFigure
+              ? visualForScientificPresentation(candidateVisual) : candidateVisual;
             const review = options?.teachOnly
               ? null
               : extractAssessment(conversationalText);
@@ -649,7 +654,8 @@ export default function App() {
             const repair = repairProposal
               ? db.addRepairMilestone(activeMilestone!.id, repairProposal)
               : null;
-            const checkResult = extractLearningCheck(conversationalText);
+            const checkResult = extractLearningCheck(options?.scientificFigure
+              ? hideCustomCanvasBlocks(conversationalText) : conversationalText);
             const learningCheck: LearningCheck | undefined =
               checkResult.check && activeMilestone && !options?.teachOnly
                 ? {
@@ -677,7 +683,9 @@ export default function App() {
                   : checkResult.text +
                     reviewProblem +
                     (options?.visual && !visual
-                      ? "\n\nI couldn’t prepare the visual example. Try ‘Show me visually’ again, or ask for a plain-language explanation."
+                      ? options.scientificFigure
+                        ? "\n\nI couldn’t prepare the typeset figure. Please try again."
+                        : "\n\nI couldn’t prepare the visual example. Try ‘Show me visually’ again, or ask for a plain-language explanation."
                       : ""),
               visual_example: visual || undefined,
               visual_requested: options?.visual,
@@ -975,27 +983,32 @@ export default function App() {
     switch (action) {
       case "visual": {
         const forceLiveSim = contextNote === "__LIVE_SIM__";
-        const repairError =
-          contextNote && !forceLiveSim ? contextNote : undefined;
+        const repairError = contextNote && !forceLiveSim && contextNote !== "__PAPER_FIGURE__"
+          ? contextNote : undefined;
+        const previousVisual = [...messages].reverse().find(
+          (message) => message.visual_example && message.milestone_id === activeMilestone?.id
+        )?.visual_example ?? activeMilestone?.visual;
+        const redrawContext = previousVisual ? JSON.stringify({
+          title: previousVisual.title,
+          summary: previousVisual.summary,
+          notes: previousVisual.items,
+          takeaway: previousVisual.takeaway,
+        }) : undefined;
         handleSendMessage(
-          repairError
-            ? "Repair the visual example."
-            : forceLiveSim
-            ? "Show me an interactive live simulation."
-            : "Show me a visual example.",
+          repairError ? "Replace the broken visual with a clear figure."
+            : forceLiveSim ? "Show me an interactive simulation."
+            : previousVisual ? "Redraw this idea as a typeset figure."
+            : "Show me a clear teaching figure.",
           {
             visual: true,
+            scientificFigure: !forceLiveSim,
             teachOnly: true,
-            prompt: `${
-              repairError
-                ? `The previous generated canvas simulation threw this runtime error: "${repairError.slice(
-                    0,
-                    200
-                  )}". Replace it with a clean, self-contained, bug-free forge-visual that avoids that error. `
-                : forceLiveSim
-                ? `Upgrade the visual into a genuine LIVE INTERACTIVE SIMULATION: you MUST use kind="canvas" (or kind="explorer" for a 1D mathematical function) with tactile interactive controls (clickable toggles/buttons, sliders, or pointer-drag 3D/2D canvas) and live visual feedback — do NOT emit a static diagram. `
-                : ""
-            }Craft ONE clear, intuitive, Distill.pub-caliber interactive visual of the CURRENT concept using the forge-visual schema. NEVER emit static kind="parts" or kind="comparison" boxes of code lines. CRITICAL NOTATION RULE: Use plain, concrete human English, real domain terms, and intuitive visual metaphors (e.g. plug-and-socket method matching, animated memory pointers, live timelines); include $LaTeX$ math ONLY if the topic itself is genuinely mathematical, statistical, or physical — NEVER invent academic set-theory, formal logic, or turnstile symbols (like T |= I or sig(I) subseteq methods(T)) for programming or general topics! Prefer kind="canvas" (always call window.setupForgeCanvas("stage", 240) or window.setupForge3D("stage", 260) and draw immediately on load; you also have offline D3.js v7 via window.d3, Rough.js via window.rough, and window.FORGE_DRAW), kind="explorer" (Mafs Cartesian curve plotter for genuine 1D math functions), kind="diagram" (clean architectural schematic with badges and syntax-highlighted code), or kind="state-model". Ensure every canvas layout fits cleanly within 100% width with clear labels and zero overlapping text. Include 2–4 guided exploration layers in items so I can dig deeper layer-by-layer. Use an analogous case, never the answer to the pending check. Preserve my subject and goal. Do not replace the pending question, emit forge-check, or assess readiness. Introduce the visual in one concise sentence.`,
+            prompt: `${repairError
+              ? `The previous model failed with: ${JSON.stringify(repairError.slice(0, 200))}. Replace it using an app-owned scientific figure when possible. `
+              : ""}${forceLiveSim
+              ? 'Use a custom canvas only if the concept needs continuous simulation that the owned graph/explorer/state-model cannot express. Keep its controls functional, responsive and visually restrained. '
+              : 'Use kind="state-model" with stateModel.presentation={"style":"scientific","layout":"lanes"} (or "comparison" to compare the initial and current state). The app owns the SVG drawing, typography and controls. Do not generate HTML, CSS, canvas drawing code, decorative cards or a second application. Use 2–6 meaningful states and real branching actions when a contrasting choice clarifies the idea. Author state-specific relations using existing entity IDs so arrows and values change with the mechanism. For a genuinely quantitative curve, owned graph/explorer is also appropriate. '}
+            Preserve the current learner subject and level. Explain one mechanism using familiar labels and one concrete analogous example. Use backticks for real code tokens and $LaTeX$ only for genuine mathematical notation; do not dress ordinary programming or language concepts in invented formulas. Include a short caption describing what changes and why. These are illustrative authored states, not a recorded program execution or a guarantee of competence. Never reveal a pending check answer, emit forge-check, replace the question or assess readiness. ${redrawContext ? `Redraw the concept described by this saved visual; its wording may need simplification or correction: ${redrawContext}` : ""}`,
           }
         );
         break;

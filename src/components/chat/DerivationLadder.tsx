@@ -3,6 +3,7 @@ import { renderToString } from 'katex';
 import { MATH_RENDER_OPTIONS } from '../../services/learning/math';
 import 'katex/dist/katex.min.css';
 import { GuidedDerivation, mathSource } from '../learning/GuidedDerivation';
+import { PaperDerivation } from '../learning/PaperDerivation';
 
 export interface LadderStep {
   rule: string;
@@ -17,6 +18,7 @@ export interface DerivationLadderProps {
   initialState: string;
   steps: LadderStep[];
   result?: string;
+  positionKey?: string;
 }
 
 const highlightColors: Record<string, string> = {
@@ -74,13 +76,11 @@ export const DerivationLadder: React.FC<DerivationLadderProps> = ({
   initialState,
   steps,
   result,
+  positionKey,
 }) => mathSource(initialState) !== null && steps.some(step => mathSource(step.state) !== null) ? (
-  <GuidedDerivation key={JSON.stringify([initialState, steps, result])} title={title} initialState={initialState} steps={steps} result={result}/>
+  <GuidedDerivation key={JSON.stringify([initialState, steps, result, positionKey])} title={title} initialState={initialState} steps={steps} result={result} positionKey={positionKey}/>
 ) : (
-  <section
-    className="derivation-ladder visual-ladder"
-    aria-label={title || 'Step-by-step explanation'}
-  >
+  <PaperDerivation className="derivation-ladder visual-ladder" label={title || 'Step-by-step explanation'}>
     <h4>{title || 'Step-by-step explanation'}</h4>
     <div className="ladder-start">
       <span>Starting state</span>
@@ -136,7 +136,7 @@ export const DerivationLadder: React.FC<DerivationLadderProps> = ({
         {renderState(result)}
       </div>
     )}
-  </section>
+  </PaperDerivation>
 );
 
 export const GO_CHANNEL_LADDER: DerivationLadderProps = {

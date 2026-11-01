@@ -22,12 +22,14 @@ interface MarkdownViewProps {
   content: string;
   onApplyCode?: (code: string) => void;
   languageHint?: string;
+  derivationPositionKey?: string;
 }
 
 export const MarkdownView: React.FC<MarkdownViewProps> = ({
   content,
   onApplyCode,
   languageHint,
+  derivationPositionKey,
 }) => {
   const cleanContent = React.useMemo(
     () => stripInternalSourceCitations(content),
@@ -61,7 +63,11 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
             );
             if (language === "ladder" || language === "steps") {
               const ladder = parseLadderMarkdown(source);
-              if (ladder) return <DerivationLadder {...ladder} />;
+              if (ladder) {
+                let hash = 0;
+                for (const char of source) hash = (Math.imul(hash, 31) + char.charCodeAt(0)) | 0;
+                return <DerivationLadder {...ladder} positionKey={derivationPositionKey ? `${derivationPositionKey}:${hash}` : undefined} />;
+              }
             }
             if (language === "mermaid") {
               return <MermaidDiagram code={source} />;
