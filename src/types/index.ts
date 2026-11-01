@@ -154,7 +154,11 @@ export interface LearningCheckSpec {
 export interface LearningCheck extends LearningCheckSpec {
   id: string;
   milestoneId: string;
+  /** Set by the app's teaching policy, never trusted from generated JSON. */
+  practice?: LearningPractice;
 }
+
+export type LearningPractice = "guided" | "independent" | "transfer";
 
 export type ConfidenceLevel = "unsure" | "somewhat" | "confident";
 
@@ -179,6 +183,7 @@ export interface PlacementPlan {
 }
 
 export interface CheckAttempt {
+  practice?: LearningPractice;
   questionReview?: { identity: string; model: string; reviewedAt: number };
   response?: string;
   grading?: FreeResponseGrade;

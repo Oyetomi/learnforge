@@ -21,6 +21,20 @@ const milestone: Milestone = {
   created_at: 0,
 };
 describe("one guided session", () => {
+  it("keeps a guided cue with its question instead of inserting another reference slide", () => {
+    const html = renderToStaticMarkup(<ChatPane trackId="custom" activeMilestone={milestone} milestoneIndex={0} milestoneCount={1}
+      messages={[{ id: "guided", session_id: "s1", milestone_id: "m1", role: "assistant", content: "", created_at: 1,
+        learning_check: { id: "g", milestoneId: "m1", practice: "guided", question: "What is the remaining step?",
+          context: "Here is the first step and a small cue.", options: [{ id: "a", label: "First" }, { id: "b", label: "Second" }],
+          correctOptionIds: ["a"], multiple: false, explanation: "Private answer." } }]}
+      isRequestingCheck={false} isStreaming={false} isCodeWorkspaceOpen={false} onToggleCode={vi.fn()} onRequestCheck={vi.fn()}
+      onSubmitCheck={vi.fn()} onContinueCheck={vi.fn()} onSendMessage={vi.fn()} onStopStreaming={vi.fn()} onOpenEditor={vi.fn()} />);
+    expect(html).toContain("Guided practice");
+    expect(html).toContain("Here is the first step and a small cue");
+    expect(html).toContain("What is the remaining step?");
+    expect(html).not.toContain("Continue to question");
+    expect(html).not.toContain("Private answer");
+  });
   it("keeps questions, explanation access, and the composer in one surface without teaching mode tabs", () => {
     const request = vi.fn();
     const html = renderToStaticMarkup(
@@ -361,7 +375,8 @@ it("keeps short post-answer teaching in the answer panel rather than bypassing i
   expect(html).toContain("Review your answer");
   expect(html).toContain("Your answer");
   expect(html).toContain("passing a note directly");
-  expect(html).toContain("Practise with a fresh case");
+  expect(html).toContain("Try a new situation");
+  expect(html).toContain("different situation");
   expect(html).not.toContain("Preparing the next question");
 });
 

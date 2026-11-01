@@ -7,6 +7,7 @@ import type {
 import {
   extractLearningCheck,
   learningEvidence,
+  isIndependentAttempt,
   validateLearningCheck,
 } from './checks';
 import { roadmapEdges } from './roadmap';
@@ -58,10 +59,7 @@ export function acceptsReadiness(
     messages.flatMap((message) => {
       const a = message.check_attempt;
       return a?.milestoneId === milestoneId &&
-        a.correct &&
-        a.grading?.status !== 'uncertain' && !a.grading?.reviewRequested &&
-        !a.assisted &&
-        a.confidence !== 'unsure'
+        isIndependentAttempt(a, messages)
         ? [a.checkId]
         : [];
     })
@@ -70,7 +68,13 @@ export function acceptsReadiness(
     review.decision === 'ready' &&
     evidence.readyToAdvance &&
     new Set(review.evidenceCheckIds).size >= 2 &&
-    review.evidenceCheckIds.every((id) => eligible.has(id))
+    review.evidenceCheckIds.every((id) => eligible.has(id)) &&
+    (!evidence.requiresTransfer || messages.some(m => {
+      const a = m.check_attempt;
+      return a?.milestoneId === milestoneId && review.evidenceCheckIds.includes(a.checkId) &&
+        isIndependentAttempt(a, messages) && (a.practice === 'transfer' || messages.some(q =>
+          q.learning_check?.id === a.checkId && q.learning_check.milestoneId === milestoneId && q.learning_check.practice === 'transfer'));
+    }))
   );
 }
 export function approvedLessonIds(messages: ChatMessage[]): Set<string> {
@@ -121,8 +125,9 @@ export function extractRepair(
     .slice(-1)[0]?.check_attempt;
   if (
     !last ||
+    last.dontKnow || last.grading?.status === 'uncertain' || last.grading?.reviewRequested ||
     last.checkId !== value.triggerCheckId ||
-    (last.correct && last.confidence !== 'unsure') ||
+    last.correct || !(last.thinking.trim() || last.response?.trim()) ||
     current.adaptive ||
     milestones.some(m => m.adaptive && m.status !== 'completed') ||
     milestones.filter(m => m.adaptive && m.return_to_milestone_id === current.id).length >= 2 ||

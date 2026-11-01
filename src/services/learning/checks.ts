@@ -1,4 +1,4 @@
-import type { LearningCheck, LearningCheckSpec, Milestone } from "../../types";
+import type { ChatMessage, CheckAttempt, LearningCheck, LearningCheckSpec, Milestone } from "../../types";
 
 export function validateLearningCheck(
   value: unknown
@@ -307,12 +307,22 @@ export function starterLearningCheck(
     ...spec,
     id: `${milestone.id}:intro-check-v1`,
     milestoneId: milestone.id,
+    practice: milestone.adaptive ? "guided" : "independent",
   };
+}
+
+/** Guided tasks stay supported even if a caller omits the assisted flag. */
+export function isIndependentAttempt(attempt: CheckAttempt, messages: ChatMessage[] = []): boolean {
+  const question = messages.find(m => m.learning_check?.id === attempt.checkId &&
+    m.learning_check.milestoneId === attempt.milestoneId)?.learning_check;
+  return attempt.correct && !attempt.dontKnow && !attempt.assisted &&
+    !attempt.retriedOptionIds?.length && attempt.practice !== "guided" && question?.practice !== "guided" &&
+    attempt.confidence !== "unsure" && attempt.grading?.status !== "uncertain" && !attempt.grading?.reviewRequested;
 }
 
 /** Activity completion is not mastery. Require distinct, unassisted applications. */
 export function learningEvidence(
-  messages: import("../../types").ChatMessage[],
+  messages: ChatMessage[],
   milestoneId: string
 ) {
   const attempts = messages.flatMap((message) =>
@@ -323,16 +333,22 @@ export function learningEvidence(
   const distinct = [
     ...new Map(attempts.map((attempt) => [attempt.checkId, attempt])).values(),
   ];
-  const independent = distinct.filter(
-    (attempt) =>
-      attempt.correct && !attempt.assisted && attempt.confidence !== "unsure" &&
-      attempt.grading?.status !== "uncertain" && !attempt.grading?.reviewRequested
-  );
+  const independent = distinct.filter(attempt => isIndependentAttempt(attempt, messages));
+  const transfer = independent.filter(attempt => attempt.practice === "transfer" || messages.some(m =>
+    m.learning_check?.id === attempt.checkId && m.learning_check.milestoneId === milestoneId && m.learning_check.practice === "transfer"));
+  // Existing saved lessons keep their evidence contract. New typed practice also
+  // requires a changed-situation opportunity; the tutor must still review its substance.
+  const requiresTransfer = distinct.some(a => a.practice !== undefined) || messages.some(m =>
+    m.learning_check?.milestoneId === milestoneId && m.learning_check.practice !== undefined &&
+    distinct.some(a => a.checkId === m.learning_check?.id));
   return {
     attempts: distinct.length,
     independentCorrect: independent.length,
+    transferCorrect: transfer.length,
+    requiresTransfer,
     readyToAdvance:
       independent.length >= 2 &&
-      distinct[distinct.length - 1]?.correct === true,
+      !!distinct.length && isIndependentAttempt(distinct[distinct.length - 1], messages) &&
+      (!requiresTransfer || transfer.length > 0),
   };
 }

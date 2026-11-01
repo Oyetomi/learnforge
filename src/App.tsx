@@ -39,11 +39,13 @@ import {
   ExecutionResult,
   LearningCheck,
   CheckAttempt,
+  LearningPractice,
 } from "./types";
 import { db } from "./services/db";
 import { planAdaptiveRepair } from "./services/learning/planner";
 import { answerTutoring, answerTutoringPrompt, tutoringAttemptKey } from "./services/learning/tutoring";
 import { hasQuestionReview } from "./services/learning/questionReview";
+import { nextTeachingStep, teachingContinuationPrompt } from "./services/learning/teaching";
 import {
   acceptsReadiness,
   approvedLessonIds,
@@ -506,6 +508,7 @@ export default function App() {
       scientificFigure?: boolean;
       teachOnly?: boolean;
       independent?: boolean;
+      practice?: LearningPractice;
       answerTutoringFor?: string;
       tutoringAttemptKey?: string;
       /** Instruction sent to the AI for this turn instead of the visible text. */
@@ -665,6 +668,7 @@ export default function App() {
                       .toString(36)
                       .slice(2, 7)}`,
                     milestoneId: activeMilestone.id,
+                    practice: options?.practice ?? nextTeachingStep(updatedMessages, activeMilestone.id).practice,
                   }
                 : undefined;
             const reviewProblem =
@@ -823,6 +827,7 @@ export default function App() {
     );
     const visualSupportIds = visualSupportFor(check.id);
     const assisted =
+      check.practice === "guided" ||
       Boolean(attempt.assisted) ||
       Boolean(attempt.retriedOptionIds?.length) ||
       visualSupportIds.length > 0 ||
@@ -837,6 +842,7 @@ export default function App() {
         );
     const result = {
       ...attempt,
+      practice: check.practice,
       assisted,
       visualSupportIds,
       correct: check.kind === "free-response"
@@ -894,7 +900,7 @@ export default function App() {
       startAnswerTutoring(check, result, messages);
       return;
     }
-    startFollowUp(check, result, messages);
+    startFollowUp(check, messages);
   };
 
   const startAnswerTutoring = (check: LearningCheck, result: CheckAttempt, history: ChatMessage[]) => {
@@ -907,26 +913,17 @@ export default function App() {
 
   const startFollowUp = (
     check: LearningCheck,
-    result: CheckAttempt,
     history: ChatMessage[]
   ) => {
-    const evidence = learningEvidence(history, check.milestoneId);
-    const direction = result.grading?.status === "uncertain"
-      ? "The written-answer judgment is unresolved or was disputed. Do not treat it as evidence of a misconception or readiness. Ask one fresh, smaller applied check to establish the distinction fairly, using the learner’s concern if given. Do not add prerequisites based on this disputed grade."
-      : evidence.readyToAdvance
-      ? "There are two or more independent correct applications. Assess the learner’s reasoning, confidence, prior mistakes, and transfer. Emit a forge-assessment JSON block with decision ready or practice, a specific rationale, and the actual evidenceCheckIds. A correct choice count is not sufficient by itself. If ready, recap briefly without asking another check. If practice, state the gap and ask one targeted check. Never declare mastery."
-      : result.dontKnow || !result.correct
-      ? "Repair the specific gap shown by this answer. The question card already displays the committed explanation; do not repeat it verbatim. Use the learner’s reasoning if supplied; otherwise do not invent a misconception. Reduce the step size: teach ONE distinction in a plain-language sentence, show ONE tiny concrete example, define unfamiliar terms, then stop for an easier prediction. Avoid advanced internals or a longer lecture. A ladder is optional only if it makes this small example easier to follow. If the mistake exposes a genuinely missing prerequisite, use forge-repair to add that prerequisite to the roadmap with its own short lesson and check, grounded in the latest failed check id. Otherwise repair in place and ask ONE simpler, fresh applied question in a forge-check JSON block. Do not repeat the same question."
-      : result.assisted || result.confidence === "unsure"
-      ? "Acknowledge the correct answer without claiming mastery. Ask ONE different application of this idea in a forge-check JSON block to verify independent understanding without the same scaffolding."
-      : "Acknowledge the correct reasoning briefly. Ask ONE different application of this idea in a forge-check JSON block, slightly extending the situation. Do not mark the lesson mastered after one selection.";
+    const plan = nextTeachingStep(history, check.milestoneId);
     void handleSendMessage(
-      `The learner has reviewed the post-answer teaching and explicitly chosen to practise again. ${direction} Do not repeat the worked explanation they just read. Keep pre-question prose concise, and keep answer keys and explanations inside the question block until submission.`,
+      teachingContinuationPrompt(plan),
       {
         history,
         internal: true,
-        adapt: result.grading?.status !== "uncertain" && (!result.correct || result.confidence === "unsure"),
-        independent: result.correct,
+        adapt: plan.allowRepair,
+        independent: plan.practice !== "guided",
+        practice: plan.practice,
       }
     );
   };
@@ -937,12 +934,15 @@ export default function App() {
     setIsRequestingCheck(true);
     setMobilePane("lesson");
     try {
+      const plan = nextTeachingStep(messages, activeMilestone.id);
+      const practice: LearningPractice = learningEvidence(messages, activeMilestone.id).independentCorrect > 0
+        ? "transfer" : "independent";
       await handleSendMessage(
-        learningEvidence(messages, activeMilestone.id).readyToAdvance &&
+        plan.stage === "review" &&
           !approvedLessonIds(messages).has(activeMilestone.id)
-          ? "Assess readiness from the recorded attempts and reasoning. Emit forge-assessment with actual evidenceCheckIds and a specific rationale. If not ready, ask one targeted application; do not approve based solely on answer count."
-          : "Ask ONE fresh applied choice or free-response knowledge check for the current lesson using a forge-check JSON block. Use a different case from the previous examples and questions. For a choice check, use plausible, even-length options with stable ids. For free-response, commit an expected answer and 1–5 concrete rubric criteria. Commit the answer and explanation, and keep both hidden until I submit. Do not teach the solution first or emit forge-visual; this is a chance to try without scaffolding.",
-        { internal: true, independent: true }
+          ? plan.instruction
+          : `Ask ONE fresh applied choice or free-response knowledge check for the current lesson using a forge-check JSON block. ${practice === "transfer" ? "Change a relevant condition or context while testing the same principle; do not merely rename the previous case or change its numbers." : "Use a different case from the previous examples and questions at the current conceptual difficulty."} For a choice check, use plausible, even-length options with stable ids. For free-response, commit an expected answer and 1–5 concrete rubric criteria. Commit the answer and explanation, and keep both hidden until I submit. Do not teach the solution first or emit forge-visual; this is a chance to try without scaffolding.`,
+        { internal: true, independent: true, practice }
       );
     } finally {
       if (requestId === checkRequestId.current) setIsRequestingCheck(false);

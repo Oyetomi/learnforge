@@ -5,6 +5,7 @@ import type { CheckAttempt, FreeResponseGrade } from "../../types";
 import { gradeFreeResponse } from "../../services/learning/freeResponse";
 import { MarkdownView } from "../chat/MarkdownView";
 import { VoiceDictationButton } from "./VoiceDictationButton";
+import { practiceLabel } from "../../services/learning/teaching";
 
 export const FreeResponseCard: React.FC<QuestionCardProps> = ({
   check,
@@ -144,7 +145,7 @@ export const FreeResponseCard: React.FC<QuestionCardProps> = ({
         <span>Explain it in your own words</span>
         {!attempt && (
           <span className="check-mode-pill">
-            {assistedSoFar ? "Supported practice" : "Written response"}
+            {check.practice || assistedSoFar ? practiceLabel(check.practice, assistedSoFar) : "Written response"}
           </span>
         )}
       </div>

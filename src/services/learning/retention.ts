@@ -18,7 +18,7 @@ export function retentionRating(check: LearningCheck, attempt: CheckAttempt): FS
   const correct = check.kind === "free-response" ? !!attempt.response?.trim() && isAcceptedFreeResponseGrade(check, attempt.grading)
     : gradeLearningCheck(check, attempt.selectedIds, attempt.dontKnow);
   if (attempt.dontKnow || !correct) return 1;
-  return attempt.assisted || attempt.confidence === "unsure" ? 2 : 3;
+  return check.practice === "guided" || attempt.practice === "guided" || attempt.assisted || attempt.confidence === "unsure" ? 2 : 3;
 }
 
 export async function createRetentionCheck(card: SRSCard, milestone: Milestone, signal: AbortSignal, repair = false): Promise<LearningCheck> {
@@ -31,5 +31,5 @@ export async function createRetentionCheck(card: SRSCard, milestone: Milestone, 
   let check = null;
   try { check = validateLearningCheck(JSON.parse(String(envelope?.choices?.[0]?.message?.content || "").replace(/^```(?:json)?\s*|\s*```$/g, ""))); } catch {}
   if (!check || check.question.trim() === card.prompt.trim()) throw new Error("A fresh revisit wasn’t ready. Try again or return to your lesson.");
-  return { ...check, id: `revisit-${card.id}-${Date.now()}`, milestoneId: milestone.id };
+  return { ...check, id: `revisit-${card.id}-${Date.now()}`, milestoneId: milestone.id, practice: repair ? "guided" : "transfer" };
 }

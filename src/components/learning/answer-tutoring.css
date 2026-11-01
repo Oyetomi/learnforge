@@ -31,6 +31,7 @@
 .answer-tutoring-status { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: #a1aab8; font-size: 12px; line-height: 1.65; }
 .answer-tutoring-status p { flex-basis: 100%; margin: 0; }
 .answer-tutoring-status button { margin-top: 8px; }
+.answer-tutoring-next { margin: 18px 0 0; }
 @media (max-width: 600px) {
   .answer-tutoring nav button { max-width: 100%; white-space: normal; }
 }

@@ -17,6 +17,7 @@ import type {
   LearningReference,
 } from "../../types";
 import { FreeResponseCard } from "./FreeResponseCard";
+import { practiceLabel } from "../../services/learning/teaching";
 import { VoiceDictationButton } from "./VoiceDictationButton";
 import { usePracticeSupport } from "./usePracticeSupport";
 import {
@@ -59,7 +60,11 @@ export const QuestionCard: React.FC<QuestionCardProps> = (props) => {
   const support = usePracticeSupport(props.check.id);
   const shared = {
     ...props,
-    assistedSoFar: props.assistedSoFar || support.length > 0,
+    assistedSoFar: props.check.practice === "guided" || props.assistedSoFar || support.length > 0,
+    onSubmit: (check: LearningCheck, attempt: CheckAttempt) => props.onSubmit(check, {
+      ...attempt, practice: check.practice,
+      assisted: check.practice === "guided" || attempt.assisted || undefined,
+    }),
   };
   return props.check.kind === "free-response" ? (
     <FreeResponseCard {...shared} />
@@ -447,9 +452,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
                 : "is-closed-book"
             }`}
           >
-            {assistedSoFar || retriedIds.length > 0 || sandboxUsed
-              ? "Supported practice"
-              : "Independent practice"}
+            {practiceLabel(check.practice, assistedSoFar || retriedIds.length > 0 || sandboxUsed)}
           </span>
         )}
       </div>

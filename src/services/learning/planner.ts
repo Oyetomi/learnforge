@@ -16,7 +16,8 @@ export async function planAdaptiveRepair(
     .slice(-1)[0]?.check_attempt;
   if (current.adaptive || milestones.some(m=>m.adaptive&&m.status!=='completed') ||
       milestones.filter(m=>m.adaptive&&m.return_to_milestone_id===current.id).length>=2) return null;
-  if (!last || last.grading?.status === "uncertain" || (last.correct && last.confidence !== "unsure")) return null;
+  if (!last || last.dontKnow || last.grading?.status === "uncertain" || last.grading?.reviewRequested ||
+      last.correct || !(last.thinking.trim() || last.response?.trim())) return null;
   const controller = new AbortController();
   const abort = () => controller.abort();
   signal.addEventListener("abort", abort, { once: true });

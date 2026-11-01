@@ -35,6 +35,7 @@ import {
   starterLearningCheck,
 } from "../../services/learning/checks";
 import { approvedLessonIds } from "../../services/learning/adaptation";
+import { nextTeachingStep } from "../../services/learning/teaching";
 import {
   readLessonStep,
   saveLessonStep,
@@ -366,6 +367,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   const evidence = activeMilestone
     ? learningEvidence(messages, activeMilestone.id)
     : null;
+  const teachingPlan = activeMilestone ? nextTeachingStep(messages, activeMilestone.id) : null;
   const lessonSteps = React.useMemo(
     () => splitLessonIntoActivities(activeMilestone?.lesson),
     [activeMilestone?.lesson]
@@ -387,9 +389,11 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
       .join("\n\n");
   };
   const reference = latest ? referenceFor(latest) : "";
+  // A guided cue belongs beside its decision, without a separate reading stop.
+  const separateReference = !!reference && latest?.practice !== "guided";
   const seenReferences = useRef(new Set<string>());
   const checkEntry = (): Activity =>
-    latest && reference && !attempt && !seenReferences.current.has(latest.id)
+    latest && separateReference && !attempt && !seenReferences.current.has(latest.id)
       ? "reference"
       : "check";
   type Activity = "lesson" | "reference" | "check" | "reply" | "visual";
@@ -684,7 +688,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
       ? Math.max(1, replySteps.length)
       : activity === "visual"
       ? 1
-      : reference
+      : separateReference
       ? 3
       : 2;
   const slideNumber =
@@ -698,7 +702,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
       ? 1
       : reviewAttempt
       ? slideCount
-      : reference
+      : separateReference
       ? 2
       : 1;
   return (
@@ -1133,11 +1137,8 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                         onRetry={() => onContinueCheck(reviewCheck)}
                         onContinue={() => continueFromFeedback(reviewCheck)}
                         onApplyCode={onApplyCodeToEditor}
-                        continueLabel={
-                          evidence?.readyToAdvance
-                            ? "Review readiness"
-                            : "Practise with a fresh case"
-                        }
+                        continueLabel={teachingPlan?.label}
+                        nextStepReason={teachingPlan?.reason}
                       />
                     ) : undefined
                   }

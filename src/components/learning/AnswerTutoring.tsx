@@ -20,6 +20,7 @@ interface Props {
   onContinue: () => void;
   onApplyCode?: (code: string) => void;
   continueLabel?: string;
+  nextStepReason?: string;
   initialTogether?: boolean;
   feedbackChanged?: boolean;
 }
@@ -35,6 +36,7 @@ export function AnswerTutoring({
   onContinue,
   onApplyCode,
   continueLabel = "Practise with a fresh case",
+  nextStepReason,
   initialTogether = false,
   feedbackChanged = false,
 }: Props) {
@@ -124,6 +126,9 @@ export function AnswerTutoring({
               onApplyCode={onApplyCode}
             />
           </div>
+          {nextStepReason && (together || step === steps.length - 1) && (
+            <p className="answer-tutoring-status answer-tutoring-next">{nextStepReason}</p>
+          )}
           <nav aria-label="Tutoring steps">
             {!together && step > 0 && (
               <button

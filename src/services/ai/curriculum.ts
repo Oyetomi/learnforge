@@ -18,6 +18,7 @@ import { LearningReference, SupportedLanguage } from "../../types";
 import { validPrerequisiteGraph } from "../learning/roadmap";
 import { validateLearningCheck } from "../learning/checks";
 import { FREE_RESPONSE_INSTRUCTIONS } from "../learning/freeResponse";
+import { ADAPTIVE_TEACHING_INSTRUCTIONS } from "../learning/teaching";
 import {
   referenceContext,
   resolveLearningReferences,
@@ -83,6 +84,7 @@ Return practice_mode="general" and language=null for language learning, history,
 For spoken languages, use accurate, natural phrases with translations and correct diacritics, then ask about meaning or use in a short exchange. Explain new terms in plain words. Do not claim to hear, evaluate pronunciation, or assess listening without actual audio; text questions establish written understanding only. Do not invent translations when uncertain.
 
 TEACHING AND STRUCTURE
+${ADAPTIVE_TEACHING_INSTRUCTIONS}
 ${options.unitContext ? `This request prepares EXACTLY ONE focused lesson or unit for the supplied learning context. Do not create a new path or change its scope. Return exactly one milestone with a nonempty lesson and a valid check. Use a new example, not any prior placement question. Approved context: ${options.unitContext}` : ""}
 Each activity teaches one small idea with a short concrete example and an interactive check, then waits for the learner. Do not dump advanced terminology or reveal the answer key outside the check. Put substantial code, if relevant, in a fenced context block. The initial map is provisional, with 1–8 concepts suited to this goal. Each prerequisite_ids array references existing milestone ids; independent roots use [], dependencies must be real and acyclic.
 
