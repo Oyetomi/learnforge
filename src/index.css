@@ -3983,88 +3983,66 @@ button:active:not(:disabled) {
 .roadmap-step {
   position: relative;
 }
-.roadmap-step:not(:last-child)::after {
-  content: "";
-  position: absolute;
-  left: 21px;
-  top: 30px;
-  bottom: -4px;
-  width: 1px;
-  background: #343a43;
-}
-.roadmap-step.is-complete:not(:last-child)::after {
-  background: #5d6f63;
-}
 .roadmap-step > button {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  gap: 11px;
+  gap: 8px;
   width: 100%;
   text-align: left;
   border: 1px solid transparent;
   border-radius: 7px;
   background: transparent;
-  padding: 9px 10px 11px;
-  margin: 2px 0;
+  padding: 11px 10px 12px;
+  margin: 4px 0;
   color: inherit;
 }
 .roadmap-step > button:hover {
   background: #ffffff05;
 }
 .roadmap-step.is-current > button {
-  background: var(--accent-soft);
-  border-color: #e5aa7228;
+  background: #ffffff04;
+  border-color: #464b50;
 }
 .roadmap-step-marker {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   margin-top: 1px;
-  border-radius: 50%;
+  border-radius: 4px;
   border: 1px solid #4a515c;
   background: #191b1e;
   color: #8f99a7;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
   position: relative;
   z-index: 1;
 }
-.roadmap-step-marker i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #5c6470;
-}
 .roadmap-step.is-current .roadmap-step-marker {
-  border-color: var(--accent);
+  border-color: #8f7962;
+  background: #282522;
+  color: #dfc4a7;
 }
-.roadmap-step.is-current .roadmap-step-marker i {
-  background: var(--accent);
-}
-.roadmap-step.is-complete .roadmap-step-marker {
+.roadmap-step.is-complete:not(.is-current) .roadmap-step-marker {
   border-color: #6d9b87;
   color: #9cc7ae;
 }
 .roadmap-step-body {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 5px;
   min-width: 0;
-  flex: 1;
+  width: 100%;
 }
+.roadmap-step-meta { display: flex; align-items: center; gap: 9px; }
 .roadmap-step-title {
   font-size: 12.5px;
-  line-height: 1.45;
+  line-height: 1.55;
   color: #c9cfd8;
-  overflow-wrap: anywhere;
-}
-.roadmap-step-title em {
-  font-style: normal;
-  font-size: 10px;
-  color: #7f8896;
-  margin-right: 7px;
-  font-variant-numeric: tabular-nums;
+  overflow-wrap: break-word;
 }
 .roadmap-step.is-current .roadmap-step-title {
   color: var(--heading);
@@ -4073,8 +4051,9 @@ button:active:not(:disabled) {
   color: #8a929e;
 }
 .roadmap-step-status {
-  font-size: 10.5px;
-  color: #848d9a;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #9ba3ae;
 }
 .roadmap-step.is-current .roadmap-step-status {
   color: #d2b497;
@@ -4284,63 +4263,6 @@ button:active:not(:disabled) {
   margin-left: 4px;
 }
 
-
-/* ── Roadmap visual polish (appended 2026-10-27) ── */
-
-/* Current marker: amber glow + filled dot */
-.roadmap-step.is-current .roadmap-step-marker {
-  border-color: var(--accent);
-  background: #2a2117;
-  box-shadow: 0 0 8px 2px rgba(229, 170, 114, 0.18), 0 0 2px 0 rgba(229, 170, 114, 0.25);
-}
-.roadmap-step.is-current .roadmap-step-marker i {
-  width: 7px;
-  height: 7px;
-  background: var(--accent);
-  box-shadow: 0 0 4px 1px rgba(229, 170, 114, 0.4);
-}
-
-/* Completed marker: solid green fill */
-.roadmap-step.is-complete .roadmap-step-marker {
-  border-color: #5d9b7a;
-  background: #1a2e24;
-  color: #a8dbb8;
-}
-
-/* Completed connecting line: green tint */
-.roadmap-step.is-complete:not(:last-child)::after {
-  background: linear-gradient(to bottom, #4a7d63, #343a43);
-}
-
-/* Available marker: brighter dot */
-.roadmap-step:not(.is-current):not(.is-complete):not(.is-locked) .roadmap-step-marker i {
-  width: 7px;
-  height: 7px;
-  background: #8a929e;
-}
-
-/* Locked marker: fainter overall */
-.roadmap-step.is-locked .roadmap-step-marker {
-  border-color: #3a3f47;
-  background: #16181b;
-  color: #5c6470;
-}
-
-/* Current row: left accent bar + slightly brighter bg */
-.roadmap-step.is-current > button {
-  background: linear-gradient(90deg, rgba(229, 170, 114, 0.08) 0%, rgba(229, 170, 114, 0.04) 100%);
-  border-color: transparent;
-  border-left: 2.5px solid var(--accent);
-  border-radius: 0 7px 7px 0;
-}
-
-/* Step numbers: slightly more contrast */
-.roadmap-step-title em {
-  color: #8f99a7;
-}
-.roadmap-step.is-current .roadmap-step-title em {
-  color: #d2b497;
-}
 
 
 /* ── Immediate Check Answer Result Banner (appended 2026-10-27) ── */

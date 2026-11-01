@@ -6,7 +6,8 @@ import type { VisualExample as VisualSpec } from "../../services/learning/visual
 import { MarkdownView } from "./MarkdownView";
 import { VisualExample } from "../learning/VisualExample";
 
-export function LearningHelpPanel({ open, kind, contextKey, context, milestone, check, answered, existingVisual, narrow, onClose, onKind, onSupport }: {
+export function LearningHelpPanel({ open, kind, contextKey, context, milestone, check, answered, existingVisual, narrow, onClose, onKind, onSupport, language }: {
+  language?: string;
   open: boolean; kind: HelpKind; contextKey: string; context: string; milestone: Milestone | null;
   check: LearningCheck | null; answered: boolean; existingVisual?: VisualSpec; narrow: boolean;
   onClose: () => void; onKind: (kind: HelpKind) => void;
@@ -65,7 +66,7 @@ export function LearningHelpPanel({ open, kind, contextKey, context, milestone, 
     <div ref={body} className="learning-help-body" onScroll={() => { try { localStorage.setItem(`learnforge:help-scroll:${cacheKey}`, String(body.current?.scrollTop || 0)); } catch {} }}>
       {loading ? <p role="status" className="help-loading"><Loader2 size={16} className="animate-spin"/>Preparing your {helpTitle[kind].toLowerCase()}…</p> : error ? <div role="alert"><p>{error}</p><button type="button" onClick={retry}>Try again</button></div> : result && <>
         {result.content && <MarkdownView content={result.content} languageHint={milestone?.learning_intent?.programmingLanguage} derivationPositionKey={cacheKey}/>}
-        {result.visual && <VisualExample visual={result.visual} visualId={`help:${cacheKey}`} supportCheckId={!answered ? check?.id : undefined} onRequestFreshVisual={retry}/>}
+        {result.visual && <VisualExample visual={result.visual} language={language || milestone?.learning_intent?.programmingLanguage} visualId={`help:${cacheKey}`} supportCheckId={!answered ? check?.id : undefined} onRequestFreshVisual={retry}/>}
       </>}
     </div>
     <footer><span>Your activity and answer stay in place.</span>{!loading && result && <button type="button" onClick={retry}>Try another explanation</button>}</footer>

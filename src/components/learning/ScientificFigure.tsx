@@ -13,9 +13,12 @@ import {
 import { VisualRichText } from "./VisualRichText";
 import { useFigureTheme } from "./useFigureTheme";
 import { highlightSource } from "../chat/CodeBlock";
+import { FigureValue } from "./FigureValue";
+import { figureCode } from "../../services/learning/figureCode";
 import "./scientific-figure.css";
 
 export interface ScientificFigureProps {
+  language?: string;
   model: StateModel;
   onInteract: () => void;
   notes?: { label: string; description: string }[];
@@ -136,11 +139,12 @@ export function scientificConnections(relations: FigureRelation[], bounds: Figur
   return result;
 }
 
-function StateDiagram({ model, state, label, rows }: {
+function StateDiagram({ model, state, label, rows, language }: {
   model: StateModel;
   state: ConceptState;
   label: string;
   rows: string[][];
+  language?: string;
 }) {
   const stage = useRef<HTMLDivElement>(null);
   const arrowId = useId().replace(/:/g, "");
@@ -196,8 +200,8 @@ function StateDiagram({ model, state, label, rows }: {
                 const initial = model.states.find(item => item.id === model.initialStateId)!.entities.find(item => item.entityId === entityId)!;
                 const changed = initial.value !== snapshot.value || initial.status !== snapshot.status;
                 return <div className={`scientific-figure-entity ${changed ? "is-changed" : ""}`} data-figure-entity={entity.id} key={entity.id}>
-                  <strong className="scientific-figure-entity-label"><VisualRichText text={entity.label} language={model.source?.language} /></strong>
-                  <span className="scientific-figure-value"><VisualRichText text={snapshot.value || "—"} language={model.source?.language} /></span>
+                  <strong className="scientific-figure-entity-label"><VisualRichText text={entity.label} language={language} detectCodeLabel /></strong>
+                  <div className="scientific-figure-value"><FigureValue snapshot={snapshot} language={language} title={entity.label} /></div>
                   <span className="scientific-figure-status">{snapshot.status}</span>
                 </div>;
               })}
@@ -215,13 +219,15 @@ function StateDiagram({ model, state, label, rows }: {
   );
 }
 
-export function ScientificFigure({ model, onInteract, notes = [], takeaway }: ScientificFigureProps) {
+export function ScientificFigure({ model, onInteract, notes = [], takeaway, language }: ScientificFigureProps) {
   const safe = useMemo(() => validateStateModel(model), [model]);
-  return safe ? <ScientificWalkthrough key={JSON.stringify(safe)} model={safe} onInteract={onInteract} notes={notes} takeaway={takeaway} />
+  return safe ? <ScientificWalkthrough key={JSON.stringify(safe)} model={safe} language={language} onInteract={onInteract} notes={notes} takeaway={takeaway} />
     : <p className="walkthrough-invalid" role="status">This figure is incomplete. Ask for a corrected figure; your lesson and answer are unchanged.</p>;
 }
 
-function ScientificWalkthrough({ model, onInteract, notes, takeaway }: ScientificFigureProps) {
+function ScientificWalkthrough({ model, onInteract, notes, takeaway, language }: ScientificFigureProps) {
+  const codeLanguage = model.source?.language || language;
+  const hasCode = model.states.some(state => state.entities.some(snapshot => !!figureCode(snapshot, codeLanguage)));
   const { theme, toggleTheme } = useFigureTheme();
   const [history, setHistory] = useState(() => startWalkthrough(model));
   const caption = useRef<HTMLDivElement>(null);
@@ -242,11 +248,11 @@ function ScientificWalkthrough({ model, onInteract, notes, takeaway }: Scientifi
     caption.current?.scrollIntoView({ block: "nearest", behavior: "auto" });
   }, [history]);
   const change = (next: typeof history) => { if (next !== history) { onInteract(); setHistory(next); } };
-  return <figure className="scientific-figure" data-theme={theme} aria-label="Interactive teaching figure">
+  return <figure className={`scientific-figure${hasCode ? " has-code-values" : ""}`} data-theme={theme} aria-label="Interactive teaching figure">
     <div className="scientific-figure-context"><span>Illustrative states · changes follow the authored model</span><button type="button" className="scientific-figure-theme" aria-pressed={theme === "light"} title="Toggle light paper" onClick={toggleTheme}>Light paper</button></div>
     <div className={`scientific-figure-panels ${comparison ? "is-comparison" : ""}`}>
-      {comparison && <StateDiagram model={model} state={initial} label="Starting state" rows={rows} />}
-      <StateDiagram model={model} state={state} label={comparison ? "Current state" : state.label} rows={rows} />
+      {comparison && <StateDiagram model={model} state={initial} label="Starting state" rows={rows} language={codeLanguage} />}
+      <StateDiagram model={model} state={state} label={comparison ? "Current state" : state.label} rows={rows} language={codeLanguage} />
     </div>
     <figcaption className="scientific-figure-caption">
       <div ref={caption} tabIndex={-1} aria-live="polite" aria-atomic="true">
@@ -265,7 +271,7 @@ function ScientificWalkthrough({ model, onInteract, notes, takeaway }: Scientifi
     </nav>
     <details className="scientific-figure-text"><summary>Explanation and current state</summary>
       <p><VisualRichText text={state.description} language={model.source?.language} /></p>
-      <ul>{model.entities.map(entity => { const snapshot = state.entities.find(item => item.entityId === entity.id)!; return <li key={entity.id}><strong><VisualRichText text={entity.label} language={model.source?.language} /></strong>: {snapshot.status}. <VisualRichText text={snapshot.value} language={model.source?.language} /></li>; })}</ul>
+      <ul>{model.entities.map(entity => { const snapshot = state.entities.find(item => item.entityId === entity.id)!; return <li key={entity.id}><strong><VisualRichText text={entity.label} language={codeLanguage} /></strong>: {snapshot.status}. <FigureValue snapshot={snapshot} language={codeLanguage} title={entity.label} /></li>; })}</ul>
       {(notes || []).map((note, index) => <p key={index}><strong><VisualRichText text={note.label} language={model.source?.language} /></strong> — <VisualRichText text={note.description} language={model.source?.language} /></p>)}
       {takeaway && <p><strong>Remember.</strong> <VisualRichText text={takeaway} language={model.source?.language} /></p>}
       {model.source && <details className="scientific-figure-source"><summary>Related source · {model.source.language}</summary><pre>{highlightedSource === null ? <code>{model.source.code}</code> : <code dangerouslySetInnerHTML={{ __html: highlightedSource }} />}</pre></details>}

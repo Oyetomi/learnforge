@@ -1325,6 +1325,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
           )}
       </div>
       <LearningHelpPanel key={`${helpContextKey}:${helpKind}`} open={shownHelp} kind={helpKind} contextKey={helpContextKey} context={helpContext}
+        language={language}
         milestone={activeMilestone} check={helpCheck || null} answered={!!helpAttempt} existingVisual={activity === "lesson" || activity === "visual" ? availableVisual : undefined}
         narrow={narrowHelp} onClose={closeHelp} onKind={openHelp} onSupport={() => {
           if (helpCheck && !helpAttempt) recordVisualSupport(helpCheck.id, `help:${helpKind}:${helpContextKey}`);

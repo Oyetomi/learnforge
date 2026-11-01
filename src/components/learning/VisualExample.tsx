@@ -303,7 +303,7 @@ export function VisualExample({
           )}
 
           {visual.kind === "state-model" && visual.stateModel ? (
-            <ScientificFigure model={visual.stateModel} onInteract={markSupport} notes={visual.items} takeaway={visual.takeaway} />
+            <ScientificFigure model={visual.stateModel} language={language} onInteract={markSupport} notes={visual.items} takeaway={visual.takeaway} />
           ) : visual.kind === "canvas" && visual.canvas ? (
             <CanvasSandbox
               key={`${visualId}:${resetCount}`}

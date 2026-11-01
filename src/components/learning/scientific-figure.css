@@ -36,7 +36,7 @@
   color: var(--figure-ink);
   box-shadow: none;
 }
-.scientific-figure :is(div, p, span, strong, h4, li):not(.katex):not(.katex *):not(code):not(code *) {
+.scientific-figure :is(div, p, span, strong, h4, li):where(:not(.katex):not(.katex *):not(code):not(code *)) {
   font-family: var(--figure-serif) !important;
 }
 .scientific-figure :is(code, code span, pre, pre span) {
@@ -149,7 +149,25 @@
 .scientific-figure-text p { margin: 12px 0; }
 .scientific-figure-text ul { padding-left: 20px; }
 .scientific-figure-source summary { cursor: pointer; margin: 12px 0; font-size: 12px; }
-.scientific-figure-source pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 14px; background: var(--figure-source-bg); color: var(--figure-code); font-size: 12px; line-height: 1.7; }
+.scientific-figure-source pre { white-space: pre; overflow-x: auto; overflow-wrap: normal; tab-size: 4; padding: 14px; background: var(--figure-source-bg); color: var(--figure-code); font-size: 12px; line-height: 1.7; }
+.scientific-figure-code { min-width: 0; text-align: left; text-decoration: none; }
+.scientific-figure .scientific-figure-code figure.snippet { margin: 10px 0 0; border: 1px solid var(--figure-rule); border-radius: 5px; background: var(--figure-source-bg); }
+.scientific-figure .scientific-figure-code .snippet-toolbar { min-height: 34px; padding: 0 10px; border-color: var(--figure-rule); background: var(--figure-paper); color: var(--figure-muted); }
+.scientific-figure .scientific-figure-code :is(.snippet-toolbar, .snippet-toolbar span) { font-family: var(--font-ui, monospace) !important; font-size: 10px; font-style: normal; }
+.scientific-figure .scientific-figure-code .snippet-toolbar button { min-height: 30px; padding: 3px 0; border: 0; border-radius: 0; color: var(--figure-muted); background: transparent; }
+.scientific-figure .scientific-figure-code :is(.snippet-gutter, .snippet-gutter span) { font-family: var(--font-code, monospace) !important; font-size: 13px; line-height: 1.7; }
+.scientific-figure .scientific-figure-code .snippet-gutter { padding: 12px 8px; border-color: var(--figure-rule); background: var(--figure-paper); color: var(--figure-muted); }
+.scientific-figure .scientific-figure-code pre { padding: 12px; text-align: left; white-space: pre; overflow-wrap: normal; word-break: normal; tab-size: 4; }
+.scientific-figure .scientific-figure-code pre code { color: var(--figure-code); font-size: 13px; line-height: 1.7; white-space: pre; overflow-wrap: normal; word-break: normal; }
+.scientific-figure-entity.is-changed .scientific-figure-value:has(.scientific-figure-code) { text-decoration: none; }
+.scientific-figure-entity.is-changed .scientific-figure-code figure.snippet { border-inline-start: 2px solid var(--figure-accent); }
+.scientific-figure.has-code-values .scientific-figure-row.is-single { max-width: none; }
+.scientific-figure.has-code-values .scientific-figure-rows { row-gap: 32px; }
+@container scientificfigure (max-width: 660px) {
+  .has-code-values .scientific-figure-diagram { padding-inline: 18px; }
+  .has-code-values .scientific-figure-row:not(.is-single) { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .has-code-values .scientific-figure-row:not(.is-single) > .scientific-figure-entity:last-child:nth-child(odd) { grid-column: auto; justify-self: stretch; width: auto; }
+}
 /* The session already has return navigation above the figure. A sticky duplicate
    from the legacy walkthrough must not cover its caption or history controls. */
 .focused-session .focused-visual:has(.scientific-figure) > .activity-continue {

@@ -28,6 +28,14 @@ Inline math uses `$...$` and code uses backticks. KaTeX handles supported TeX ma
 
 Keep an equation together as one mathematical expression. Splitting its operands and equality sign into disconnected graph nodes obscures the relationship. The renderer gives mathematical values more prominence while keeping captions and controls quiet.
 
+### Code inside paper figures
+
+Code-valued snapshots may declare `format: "code"` and their actual `language`, with the indented source in `value`. Code values are bounded to 2,000 characters and 40 lines; ordinary text keeps its 160-character limit. `format: "text"` explicitly retains prose rendering. No particular programming language is assumed.
+
+Code values use the shared read-only code component: Google Sans Code, syntax highlighting where a grammar is available, line numbers, Copy, preserved whitespace and horizontal scrolling within the snippet. The figure inherits its related source language or the lesson language; individual code values and fenced snippets may specify their own language. Unknown languages remain escaped monospace text. Figure prose and mathematical notation retain their paper typography.
+
+Saved figures without this metadata conservatively recognize standalone declarations, method-signature lists and complete fenced code. Short inline identifiers/numbers stay inline, and prose and math do not become code blocks. Code-heavy figures stack their entities in compact panels instead of squeezing source into narrow centered columns. This changes presentation, not the source's meaning: invalid generated syntax still needs correction or regeneration. New generation instructions request valid, indented code rather than flattened declarations.
+
 Custom sandboxes now embed the installed KaTeX WOFF2 fonts in their offline CSS, including standalone exports. They no longer strip font faces or substitute system fonts for mathematical alphabets.
 
 ## Learning behavior and accessibility

@@ -1,6 +1,6 @@
 [package]
 name = "learnforge"
-version = "0.2.2"
+version = "0.2.3"
 description = "A local-first Socratic learning harness with active recall, real code execution, LaTeX derivations, and FSRS-4.5 spaced repetition."
 authors = ["Oyetomi"]
 license = "MIT"

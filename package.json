@@ -1,7 +1,7 @@
 {
   "name": "learnforge",
   "private": true,
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "A local-first Socratic learning harness with active recall, real code execution, LaTeX derivations, and FSRS-4.5 spaced repetition.",
   "author": "Oyetomi",
   "license": "MIT",
@@ -30,7 +30,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "pretest": "node scripts/prepare-sandbox-vendors.mjs",
-    "test": "vitest run",
+    "test": "vitest run --dir src",
     "eval:prepare": "node scripts/evaluation/prepare.mjs",
     "eval:contracts": "node scripts/evaluation/question-contracts.mjs",
     "tauri": "tauri"

@@ -1,7 +1,7 @@
 /** Language-neutral, declarative teaching states. No expressions or code are executed. */
 export type StateTone = 'neutral' | 'active' | 'waiting' | 'done';
 export interface StateEntity { id: string; label: string }
-export interface EntitySnapshot { entityId: string; status: string; value: string; tone: StateTone }
+export interface EntitySnapshot { entityId: string; status: string; value: string; tone: StateTone; format?: 'text' | 'code'; language?: string }
 export interface FigureRelation { id: string; from: string; to: string; label?: string; kind: 'value' | 'reference' | 'flow' }
 export interface ScientificPresentation { style: 'scientific'; layout: 'lanes' | 'comparison' }
 export interface ConceptState { id: string; label: string; description: string; entities: EntitySnapshot[]; relations?: FigureRelation[] }
@@ -41,8 +41,12 @@ export function validateStateModel(input: unknown): StateModel | null {
     const snapshots: EntitySnapshot[] = [];
     for (const rawSnapshot of s.entities) {
       const e = record(rawSnapshot);
-      if (!e || !entities.some(entity => entity.id === e.entityId) || !text(e.status, 32) || !['neutral', 'active', 'waiting', 'done'].includes(String(e.tone)) || typeof e.value !== 'string' || e.value.length > 160) return null;
-      snapshots.push({ entityId: String(e.entityId), status: text(e.status, 32), value: e.value, tone: e.tone as StateTone });
+      if (!e || !entities.some(entity => entity.id === e.entityId) || !text(e.status, 32) || !['neutral', 'active', 'waiting', 'done'].includes(String(e.tone)) || typeof e.value !== 'string' ||
+        (e.format !== undefined && e.format !== 'text' && e.format !== 'code') ||
+        (e.language !== undefined && (e.format !== 'code' || !text(e.language, 40))) ||
+        e.value.length > (e.format === 'code' ? 2000 : 160) || (e.format === 'code' && e.value.split('\n').length > 40)) return null;
+      snapshots.push({ entityId: String(e.entityId), status: text(e.status, 32), value: e.value, tone: e.tone as StateTone,
+        ...(e.format ? { format: e.format } : {}), ...(e.language ? { language: text(e.language, 40) } : {}) });
     }
     if (!distinct(snapshots.map(e => e.entityId))) return null;
     let relations: FigureRelation[] | undefined;

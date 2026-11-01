@@ -266,7 +266,7 @@ export const MilestoneSidebar: React.FC<MilestoneSidebarProps> = ({
           .find((i) => i >= 0)
       : undefined;
     const status = current
-      ? stepProgress &&
+      ? done ? "Reviewing" : stepProgress &&
         stepProgress.total > 1 &&
         stepProgress.seen < stepProgress.total
         ? `Current · step ${stepProgress.seen}/${stepProgress.total}`
@@ -299,19 +299,15 @@ export const MilestoneSidebar: React.FC<MilestoneSidebarProps> = ({
             index + 1
           }: ${cleanMilestoneTitle(m.title)}. ${status}`}
         >
-          <span className="roadmap-step-marker" aria-hidden="true">
-            {done ? (
-              <Check size={11} />
-            ) : !available ? (
-              <Lock size={10} />
-            ) : (
-              <i />
-            )}
-          </span>
-          <span className="roadmap-step-body">
-            <span className="roadmap-step-title">
-              <em>{String(index + 1).padStart(2, "0")}</em>
-              {cleanMilestoneTitle(m.title)}
+          <span className="roadmap-step-meta">
+            <span className="roadmap-step-marker" aria-hidden="true">
+              {current ? String(index + 1).padStart(2, "0") : done ? (
+                <Check size={11} />
+              ) : !available ? (
+                <Lock size={10} />
+              ) : (
+                String(index + 1).padStart(2, "0")
+              )}
             </span>
             <span className="roadmap-step-status">
               {status}
@@ -319,7 +315,12 @@ export const MilestoneSidebar: React.FC<MilestoneSidebarProps> = ({
                 <span className="roadmap-step-adaptive">gap fill</span>
               )}
             </span>
-            {current && stepProgress && stepProgress.total > 1 && (
+          </span>
+          <span className="roadmap-step-body">
+            <span className="roadmap-step-title">
+              {cleanMilestoneTitle(m.title)}
+            </span>
+            {current && !done && stepProgress && stepProgress.total > 1 && (
               <span className="roadmap-step-bar" aria-hidden="true">
                 <span
                   style={{
