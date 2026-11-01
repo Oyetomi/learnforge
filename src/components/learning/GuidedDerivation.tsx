@@ -16,12 +16,18 @@ function State({ value }: { value: string }) {
   const tex = mathSource(value);
   return tex === null ? <p className="guided-state-text">{value}</p> : <MathFormula tex={tex}/>;
 }
-export function GuidedDerivation({ title, initialState, steps, result, positionKey }: DerivationLadderProps) {
+export function GuidedDerivation({ title, initialState, steps, result, positionKey, compact }: DerivationLadderProps) {
   const [index, setIndex] = useState(() => Math.min(readTutoringPosition(positionKey, false).index, Math.max(0, steps.length - 1)));
   const [overview, setOverview] = useState(() => readTutoringPosition(positionKey, false).together);
   useEffect(() => { if (positionKey) saveTutoringPosition(positionKey, { index, together: overview }); }, [positionKey, index, overview]);
   const step = steps[index];
   if (!step) return <State value={initialState}/>;
+  if (compact) return <figure className="compact-derivation" aria-label={title || 'Worked calculation'}>
+    <figcaption>{title || 'Worked calculation'}</figcaption>
+    <div className="compact-initial"><State value={initialState}/></div>
+    <ol>{steps.map((item, i) => <li key={i}><strong>{item.rule}</strong><State value={item.state}/>{(item.explanation || item.evalText) && <p>{item.explanation || item.evalText}</p>}</li>)}</ol>
+    {result && <div className="compact-result"><span>Result</span><State value={result}/></div>}
+  </figure>;
   return <PaperDerivation className="guided-derivation" label={title || 'Guided derivation'}>
     <header className="guided-header"><div><h4>{title || 'One transformation at a time'}</h4></div><span>Step {index + 1} / {steps.length}</span></header>
     {overview ? <ol className="guided-overview">{steps.map((item, i) => <li key={i}><strong>{i + 1}. {item.rule}</strong><State value={item.state}/>{item.explanation && <p>{item.explanation}</p>}</li>)}</ol> : <div className="guided-current" aria-live="polite">

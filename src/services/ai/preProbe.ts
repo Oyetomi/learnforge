@@ -144,7 +144,7 @@ export async function generateBoundaryProbes(
       messages: [
         {
           role: "system",
-          content: `Create 3 fast diagnostic boundary questions BEFORE designing a curriculum for the learner's goal, in ANY subject. Preserve the exact subject (do not turn non-coding goals into software engineering).
+          content: `Create 3 fast diagnostic boundary questions BEFORE teaching a focused lesson or designing a curriculum for the learner's goal, in ANY subject. Preserve the exact subject (do not turn non-coding goals into software engineering).
 Order the 3 probes from:
 1. "foundation": an essential entry concept someone with basic familiarity would recognize.
 2. "intermediate": an applied distinction midway toward their desired ability.
@@ -172,7 +172,7 @@ Return JSON only:
 
   if (!response.ok) {
     throw new Error(
-      `Could not prepare boundary questions (${response.status}). You can still prepare the curriculum outline directly.`
+      `Could not prepare boundary questions (${response.status}). You can still turn off the check and prepare the lesson directly.`
     );
   }
 

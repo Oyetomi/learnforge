@@ -141,3 +141,14 @@
 .focused-visual .visual-graph .visual-example-body > footer { margin-top: 0; padding-top: 0; padding-bottom: 0; border: 0; }
 .focused-visual .visual-graph .visual-example-body > footer button { padding-top: 3px; padding-bottom: 3px; min-height: 28px; }
 .activity-slide:has(.guided-derivation) > .activity-continue { position: sticky; bottom: -20px; z-index: 2; padding: 8px 0; background: #191c20; }
+/* Tutoring already owns the reading steps; an embedded calculation stays intact. */
+.compact-derivation { margin: 12px 0; padding: 14px 18px; border: 1px solid #46534a; background: #202722; color: #dce3dc; border-radius: 4px; min-width: 0; }
+.compact-derivation figcaption { font-family: Georgia, serif; font-size: 17px; margin-bottom: 8px; }
+.compact-derivation ol { padding-left: 22px; margin: 8px 0; }
+.compact-derivation li { padding: 6px 0; }
+.compact-derivation li strong { font-size: 13px; }
+.compact-derivation .math-formula { font-size: 16px; padding: 4px 0; min-width: 0; max-width: 100%; }
+.compact-derivation .katex-display { margin: .3em 0; text-align: left; overflow-x: auto; overflow-y: hidden; }
+.compact-derivation p { margin: 4px 0; font-size: 12px; }
+.compact-result { border-top: 1px solid #46534a; padding-top: 8px; }
+.compact-result > span { font-size: 11px; }

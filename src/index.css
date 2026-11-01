@@ -27,6 +27,7 @@
   --heading: rgb(var(--color-heading));
   --accent: rgb(var(--color-accent));
   --accent-soft: #e5aa7212;
+  --form-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239ca8b8' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
 * {
   box-sizing: border-box;
@@ -4074,9 +4075,6 @@ button:active:not(:disabled) {
 }
 
 /* ── AI provider settings dialog (added 2026-10-27, new classes only) ── */
-.settings-dialog {
-  width: min(520px, calc(100vw - 28px));
-}
 .settings-content {
   display: flex;
   flex-direction: column;
@@ -4098,7 +4096,7 @@ button:active:not(:disabled) {
   flex: 1;
 }
 .settings-field > span {
-  font-size: 11px;
+  font-size: 12px;
   color: #a9b2bf;
 }
 .settings-field > span small {
@@ -4108,14 +4106,38 @@ button:active:not(:disabled) {
 .settings-field select {
   width: 100%;
   min-width: 0;
+  min-height: 46px;
   background: #141517;
   border: 1px solid #3c424c;
-  border-radius: 6px;
-  padding: 8px 10px;
+  border-radius: 8px;
+  padding: 11px 14px;
   color: var(--heading);
-  font-size: 12.5px;
+  font-size: 14px;
+  line-height: 1.5;
   outline: none;
   transition: border-color 120ms ease;
+}
+.settings-field select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 46px;
+  background-image: var(--form-select-chevron);
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 17px 17px;
+  cursor: pointer;
+  text-overflow: ellipsis;
+  color-scheme: dark;
+}
+.settings-field :is(input, select):hover:not(:disabled) { border-color: #596372; }
+.settings-field :is(input, select):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.settings-field input::placeholder { color: #8a94a3; opacity: 1; }
+.settings-field :is(input, select):disabled { cursor: not-allowed; opacity: .55; }
+@media (forced-colors: active) {
+  .settings-field select { appearance: auto; -webkit-appearance: auto; background-image: none; padding-right: 14px; }
 }
 .settings-field input:focus,
 .settings-field select:focus {
@@ -4126,6 +4148,7 @@ button:active:not(:disabled) {
   gap: 6px;
   align-items: center;
 }
+.settings-key .icon-button { min-height: 44px; min-width: 44px; }
 .settings-row {
   display: flex;
   gap: 12px;
@@ -4872,7 +4895,7 @@ dialog.review-dialog { overflow: hidden; max-height: calc(100dvh - 40px); }
 .review-rate-card.is-easy .review-rate-interval { color: #93c5fd; }
 
 /* Settings Modal Overhaul */
-.settings-dialog { width: min(590px, calc(100vw - 28px)); }
+.settings-dialog { width: min(680px, calc(100vw - 32px)); max-width: min(680px, calc(100vw - 32px)); }
 .settings-sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; padding: 6px; margin: 14px 24px 8px; border-radius: 8px; background: #13161a; border: 1px solid #2d343e; flex-shrink: 0; }
 .settings-sections button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 12px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #96a4b6; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 140ms ease; }
 .settings-sections button:hover { color: #dce5f0; }
@@ -4913,7 +4936,7 @@ dialog.review-dialog { overflow: hidden; max-height: calc(100dvh - 40px); }
 .settings-refresh-models { display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; color: #9ab0c6; font: inherit; font-size: 11px; cursor: pointer; padding: 2px 4px; }
 .settings-refresh-models:hover:not(:disabled) { color: #e4c7ae; }
 .settings-custom-model-row { display: flex; gap: 6px; align-items: center; }
-.settings-custom-model-row button { border: 1px solid #3b4350; border-radius: 6px; background: #181c22; color: #b5c2d3; font-size: 11px; padding: 7px 10px; cursor: pointer; flex-shrink: 0; }
+.settings-custom-model-row button { border: 1px solid #3b4350; border-radius: 6px; background: #181c22; color: #b5c2d3; font-size: 12px; min-height: 44px; padding: 9px 12px; cursor: pointer; flex-shrink: 0; }
 .manage-topics-footer { gap: 10px; }
 
 
@@ -5338,3 +5361,21 @@ dialog.review-dialog { overflow: hidden; max-height: calc(100dvh - 40px); }
   color: #f0d5bc;
   text-decoration: underline;
 }
+
+/* Post-answer reading: quiet chrome, distinct result, title and body hierarchy. */
+.answer-tutoring .answer-tutoring-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 16px; }
+.answer-tutoring .answer-reading-options { margin: 0; padding: 2px; }
+.answer-tutoring .answer-reading-options button { font-size: 11px; min-height: 30px; padding: 4px 8px; }
+.answer-tutoring .narration-button { font-size: 11px; min-height: 30px; padding: 4px 8px; }
+.answer-tutoring > header { margin-bottom: 10px; font-size: 11px; }
+.answer-tutoring .answer-tutoring-step .prose { font-size: 14px; line-height: 1.7; max-width: 68ch; }
+.answer-tutoring .answer-tutoring-step .prose :is(h1,h2,h3) { font-size: 17px; font-weight: 600; line-height: 1.35; margin: 0 0 12px; letter-spacing: -.02em; }
+.answer-tutoring .answer-tutoring-step .prose > p { margin: 0 0 12px; }
+.answer-tutoring nav { margin-top: 16px; padding-top: 12px; border-top: 1px solid #343b44; }
+.answer-tutoring nav .dialog-primary-button { font-size: 12px; min-height: 36px; padding: 8px 12px; max-width: 100%; white-space: normal; }
+.focused-session .check-feedback:has(.answer-tutoring) { padding: 16px 20px !important; }
+.focused-session .check-feedback:has(.answer-tutoring) .check-feedback-title { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
+.focused-session .check-feedback:has(.answer-tutoring) .check-feedback-title svg { width: 17px; height: 17px; }
+.focused-session .check-feedback:has(.answer-tutoring) .check-answer-lines > div { padding: 10px 12px; border-color: #3a4544; background: #202827; }
+.focused-session .check-feedback:has(.answer-tutoring) .check-answer-lines dd :is(.prose,p) { font-size: 13px; line-height: 1.65; }
+.focused-session .check-feedback:has(.answer-tutoring) .check-answer-lines dt { font-size: 10px; letter-spacing: .04em; }

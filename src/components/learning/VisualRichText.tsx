@@ -1,4 +1,5 @@
 import React from "react";
+import { isInlineMath } from "../../services/learning/mathMarkdown";
 import { renderToString } from "katex";
 import "katex/dist/katex.min.css";
 import { MATH_RENDER_OPTIONS } from "../../services/learning/math";
@@ -31,7 +32,7 @@ function renderKatexSafe(tex: string, displayMode: boolean): string | null {
   const cleaned = tex.trim();
   if (!cleaned || cleaned.length > 2000) return null;
   // Avoid treating currency ranges like "$10 and $20" as LaTeX math.
-  if (!displayMode && /^\d+(?:[.,]\d+)?\s+(?:and|or|to)\b/i.test(cleaned)) return null;
+  if (!displayMode && !isInlineMath(cleaned)) return null;
   try {
     return renderToString(cleaned, {
       ...MATH_RENDER_OPTIONS,

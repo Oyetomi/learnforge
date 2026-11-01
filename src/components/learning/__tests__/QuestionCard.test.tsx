@@ -138,6 +138,12 @@ describe("question disclosure and feedback", () => {
     expect(html).toContain(">Continue<");
     expect(html).not.toContain("Continue lesson");
   });
+  it("does not invent a second submitted answer when the learner reveals feedback", () => {
+    const html = render({ ...attempt, retriedOptionIds: [...attempt.selectedIds] });
+    expect(html).not.toContain("Your first answer");
+    expect(html).not.toContain("Your retry · supported practice");
+    expect(html).toContain("Your answer");
+  });
   it("also pauses for review after a correct answer", () => {
     const html = render({ ...attempt, selectedIds: ["a"], correct: true });
     expect(html).toContain("That’s right");

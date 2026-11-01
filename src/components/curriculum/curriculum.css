@@ -26,11 +26,25 @@
   margin-top: 7px;
 }
 .curriculum-brief select {
-  padding: 12px;
+  min-height: 46px;
+  padding: 11px 46px 11px 14px;
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--heading);
   background: var(--bg);
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: var(--form-select-chevron);
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 17px 17px;
+  font-size: 14px;
+  line-height: 1.5;
+  cursor: pointer;
+  color-scheme: dark;
+}
+@media (forced-colors: active) {
+  .curriculum-brief select { appearance: auto; -webkit-appearance: auto; background-image: none; padding-right: 14px; }
 }
 .curriculum-scope-options {
   display: flex;
@@ -1074,3 +1088,5 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+.diagnostic-first-choice { display: flex; align-items: center; gap: 10px; margin-top: 14px; min-height: 44px; cursor: pointer; }
+.diagnostic-first-choice input { width: 18px; height: 18px; accent-color: #c6a381; }

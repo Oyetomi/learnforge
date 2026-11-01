@@ -1,0 +1,42 @@
+{
+  "date": "2026-11-01",
+  "kind": "single-case native-app exploratory walkthrough; not a learner study",
+  "goal": "Understand why a 20% price increase followed by a 20% decrease does not undo it. Basic multiplication known, percentages confusing. Request a short diagnostic and adaptation to reasoning.",
+  "learnforge": {
+    "installedVersion": "0.2.3",
+    "executableSha256": "030beb04206ea67ea82c175cc54fe9b7baab53058f6c61fc5fc8eaa6e31cf903",
+    "displayedModel": "gemini-3.8-flash-high",
+    "provider": "Local proxy",
+    "sourceHead": "39b9104ee961865bc0033d84dc3ef569754d7841",
+    "sourceDirty": true,
+    "runningExecutableRevision": "not established; already-running app may predate the on-disk build"
+  },
+  "learnharness": {
+    "installedVersion": "0.4.0",
+    "displayedModel": "gpt-6.1-sol",
+    "reasoning": "xhigh",
+    "providerDisplay": "ChatGPT",
+    "session": "chat_mvyee428_6b730deb",
+    "localSourceVersion": "0.3.8",
+    "localSourceRevision": "d9452abc275f8aa16c71680440c05e6b5b8b67cd"
+  },
+  "confounds": [
+    "Different configured tutor models and reasoning; not a controlled comparison of tutor quality or latency.",
+    "Installed LearnHarness 0.4.0 differs from the local 0.3.8 source checkout.",
+    "LearnForge focused lesson and LearnHarness diagnostic were different question formats and exposed different prior instruction.",
+    "Existing familiarity preferences in LearnForge produced basketball examples.",
+    "Native input/state updates were delayed; only confirmed committed outputs are counted.",
+    "Agent-authored learner responses, no human participant, no retention or unaided transfer measurement."
+  ],
+  "verification": {
+    "learnforgeTests": {
+      "passed": 401,
+      "files": 58
+    },
+    "learnharnessLocalQuestionContracts": {
+      "passed": 69,
+      "scope": "local 0.3.8 checkout only, not installed 0.4.0 runtime"
+    }
+  },
+  "outcome": "No overall superiority established; currency rendering and visible answer-letter inconsistency reproduced in LearnForge; LearnHarness generated diagnostic and smaller prerequisite probe."
+}

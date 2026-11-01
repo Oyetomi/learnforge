@@ -1,4 +1,5 @@
 import React from "react";
+import { normalizeMathMarkdown } from "../../services/learning/mathMarkdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -23,6 +24,7 @@ interface MarkdownViewProps {
   onApplyCode?: (code: string) => void;
   languageHint?: string;
   derivationPositionKey?: string;
+  compactFigures?: boolean;
 }
 
 export const MarkdownView: React.FC<MarkdownViewProps> = ({
@@ -30,9 +32,10 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
   onApplyCode,
   languageHint,
   derivationPositionKey,
+  compactFigures = false,
 }) => {
   const cleanContent = React.useMemo(
-    () => stripInternalSourceCitations(content),
+    () => normalizeMathMarkdown(stripInternalSourceCitations(content)),
     [content]
   );
   return (
@@ -66,7 +69,7 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
               if (ladder) {
                 let hash = 0;
                 for (const char of source) hash = (Math.imul(hash, 31) + char.charCodeAt(0)) | 0;
-                return <DerivationLadder {...ladder} positionKey={derivationPositionKey ? `${derivationPositionKey}:${hash}` : undefined} />;
+                return <DerivationLadder {...ladder} compact={compactFigures} positionKey={derivationPositionKey ? `${derivationPositionKey}:${hash}` : undefined} />;
               }
             }
             if (language === "mermaid") {

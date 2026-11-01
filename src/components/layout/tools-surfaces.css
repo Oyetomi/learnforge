@@ -180,6 +180,7 @@
 }
 @media (max-width: 600px) {
   .settings-dialog .settings-row {
+    flex-direction: column;
     grid-template-columns: 1fr;
   }
   .settings-dialog .codex-oauth-header,

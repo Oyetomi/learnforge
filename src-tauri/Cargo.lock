@@ -1812,7 +1812,7 @@ dependencies = [
 
 [[package]]
 name = "learnforge"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "cc",
  "serde",
@@ -1821,6 +1821,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-http",
  "tauri-plugin-shell",
+ "tokio",
 ]
 
 [[package]]

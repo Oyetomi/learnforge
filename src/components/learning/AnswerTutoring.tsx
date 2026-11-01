@@ -8,6 +8,7 @@ import {
 } from "../../services/learning/tutoring";
 import { MarkdownView } from "../chat/MarkdownView";
 import "./answer-tutoring.css";
+import { NarrationButton } from "./NarrationButton";
 
 interface Props {
   check: LearningCheck;
@@ -92,6 +93,7 @@ export function AnswerTutoring({
       </header>
       {steps.length ? (
         <>
+          <div className="answer-tutoring-toolbar">
           {steps.length > 1 && (
             <div
               className="answer-reading-options"
@@ -114,6 +116,8 @@ export function AnswerTutoring({
               </button>
             </div>
           )}
+          <NarrationButton text={together ? steps.join("\n\n") : steps[step]} label="Listen to explanation" />
+          </div>
           <div
             ref={contentRef}
             tabIndex={-1}
@@ -121,6 +125,7 @@ export function AnswerTutoring({
             key={`${teaching?.id}:${step}`}
           >
             <MarkdownView
+              compactFigures
               content={together ? steps.join("\n\n") : steps[step]}
               languageHint={language}
               onApplyCode={onApplyCode}

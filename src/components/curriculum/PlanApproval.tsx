@@ -14,12 +14,14 @@ interface Props {
   track: CourseTrack;
   onApprove: (track: CourseTrack) => void;
   onRevise: () => void;
+  startingPointChecked?: boolean;
 }
 
 export const PlanApproval: React.FC<Props> = ({
   track,
   onApprove,
   onRevise,
+  startingPointChecked = false,
 }) => {
   // Draft planning decisions live only here until the learner approves the plan.
   const [saveError, setSaveError] = useState("");
@@ -231,19 +233,19 @@ export const PlanApproval: React.FC<Props> = ({
           </section>
           <div className="plan-approval-toolbar">
             <span>
-              {attempts.length
+              {startingPointChecked ? "Starting point checked · your answers guide this lesson" : attempts.length
                 ? `${attempts.length} of ${probes.length} areas checked`
                 : probes.length
                 ? "Optional starting-point check"
                 : "Start with an accessible explanation and fresh practice"}
             </span>
-            {probes.length > 0 && (
+            {!startingPointChecked && probes.length > 0 && (
               <button
                 type="button"
                 className="check-coach-button"
                 onClick={() => visit(0)}
               >
-                {attempts.length
+                {startingPointChecked ? "Starting point checked · your answers guide this lesson" : attempts.length
                   ? "Revisit starting-point check"
                   : "Find my starting point"}
               </button>

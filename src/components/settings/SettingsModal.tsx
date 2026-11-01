@@ -58,6 +58,8 @@ import {
   type PluginsState,
 } from "../../services/plugins/registry";
 import { testExaConnection } from "../../services/plugins/exa";
+import { NarrationSettings } from "./NarrationSettings";
+import { loadNarrationPreferences, saveNarrationPreferences, storeNarrationKey, narrationKeyConfigured } from "../../services/learning/narration";
 
 interface SettingsModalProps {
   initialSection?: "learning" | "connection" | "plugins";
@@ -116,6 +118,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     | { kind: "error"; message: string }
   >({ kind: "idle" });
   const [usage, setUsage] = useState(() => readUsage());
+  const [narration, setNarration] = useState(loadNarrationPreferences);
+  const [narrationKey, setNarrationKey] = useState("");
+  const [narrationConfigured, setNarrationConfigured] = useState(false);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { let active = true; void narrationKeyConfigured().then(ok => { if (active) setNarrationConfigured(ok); }).catch(() => {}); return () => { active = false; }; }, []);
 
   const preset = presetFor(draft.provider);
   const bridgeAvailable = subscriptionBridgeAvailable();
@@ -404,7 +411,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       errorRef.current?.scrollIntoView({ block: "nearest" });
     });
   };
-  const save = () => {
+  const save = async () => {
+    if (saving) return;
     if (draft.provider === "chatgpt-codex" && !bridgeAvailable) {
       showSaveError(SUBSCRIPTION_BRIDGE_NOTICE, "connection");
       return;
@@ -423,11 +431,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       );
       return;
     }
+    if (narration.provider === "elevenlabs" && !narrationConfigured && !narrationKey.trim()) {
+      try {
+        if (!(await narrationKeyConfigured())) {
+          showSaveError("Enter your ElevenLabs key before enabling narration.", "plugins"); return;
+        }
+      } catch {
+        showSaveError("Couldn't check your saved ElevenLabs key. Open Plugins and try again.", "plugins"); return;
+      }
+    }
+    if (!/^[a-zA-Z0-9_-]{1,100}$/.test(narration.voiceId)) {
+      setSection("plugins"); showSaveError("Choose a valid ElevenLabs voice ID."); return;
+    }
+    if (narrationKey.trim() && !/^sk_[^\s]{17,253}$/.test(narrationKey.trim())) {
+      setSection("plugins"); showSaveError("Enter a valid ElevenLabs API key."); return;
+    }
 
     const previousLearning = loadLearningPreferences();
     const previousPlugins = loadPluginsState();
+    const previousNarration = loadNarrationPreferences(), previousConnection = loadAIConnection();
     let preferencesSaved = false;
     let pluginsSaved = false;
+    let connectionSaved = false, narrationSaved = false;
+    setSaving(true);
     try {
       saveLearningPreferences(learning);
       preferencesSaved = true;
@@ -446,8 +472,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         fallbackModel: draft.fallbackModel.trim(),
         apiKey: draft.apiKey.trim(),
       });
+      connectionSaved = true;
+      saveNarrationPreferences(narration);
+      narrationSaved = true;
+      // Last fallible write: a successfully saved secret is never read back into JS.
+      if (narrationKey.trim()) await storeNarrationKey(narrationKey);
       onClose();
-    } catch {
+    } catch (error) {
+      if (narrationSaved) { try { saveNarrationPreferences(previousNarration); } catch {} }
+      if (connectionSaved) { try { saveAIConnection(previousConnection); } catch {} }
       if (pluginsSaved) {
         try {
           savePluginsState(previousPlugins);
@@ -459,13 +492,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         } catch {}
       }
       showSaveError(
-        "Settings could not be saved on this device. Please try again."
+        typeof error === "string" ? error : "Settings could not be saved on this device. Please try again."
       );
+    } finally {
+      setSaving(false);
     }
   };
 
   const totalTokens = usage.prompt + usage.completion;
-  const activePluginCount = countActivePlugins(pluginsDraft);
+  const activePluginCount = countActivePlugins(pluginsDraft) + (narration.provider !== "device" && (narrationConfigured || Boolean(narrationKey.trim())) ? 1 : 0);
   const exaManifest = PLUGIN_MANIFESTS[0];
   const exaReady = isExaPluginReady(pluginsDraft.exa);
 
@@ -782,10 +817,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           ) : section === "plugins" ? (
             <>
               <p className="settings-intro">
-                Extend LearnForge with local-first learning plugins. Keys stay
-                on this device and feed cited primary documentation into new
-                curricula and focused lessons.
+                Connect optional learning tools with your own API keys. Keys stay
+                on this device. Each service uses your own account and credits.
               </p>
+
+              <NarrationSettings value={narration} onChange={patch => setNarration(value => ({ ...value, ...patch }))}
+                apiKey={narrationKey} onKeyChange={setNarrationKey} onKeyStatus={setNarrationConfigured} />
 
               <section
                 className={`settings-plugin-card ${
@@ -1415,8 +1452,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           >
             Cancel
           </button>
-          <button className="dialog-primary-button" onClick={save}>
-            Save changes
+          <button className="dialog-primary-button" disabled={saving} onClick={() => void save()}>
+            {saving ? "Saving…" : "Save changes"}
           </button>
         </footer>
       </div>

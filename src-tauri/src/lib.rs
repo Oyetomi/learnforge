@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+mod narration;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -163,6 +164,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init())
+        .manage(narration::NarrationRequests::default())
         .invoke_handler(tauri::generate_handler![
             voice_start_recording,
             voice_poll_recording,
@@ -170,6 +172,11 @@ pub fn run() {
             speech_speak,
             speech_stop,
             speech_is_speaking,
+            narration::narration_key_status,
+            narration::narration_store_key,
+            narration::narration_voices,
+            narration::narration_generate,
+            narration::narration_cancel,
         ])
         .run(tauri::generate_context!())
         .expect("error while running learnforge tauri application");

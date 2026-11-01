@@ -16,6 +16,8 @@
 
 import { loadAIConnection } from "../ai/connection";
 import { stripInternalSourceCitations } from "./grounding";
+import { hideLearningCheckBlocks } from "./checks";
+import { cacheNarration, cachedNarration, loadNarrationPreferences, narrationKeyConfigured, speechChunks } from "./narration";
 
 export interface VoiceRecordingStatus {
   active: boolean;
@@ -80,7 +82,7 @@ export function isTauriDesktopRuntime(): boolean {
  */
 export function formatTextForSpeech(raw: string): string {
   if (!raw) return "";
-  let s = stripInternalSourceCitations(raw);
+  let s = stripInternalSourceCitations(hideLearningCheckBlocks(raw));
 
   // Omit multi-line fenced code blocks from spoken narration
   s = s.replace(/```[\s\S]*?```/g, " ");
@@ -226,6 +228,9 @@ let activeAudioUrl: string | null = null;
 let activeTtsAbort: AbortController | null = null;
 let activeTauriPollTimer: number | null = null;
 let activeUtteranceId = 0;
+let activeOnEnd: (() => void) | undefined;
+let activeNativeNarrationId: number | null = null;
+let narrationRequestId = Date.now();
 
 function cleanupAudioElement() {
   if (activeTauriPollTimer !== null && typeof window !== "undefined") {
@@ -236,6 +241,15 @@ function cleanupAudioElement() {
     activeTtsAbort.abort();
     activeTtsAbort = null;
   }
+  if (activeNativeNarrationId !== null) {
+    const requestId = activeNativeNarrationId;
+    activeNativeNarrationId = null;
+    void import("@tauri-apps/api/core").then(({ invoke }) => invoke("narration_cancel", { requestId })).catch(() => {});
+  }
+  clearAudioPlayback();
+}
+
+function clearAudioPlayback() {
   if (activeAudioElement) {
     try {
       activeAudioElement.pause();
@@ -254,6 +268,7 @@ function cleanupAudioElement() {
 export function stopNaturalSpeech(): void {
   activeUtteranceId += 1;
   cleanupAudioElement();
+  const onEnd = activeOnEnd; activeOnEnd = undefined; onEnd?.();
   if (isTauriDesktopRuntime()) {
     void import("@tauri-apps/api/core")
       .then(({ invoke }) => invoke("speech_stop"))
@@ -266,10 +281,51 @@ export function stopNaturalSpeech(): void {
   }
 }
 
+async function speakWithElevenLabs(text: string, utteranceId: number, options?: {
+  onLoading?: () => void; onStart?: () => void;
+}): Promise<void> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  if (utteranceId !== activeUtteranceId) return;
+  const preferences = loadNarrationPreferences();
+  const controller = new AbortController();
+  activeTtsAbort = controller;
+  for (const chunk of speechChunks(text)) {
+    if (controller.signal.aborted || utteranceId !== activeUtteranceId) return;
+    options?.onLoading?.();
+    const key = JSON.stringify([preferences.voiceId, preferences.modelId, chunk]);
+    let bytes = cachedNarration(key);
+    if (!bytes) {
+      const requestId = ++narrationRequestId;
+      activeNativeNarrationId = requestId;
+      const result = await invoke<number[]>("narration_generate", { text: chunk, voiceId: preferences.voiceId,
+        modelId: preferences.modelId, requestId });
+      if (controller.signal.aborted || utteranceId !== activeUtteranceId) return;
+      activeNativeNarrationId = null;
+      bytes = new Uint8Array(result);
+      cacheNarration(key, bytes);
+    }
+    if (controller.signal.aborted || utteranceId !== activeUtteranceId) return;
+    const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: "audio/mpeg" }));
+    activeAudioUrl = url;
+    const audio = new Audio(url);
+    activeAudioElement = audio;
+    await new Promise<void>((resolve, reject) => {
+      const abort = () => { audio.pause(); reject(new DOMException("Narration stopped", "AbortError")); };
+      controller.signal.addEventListener("abort", abort, { once: true });
+      const finish = (error?: Error) => { controller.signal.removeEventListener("abort", abort); error ? reject(error) : resolve(); };
+      audio.onended = () => finish();
+      audio.onerror = () => finish(new Error("The audio couldn't play. Try Listen again or choose device voice in Settings."));
+      void audio.play().then(() => options?.onStart?.()).catch(() => finish(new Error("Playback couldn't start. Press Listen again.")));
+    });
+    clearAudioPlayback();
+  }
+}
+
 async function trySpeakWithOpenAI(
   cleanText: string,
   utteranceId: number,
-  onEnd?: () => void
+  onEnd?: () => void,
+  onStart?: () => void
 ): Promise<boolean> {
   const conn = loadAIConnection();
   const isOpenAI =
@@ -326,6 +382,7 @@ async function trySpeakWithOpenAI(
       }
     };
     await audio.play();
+    if (utteranceId === activeUtteranceId) onStart?.();
     return true;
   } catch {
     return false;
@@ -345,7 +402,9 @@ export async function speakNaturalText(
   options?: {
     lang?: string;
     onEnd?: () => void;
-    onError?: () => void;
+    onError?: (message?: string) => void;
+    onStart?: () => void;
+    onLoading?: () => void;
   }
 ): Promise<void> {
   stopNaturalSpeech();
@@ -356,16 +415,37 @@ export async function speakNaturalText(
   }
 
   const utteranceId = ++activeUtteranceId;
+  activeOnEnd = options?.onEnd;
   const lang =
     options?.lang ||
     (typeof navigator !== "undefined" && navigator.language) ||
     "en-US";
 
-  // 1. Studio neural TTS when user has an OpenAI key active
-  const playedOpenAI = await trySpeakWithOpenAI(
+  const narration = loadNarrationPreferences();
+  if (isTauriDesktopRuntime() && narration.provider !== "device") {
+    try {
+      const configured = await narrationKeyConfigured();
+      if (utteranceId !== activeUtteranceId) return;
+      if (configured || narration.provider === "elevenlabs") {
+        await speakWithElevenLabs(cleanText, utteranceId, options);
+        if (utteranceId === activeUtteranceId) { cleanupAudioElement(); activeOnEnd = undefined; options?.onEnd?.(); }
+        return;
+      }
+    } catch (error) {
+      if (utteranceId === activeUtteranceId) {
+        cleanupAudioElement(); activeOnEnd = undefined;
+        options?.onError?.(typeof error === "string" ? error : error instanceof Error ? error.message : "ElevenLabs narration couldn't finish.");
+        options?.onEnd?.();
+      }
+      return;
+    }
+  }
+  // Existing OpenAI and local-device narration remain available.
+  const playedOpenAI = narration.provider !== "device" && await trySpeakWithOpenAI(
     cleanText,
     utteranceId,
-    options?.onEnd
+    options?.onEnd,
+    options?.onStart
   );
   if (playedOpenAI || utteranceId !== activeUtteranceId) return;
 
@@ -375,6 +455,7 @@ export async function speakNaturalText(
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("speech_speak", { text: cleanText, lang });
       if (utteranceId !== activeUtteranceId) return;
+      options?.onStart?.();
       let seenSpeaking = false;
       let ticks = 0;
       activeTauriPollTimer = window.setInterval(async () => {
@@ -417,6 +498,7 @@ export async function speakNaturalText(
     }
     utterance.rate = 0.98;
     utterance.pitch = 1.0;
+    utterance.onstart = () => { if (utteranceId === activeUtteranceId) options?.onStart?.(); };
     utterance.onend = () => {
       if (utteranceId === activeUtteranceId) options?.onEnd?.();
     };

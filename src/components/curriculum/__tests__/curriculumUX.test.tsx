@@ -118,6 +118,11 @@ describe("curriculum surface contracts", () => {
     expect(html).toContain("lesson not prepared");
     expect(html).not.toContain("lesson available");
   });
+  it("acknowledges a completed diagnostic without offering a duplicate placement quiz", () => {
+    const html = renderToStaticMarkup(<PlanApproval track={makeTrack()} startingPointChecked onApprove={vi.fn()} onRevise={vi.fn()}/>);
+    expect(html).toContain("Starting point checked");
+    expect(html).not.toContain("Find my starting point");
+  });
   it("does not offer an unavailable placement check for a one-lesson free-response plan", () => {
     const track = {
       ...makeTrack(),

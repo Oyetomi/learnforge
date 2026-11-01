@@ -264,6 +264,10 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
         : [id],
     }));
   };
+  const hasSubmittedRetry = !!attempt?.retriedOptionIds?.length && (
+    attempt.dontKnow || attempt.selectedIds.length !== attempt.retriedOptionIds.length ||
+    attempt.selectedIds.some(id => !attempt.retriedOptionIds!.includes(id))
+  );
   const submittedRef = useRef(false);
   const submit = (event?: React.FormEvent) => {
     event?.preventDefault();
@@ -848,7 +852,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
               : "Not quite"}
           </h3>
           <dl className="check-answer-lines">
-            {!!attempt.retriedOptionIds?.length && (
+            {hasSubmittedRetry && (
               <div className="is-chosen">
                 <dt>Your first answer</dt>
                 <dd>
@@ -868,7 +872,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
             )}
             <div className={attempt.correct ? "is-right" : "is-chosen"}>
               <dt>
-                {attempt.retriedOptionIds?.length
+                {hasSubmittedRetry
                   ? "Your retry · supported practice"
                   : "Your answer"}
               </dt>

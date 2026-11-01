@@ -63,6 +63,7 @@ import {
 import { QuestionCard } from "../learning/QuestionCard";
 import { ReviewedQuestionCard, useQuestionReview } from "../learning/ReviewedQuestionCard";
 import { AnswerTutoring } from "../learning/AnswerTutoring";
+import { NarrationButton } from "../learning/NarrationButton";
 import "../learning/question-focus.css";
 import {
   answerTutoring,
@@ -881,6 +882,9 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                 </div>
               )}
               <div className="lesson-reading lesson-steps">
+                <div className="narration-reading-action"><NarrationButton
+                  text={(overview ? lessonSteps : [lessonSteps[visibleStep]]).filter(Boolean).join("\n\n")}
+                  label="Listen to lesson" onListen={() => { if (latest && !attempt) recordVisualSupport(latest.id, "open-book:lesson-audio"); }} /></div>
                 {(overview ? lessonSteps : [lessonSteps[visibleStep]])
                   .filter(Boolean)
                   .map((step, i) => (
@@ -1215,6 +1219,10 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                   </strong>
                   <p>{lastReply.competency_assessment.rationale}</p>
                 </div>
+              )}
+              {replySteps[replyStep] && (
+                <div className="narration-reading-action"><NarrationButton text={replySteps[replyStep]} label="Listen to explanation"
+                  onListen={() => { if (latest && !attempt) recordVisualSupport(latest.id, "open-book:explanation-audio"); }} /></div>
               )}
               {replySteps[replyStep] && (
                 <MarkdownView

@@ -5,6 +5,7 @@ import { helpTitle, readHelp, requestSessionHelp, saveHelp, type HelpKind, type 
 import type { VisualExample as VisualSpec } from "../../services/learning/visuals";
 import { MarkdownView } from "./MarkdownView";
 import { VisualExample } from "../learning/VisualExample";
+import { NarrationButton } from "../learning/NarrationButton";
 
 export function LearningHelpPanel({ open, kind, contextKey, context, milestone, check, answered, existingVisual, narrow, onClose, onKind, onSupport, language }: {
   language?: string;
@@ -65,7 +66,7 @@ export function LearningHelpPanel({ open, kind, contextKey, context, milestone, 
     <nav aria-label="Help options">{(["hint", "walkthrough", "visual"] as HelpKind[]).map(option => <button type="button" key={option} aria-pressed={kind === option} onClick={() => onKind(option)}>{helpTitle[option]}</button>)}</nav>
     <div ref={body} className="learning-help-body" onScroll={() => { try { localStorage.setItem(`learnforge:help-scroll:${cacheKey}`, String(body.current?.scrollTop || 0)); } catch {} }}>
       {loading ? <p role="status" className="help-loading"><Loader2 size={16} className="animate-spin"/>Preparing your {helpTitle[kind].toLowerCase()}…</p> : error ? <div role="alert"><p>{error}</p><button type="button" onClick={retry}>Try again</button></div> : result && <>
-        {result.content && <MarkdownView content={result.content} languageHint={milestone?.learning_intent?.programmingLanguage} derivationPositionKey={cacheKey}/>}
+        {result.content && <><div className="narration-reading-action"><NarrationButton text={result.content} label="Listen to explanation" onListen={onSupport}/></div><MarkdownView compactFigures content={result.content} languageHint={milestone?.learning_intent?.programmingLanguage} derivationPositionKey={cacheKey}/></>}
         {result.visual && <VisualExample visual={result.visual} language={language || milestone?.learning_intent?.programmingLanguage} visualId={`help:${cacheKey}`} supportCheckId={!answered ? check?.id : undefined} onRequestFreshVisual={retry}/>}
       </>}
     </div>

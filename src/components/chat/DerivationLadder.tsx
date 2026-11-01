@@ -19,6 +19,7 @@ export interface DerivationLadderProps {
   steps: LadderStep[];
   result?: string;
   positionKey?: string;
+  compact?: boolean;
 }
 
 const highlightColors: Record<string, string> = {
@@ -77,8 +78,9 @@ export const DerivationLadder: React.FC<DerivationLadderProps> = ({
   steps,
   result,
   positionKey,
+  compact,
 }) => mathSource(initialState) !== null && steps.some(step => mathSource(step.state) !== null) ? (
-  <GuidedDerivation key={JSON.stringify([initialState, steps, result, positionKey])} title={title} initialState={initialState} steps={steps} result={result} positionKey={positionKey}/>
+  <GuidedDerivation key={JSON.stringify([initialState, steps, result, positionKey])} compact={compact} title={title} initialState={initialState} steps={steps} result={result} positionKey={positionKey}/>
 ) : (
   <PaperDerivation className="derivation-ladder visual-ladder" label={title || 'Step-by-step explanation'}>
     <h4>{title || 'Step-by-step explanation'}</h4>

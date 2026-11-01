@@ -50,6 +50,8 @@ import { PlanApproval } from "./PlanApproval";
 import { CurriculumApproval } from "./CurriculumApproval";
 import "./curriculum.css";
 
+import { requestsDiagnosticFirst } from "../../services/learning/diagnosticIntent";
+
 const draftKey = "learnforge:goal-draft";
 const startingPoints = [
   "I’m not sure — help me find my starting point",
@@ -102,6 +104,8 @@ export const NewTopicModal: React.FC<Props> = ({
       savedDraft().startingPoint ||
       "I’m not sure — help me find my starting point"
   );
+  const [diagnosticChoice, setDiagnosticChoice] = useState<boolean | null>(null);
+  const diagnosticFirst = diagnosticChoice ?? requestsDiagnosticFirst(`${interest} ${destination}`);
   const [referenceName, setReferenceName] = useState(""),
     [referenceContent, setReferenceContent] = useState("");
   const [exaConfig, setExaConfig] = useState<ExaPluginConfig>(() =>
@@ -130,6 +134,8 @@ export const NewTopicModal: React.FC<Props> = ({
   const [probeResponses, setProbeResponses] = useState<
     Record<string, BoundaryProbeResponse>
   >({});
+
+  useEffect(() => { setProbeQuestions([]); setProbeResponses({}); setDiagnosticChoice(null); }, [interest, destination, startingPoint]);
 
   const ledgerEntries = useMemo(
     () => (isOpen ? loadConceptLedger() : []),
@@ -368,7 +374,7 @@ export const NewTopicModal: React.FC<Props> = ({
     setTask("probing");
     setError("");
     setNotice("");
-    setStatus("Preparing 3 quick boundary questions to calibrate your outline…");
+    setStatus("Preparing a short starting-point check before teaching…");
     let timedOut = false;
     const timeout = setTimeout(() => {
       timedOut = true;
@@ -398,7 +404,7 @@ export const NewTopicModal: React.FC<Props> = ({
       if (mounted.current && (!controller.signal.aborted || timedOut)) {
         setError(
           timedOut
-            ? "Boundary probing took longer than expected. You can prepare the curriculum outline directly."
+            ? "Boundary probing took longer than expected. You can turn off the starting-point check to prepare the lesson directly."
             : e instanceof Error
             ? e.message
             : "Could not prepare boundary questions."
@@ -421,6 +427,12 @@ export const NewTopicModal: React.FC<Props> = ({
       !goal
     )
       return;
+    if (proposal && diagnosticFirst) {
+      if (!probeQuestions.length) { await startBoundaryProbe(); return; }
+      if (probeQuestions.some(q => !probeResponses[q.id]?.dontKnow && !probeResponses[q.id]?.selectedOptionId)) {
+        setError("Answer each starting-point question or choose I don’t know before preparing your lesson."); return;
+      }
+    }
     const controller = new AbortController();
     requestRef.current = controller;
     setTask(proposal ? "creating" : "scoping");
@@ -502,7 +514,7 @@ export const NewTopicModal: React.FC<Props> = ({
             : undefined,
         };
         const boundaryEvidence =
-          scope === "curriculum" && probeQuestions.length > 0
+          probeQuestions.length > 0
             ? summarizeBoundaryProbes(probeQuestions, probeResponses)
             : undefined;
         const track =
@@ -526,8 +538,9 @@ export const NewTopicModal: React.FC<Props> = ({
                     originalGoal: goal,
                     desiredAbility: destination.trim() || goal,
                     startingPoint,
+                    boundaryEvidence,
                     instruction:
-                      "Prepare exactly one focused lesson, not a full path.",
+                      "Prepare exactly one focused lesson, not a full path. Use the supplied diagnostic evidence to choose its starting point and repair observed gaps; do not claim untested skills are mastered.",
                   }),
                 },
                 updateStatus
@@ -624,6 +637,7 @@ export const NewTopicModal: React.FC<Props> = ({
             />
           ) : (
             <PlanApproval
+              startingPointChecked={probeQuestions.length > 0 && probeQuestions.every(q => probeResponses[q.id]?.dontKnow || probeResponses[q.id]?.selectedOptionId)}
               track={draftTrack}
               onApprove={approve}
               onRevise={() => setDraftTrack(null)}
@@ -793,7 +807,13 @@ export const NewTopicModal: React.FC<Props> = ({
                     <option key={point}>{point}</option>
                   ))}
                 </select>
-                {scope === "curriculum" &&
+                <label className="diagnostic-first-choice">
+                  <input type="checkbox" checked={diagnosticFirst} disabled={busy}
+                    onChange={e => setDiagnosticChoice(e.target.checked)} />
+                  <span>Check my starting point before teaching</span>
+                </label>
+                <p className="written-grading-note">A short check helps choose where to begin. You can choose “I don’t know” or turn this off.</p>
+                {scope === "curriculum" && !diagnosticFirst &&
                   startingPoint !== "I’m starting from the beginning" &&
                   probeQuestions.length === 0 && (
                     <div className="boundary-probe-cta">
@@ -815,25 +835,24 @@ export const NewTopicModal: React.FC<Props> = ({
                       </button>
                     </div>
                   )}
-                {scope === "curriculum" && probeQuestions.length > 0 && (
+                {probeQuestions.length > 0 && (
                   <div
                     className="boundary-probe-panel"
                     role="region"
-                    aria-label="Pre-outline boundary probe"
+                    aria-label="Starting-point check"
                   >
                     <div className="boundary-probe-header">
                       <div>
                         <strong>Quick boundary check</strong>
                         <small>
-                          Your answers prune redundant basics before generating
-                          the curriculum.
+                          Your answers help choose what to explain first. This is a starting point, not mastery evidence.
                         </small>
                       </div>
                       <button
                         type="button"
                         className="check-coach-button"
                         disabled={busy}
-                        onClick={() => setProbeQuestions([])}
+                        onClick={() => { setProbeQuestions([]); setDiagnosticChoice(false); }}
                       >
                         Skip probe
                       </button>
@@ -1237,6 +1256,8 @@ export const NewTopicModal: React.FC<Props> = ({
                 )}
                 {error
                   ? "Try again"
+                  : proposal && diagnosticFirst && !probeQuestions.length
+                  ? "Check my starting point"
                   : proposal
                   ? scope === "curriculum"
                     ? probeQuestions.length > 0
