@@ -44,11 +44,11 @@ export async function planAdaptiveRepair(
                 goal: current.prompt,
               },
               question: currentCheck,
-              latestAttempt: last,
+              latestAttempt: { ...last, questionReview: undefined },
               recentAttempts: messages
                 .filter((m) => m.check_attempt)
                 .slice(-5)
-                .map((m) => m.check_attempt),
+                .map((m) => ({ ...m.check_attempt, questionReview: undefined })),
               roadmap: milestones.map((m) => ({
                 id: m.id,
                 title: m.title,

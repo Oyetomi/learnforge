@@ -179,6 +179,7 @@ export interface PlacementPlan {
 }
 
 export interface CheckAttempt {
+  questionReview?: { identity: string; model: string; reviewedAt: number };
   response?: string;
   grading?: FreeResponseGrade;
   checkId: string;

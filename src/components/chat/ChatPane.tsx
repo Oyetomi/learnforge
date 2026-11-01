@@ -60,6 +60,7 @@ import {
   questionPresentation,
 } from "../learning/questionPresentation";
 import { QuestionCard } from "../learning/QuestionCard";
+import { ReviewedQuestionCard, useQuestionReview } from "../learning/ReviewedQuestionCard";
 import { AnswerTutoring } from "../learning/AnswerTutoring";
 import "../learning/question-focus.css";
 import {
@@ -82,6 +83,7 @@ import "./learning-help.css";
 import { estimatePromptTokens } from "../../services/ai/prompts";
 
 interface ChatPaneProps {
+  reviewQuestions?: boolean;
   trackId: string;
   isRequestingCheck: boolean;
   onRequestCheck: () => void;
@@ -141,6 +143,7 @@ function previewText(text: string, maxLen = 75): string {
 }
 
 export const ChatPane: React.FC<ChatPaneProps> = ({
+  reviewQuestions = true,
   trackId,
   isRequestingCheck,
   onRequestCheck,
@@ -167,6 +170,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   allowCoding = true,
 }) => {
   const preferences = useLearningPreferences();
+  const SessionQuestionCard = reviewQuestions ? ReviewedQuestionCard : QuestionCard;
   const positionKey = `${trackId}:${activeMilestone?.id || "none"}`;
   const savedPosition = React.useMemo(() => readSessionPosition(positionKey), [positionKey]);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -462,6 +466,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   }, [activity]);
   const reviewCheck = heldCheck || latest;
   const reviewAttempt = reviewCheck ? attemptFor(reviewCheck) : undefined;
+  const questionReviewState = useQuestionReview(reviewCheck || null, activeMilestone?.references, reviewQuestions && !reviewAttempt && !isStreaming);
   const teaching = reviewCheck
     ? answerTutoring(relevant, reviewCheck.id, reviewAttempt)
     : undefined;
@@ -1091,9 +1096,10 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                 </div>
               )}
               {reviewCheck ? (
-                <QuestionCard
+                <SessionQuestionCard
                   key={reviewCheck.id}
                   check={reviewCheck}
+                  {...(reviewQuestions ? { reviewState: questionReviewState, onReturn: lessonSteps.length ? () => { recordVisualSupport(reviewCheck.id, "open-book:lesson"); setActivity("lesson"); } : lastReply ? () => { recordVisualSupport(reviewCheck.id, "open-book:reply"); setActivity("reply"); } : undefined } : {})}
                   references={activeMilestone?.references}
                   onDispute={onDisputeCheck}
                   hideContext={!!reviewAttempt}

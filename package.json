@@ -31,6 +31,8 @@
     "preview": "vite preview",
     "pretest": "node scripts/prepare-sandbox-vendors.mjs",
     "test": "vitest run",
+    "eval:prepare": "node scripts/evaluation/prepare.mjs",
+    "eval:contracts": "node scripts/evaluation/question-contracts.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

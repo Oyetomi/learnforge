@@ -4,6 +4,13 @@ import { describe, expect, it, vi } from "vitest";
 import { ChatPane } from "../../chat/ChatPane";
 import type { Milestone } from "../../../types";
 
+// These server-rendered session/layout tests isolate the provider-backed preflight.
+// ReviewedQuestionCard has its own gate and request tests.
+vi.mock("../ReviewedQuestionCard", async () => {
+  const { QuestionCard } = await import("../QuestionCard");
+  return { ReviewedQuestionCard: QuestionCard, useQuestionReview: () => ({ identity: "", retry: vi.fn() }) };
+});
+
 const milestone: Milestone = {
   id: "m1",
   session_id: "s1",

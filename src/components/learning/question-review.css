@@ -1,0 +1,8 @@
+.question-review { max-width: 720px; margin: 24px auto; padding: clamp(20px, 4vw, 40px); border: 1px solid var(--border-color, #343b43); border-radius: 10px; background: var(--bg-secondary, #191d21); color: var(--text-primary, #e3e7ed); }
+.question-review-kicker { font-size: 11px; color: var(--text-secondary, #aab5c3); }
+.question-review h2 { margin: 14px 0; font-size: clamp(19px, 2.2vw, 24px); line-height: 1.4; font-weight: 500; }
+.question-review p { display: flex; align-items: center; gap: 10px; color: var(--text-secondary, #aab5c3); font-size: 14px; line-height: 1.7; }
+.question-review p svg { flex-shrink: 0; }
+.question-review-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 24px; }
+.question-review-actions button { white-space: normal; }
+@media (prefers-reduced-motion: reduce) { .question-review .animate-spin { animation: none; } }

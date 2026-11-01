@@ -17,7 +17,8 @@ import { useLearningPreferences } from "./useLearningPreferences";
 import { isAcceptedFreeResponseGrade } from "../../services/learning/freeResponse";
 import { gradeLearningCheck } from "../../services/learning/checks";
 import { recordDemonstratedConcept } from "../../services/learning/conceptLedger";
-import { QuestionCard } from "./QuestionCard";
+import { ReviewedQuestionCard } from "./ReviewedQuestionCard";
+import { hasQuestionReview } from "../../services/learning/questionReview";
 import { ReferenceShelf } from "./ReferenceShelf";
 import "./retention-flow.css";
 
@@ -170,6 +171,7 @@ export const RetentionFlow: React.FC<Props> = ({
       saving.current ||
       reviewMessage ||
       question.id !== check?.id
+      || !hasQuestionReview(question, attempt, milestone?.references)
     )
       return;
     saving.current = true;
@@ -279,7 +281,7 @@ export const RetentionFlow: React.FC<Props> = ({
               references={milestone?.references}
               pendingCheckId={!reviewMessage ? check.id : undefined}
             />
-            <QuestionCard
+            <ReviewedQuestionCard
               key={check.id}
               check={check}
               references={milestone?.references}

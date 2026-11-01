@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "reviewStatus": "draft-awaiting-independent-domain-review",
+  "cases": [
+    {
+      "id": "channel-handoff",
+      "subject": "programming",
+      "brief": {
+        "goal": "Help me understand when a Go channel send can continue. I can read simple Go, but I confuse an unbuffered handoff with storing a value. Keep this focused on sends and receives, not a whole concurrency course.",
+        "prerequisites": ["Sequential statements", "Basic function calls"],
+        "reference": "A channel with capacity zero is unbuffered. Communication on an unbuffered channel can proceed when a sender and receiver are ready. A send on a buffered channel can proceed when there is buffer space. This exercise uses non-nil, open channels. Do not infer a specific goroutine scheduling order.",
+        "sourceUrls": ["https://go.dev/ref/spec#Channel_types", "https://go.dev/ref/spec#Send_statements"]
+      },
+      "scenario": {
+        "misconception": "I think make(chan int) stores one value, so the same goroutine can send first and receive on its next line.",
+        "unknown": "I don't know yet. Can you start with a smaller concrete example?",
+        "helpRequest": "Show a small model of a handoff versus one available buffer slot. Let me change something and explain what actually changes. Keep my question and answer in place."
+      },
+      "baseline": {
+        "prompt": "In a function, ch := make(chan int) is followed by ch <- 7, then <-ch. No other goroutine accesses ch. Can it reach the receive? Explain.",
+        "oracle": "No. The send blocks without a concurrent receiver; the same goroutine cannot reach the later receive. This is a local progress claim, not a claim about whole-program deadlock detection.",
+        "criteria": ["Identifies blocking at the send", "Explains that the later receive is not concurrently ready"]
+      },
+      "transfer": {
+        "prompt": "ch := make(chan int, 1); ch <- 7; ch <- 8; <-ch. No other goroutine accesses ch. Which statement first cannot proceed, and why?",
+        "oracle": "The second send, ch <- 8, blocks because the one buffer slot already holds 7. The later receive has not been reached.",
+        "criteria": ["Identifies the second send", "Connects blocking to the occupied slot and sequential execution"]
+      },
+      "delayed": {
+        "prompt": "A non-nil open buffered channel has capacity 2 and currently holds one value. With no receiver, how many additional sends can complete before the next send blocks? Explain.",
+        "oracle": "One additional send fills the remaining slot. The following send blocks until space is freed.",
+        "criteria": ["Answers one additional send", "Explains the remaining capacity rather than assuming an automatic receiver"]
+      },
+      "failureSignals": ["Claims an unbuffered channel stores one value", "Promises a particular goroutine print order without synchronization", "Treats a helped answer as independent mastery"]
+    },
+    {
+      "id": "changing-percentage-base",
+      "subject": "quantitative-reasoning",
+      "brief": {
+        "goal": "Teach me why increasing and then decreasing something by the same percentage does not usually return it to the starting amount. I know basic multiplication. Use small quantities and explain the base in plain language.",
+        "prerequisites": ["Multiply a quantity by a decimal"],
+        "reference": "In these exercises a p% increase multiplies the current quantity by 1 + p/100. A p% decrease multiplies the current quantity by 1 - p/100. Each percentage uses the quantity at that step, with no rounding or other changes.",
+        "sourceUrls": []
+      },
+      "scenario": {
+        "misconception": "A 20% increase and a 20% decrease cancel because the percentages are the same.",
+        "unknown": "I don't understand what the percentage is a percentage of.",
+        "helpRequest": "Use a labeled quantity diagram or typeset calculation where I can inspect the amount before and after each change. Explain which quantity each percentage uses."
+      },
+      "baseline": {
+        "prompt": "A quantity starts at 100, rises by 20%, then falls by 20%. What is its final value? Explain the amount used for the second percentage.",
+        "oracle": "96. The increase gives 120, and 20% of 120 is 24, so the decrease gives 96.",
+        "criteria": ["Answers 96", "Uses 120 as the base of the decrease"]
+      },
+      "transfer": {
+        "prompt": "A quantity starts at 80, falls by 25%, then rises by 25%. What is its final value, and what amount is the increase calculated from?",
+        "oracle": "75. The decrease gives 60; the increase is 25% of 60, which is 15.",
+        "criteria": ["Answers 75", "Uses 60 as the base of the increase"]
+      },
+      "delayed": {
+        "prompt": "A quantity falls from 200 to 160. What percentage increase from 160 would restore 200? Explain your base.",
+        "oracle": "25%. The required increase is 40, and 40/160 = 0.25.",
+        "criteria": ["Answers 25%", "Divides the required increase by 160, not 200"]
+      },
+      "failureSignals": ["Adds the signed percentages instead of changing the base", "Shows an equation without explaining the quantities", "Reveals the held-out transfer answer while teaching"]
+    },
+    {
+      "id": "museum-visit",
+      "subject": "everyday-planning",
+      "brief": {
+        "goal": "Help me plan a visit using this fictional museum guide. I can read times, but I keep confusing the last admission time with when I have to leave. Use everyday examples; I am not learning programming.",
+        "prerequisites": ["Read 24-hour clock times", "Add minutes to a time"],
+        "reference": "Fictional museum guide: last admission is 16:00, including exactly 16:00. Visitors must leave by closing time, 17:00. The trail needs 45 uninterrupted minutes. There is no entry queue or walking time in these exercises. A later visit ending exactly at closing time is permitted. No exceptions are implied.",
+        "sourceUrls": []
+      },
+      "scenario": {
+        "misconception": "Last admission at 16:00 means everyone must leave at 16:00.",
+        "unknown": "I don't know which time tells me whether I can finish the trail.",
+        "helpRequest": "Show admission, trail time and closing time on a clear timeline. Let me compare arrival times without introducing code or unrelated technical terms."
+      },
+      "baseline": {
+        "prompt": "Under the supplied guide, can someone arriving at 16:00 enter and finish the trail before closing? State when the trail finishes.",
+        "oracle": "Yes. Exactly 16:00 is admitted; the 45-minute trail ends at 16:45, before 17:00.",
+        "criteria": ["Distinguishes admission from departure", "Calculates a 16:45 finish"]
+      },
+      "transfer": {
+        "prompt": "A different fictional museum admits visitors through 15:30 inclusive, closes at 16:00, and has a 45-minute trail. There is no queue or walking time. Someone arrives at 15:25. Can they enter, and can they finish before closing? Explain both separately.",
+        "oracle": "They can enter before last admission, but cannot finish the trail: it would end at 16:10, after closing.",
+        "criteria": ["Says entry is allowed", "Says the trail cannot finish and calculates 16:10"]
+      },
+      "delayed": {
+        "prompt": "A fictional gallery admits visitors through 14:00 inclusive and closes at 14:30. A tour takes 40 minutes, with no other delay. What is the latest arrival that allows both entry and completion by closing?",
+        "oracle": "13:50. Forty minutes before 14:30 is 13:50, which is also before last admission.",
+        "criteria": ["Answers 13:50", "Checks both the entry constraint and completion time"]
+      },
+      "failureSignals": ["Treats last admission as closing", "Says entry permission guarantees time to finish", "Changes the goal into programming, optimization theory or museum operations"]
+    }
+  ]
+}

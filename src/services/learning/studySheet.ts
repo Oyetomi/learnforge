@@ -146,6 +146,8 @@ export function buildStudySheet(
     const check = checksById.get(attempt.checkId);
     if (!check) continue;
     seenCheckIds.add(attempt.checkId);
+    // An unsettled key must not become a learned fact or an exported flashcard.
+    if (attempt.grading?.status === "uncertain" || attempt.grading?.reviewRequested) continue;
 
     const correctLabels = check.expectedAnswer || check.options
       .filter((o) => check.correctOptionIds.includes(o.id))
@@ -173,7 +175,7 @@ export function buildStudySheet(
         correctAnswer: correctLabels,
         explanation: check.explanation,
       });
-      if (attempt.confidence === "confident" && !attempt.dontKnow && attempt.grading?.status !== "uncertain") {
+      if (attempt.confidence === "confident" && !attempt.dontKnow) {
         overconfidentTraps.push({
           id: check.id,
           question: check.question,

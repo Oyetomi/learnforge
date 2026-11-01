@@ -3,6 +3,7 @@ import { removeTrackConcepts } from "./conceptLedger";
 import type { LocalDatabase } from "../db/storage";
 import type { CourseTrack } from "../ai/types";
 import { tutoringReadingKey } from "./tutoring";
+import { questionReviewCachePrefix } from "./questionReview";
 
 /** Delete only data owned by this track, including legacy sessions it could open. */
 export function deleteTopicData(
@@ -52,6 +53,7 @@ export function deleteTopicData(
   for (const key of keys)
     if (
       ownedKeys.has(key) ||
+      milestoneIds.some(id => key.startsWith(questionReviewCachePrefix(id))) ||
       key.startsWith(`learnforge:composer-draft:${track.id}:`)
     )
       localStorage.removeItem(key);

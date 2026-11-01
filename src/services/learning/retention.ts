@@ -12,6 +12,7 @@ export function eligibleRetentionCards(cards: SRSCard[], session: LearningSessio
 
 export function retentionRating(check: LearningCheck, attempt: CheckAttempt): FSRSRating | null {
   if (attempt.checkId !== check.id || attempt.milestoneId !== check.milestoneId) return null;
+  if (attempt.grading?.reviewRequested) return null;
   if (attempt.dontKnow) return 1;
   if (attempt.grading?.status === "uncertain" || attempt.grading?.reviewRequested) return null;
   const correct = check.kind === "free-response" ? !!attempt.response?.trim() && isAcceptedFreeResponseGrade(check, attempt.grading)

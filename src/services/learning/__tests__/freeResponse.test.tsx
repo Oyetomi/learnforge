@@ -40,7 +40,7 @@ it("revokes disputed written evidence durably without accepting it as mastery",a
   const {LocalDatabase}=await import("../../db/storage");const db=new LocalDatabase();const s=db.createSession({title:"Channels",topic:"Handoff",language:"go"});
   const attempt:CheckAttempt={checkId:written.id,milestoneId:"m",selectedIds:[],dontKnow:false,thinking:"",confidence:"confident",correct:true,response:"A receiver has to meet it.",grading:{status:"correct",feedback:"A handoff.",criteria:[{id:"handoff",met:true}]},submittedAt:1};
   db.addMessage({role:"user",session_id:s.id,content:"Answer",check_attempt:attempt});
-  expect(db.disputeWrittenAttempt(s.id,written.id)).toBe(true);
+  expect(db.disputeCheckAttempt(s.id,written.id)).toBe(true);
   const restored=new LocalDatabase();const message=restored.getMessages(s.id)[0];
   expect(message.check_attempt?.grading?.reviewRequested).toBe(true);
   expect(learningEvidence([message],"m").independentCorrect).toBe(0);

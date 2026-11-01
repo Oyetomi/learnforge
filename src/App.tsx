@@ -43,6 +43,7 @@ import {
 import { db } from "./services/db";
 import { planAdaptiveRepair } from "./services/learning/planner";
 import { answerTutoring, answerTutoringPrompt, tutoringAttemptKey } from "./services/learning/tutoring";
+import { hasQuestionReview } from "./services/learning/questionReview";
 import {
   acceptsReadiness,
   approvedLessonIds,
@@ -813,6 +814,7 @@ export default function App() {
       isStreaming ||
       check.id !== activeCheck?.id ||
       check.milestoneId !== activeMilestone?.id ||
+      !hasQuestionReview(check, attempt, activeMilestone?.references) ||
       messages.some((message) => message.check_attempt?.checkId === check.id)
     )
       return;
@@ -867,7 +869,7 @@ export default function App() {
   const handleDisputeCheck = (check: LearningCheck) => {
     if (!currentSession || check.id !== activeCheck?.id) return;
     if (isStreaming) handleStopStreaming();
-    if (!db.disputeWrittenAttempt(currentSession.id, check.id)) return;
+    if (!db.disputeCheckAttempt(currentSession.id, check.id)) return;
     if (activeMilestone?.status === "completed") {
       db.updateMilestoneStatus(activeMilestone.id, "active");
       setActiveMilestone({ ...activeMilestone, status: "active" });
@@ -1385,6 +1387,7 @@ export default function App() {
                     {unitPreparation?.id===activeMilestone.id && unitPreparation.state==="loading" ? <><p role="status"><Loader2 size={16} className="animate-spin"/> Preparing a small explanation, example and check…</p><button className="dialog-secondary-button" onClick={()=>{unitController.current?.abort();setUnitPreparation({id:activeMilestone.id,state:"cancelled"});}}>Cancel preparation</button></>:<><p role={unitPreparation?.state==="error"?"alert":"status"}>{unitPreparation?.error || "Preparation is paused. Your approved outline and progress are unchanged."}</p><button className="dialog-primary-button" onClick={()=>setPreparationRetry(n=>n+1)}>Prepare this lesson</button></>}
                     <button className="check-coach-button" onClick={()=>setWorkspaceView("curriculum")}>Back to curriculum</button>
                   </section> : <ChatPane
+                    reviewQuestions
                     trackId={currentTrackId}
                     language={currentSession?.language || undefined}
                     allowCoding={!!currentSession?.language}

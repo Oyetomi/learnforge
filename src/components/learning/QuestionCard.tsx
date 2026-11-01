@@ -78,6 +78,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
   initialRetryIds,
   initialChoicesHidden = false,
   onSubmit,
+  onDispute,
   onAskCoach,
   onClarify,
   onNewQuestion,
@@ -236,6 +237,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
     }
   }, [draft, check.id, attempt]);
   const selectedIds = attempt?.selectedIds || draft.selectedIds;
+  const unresolved = attempt?.grading?.reviewRequested === true;
   const retriedIds = draft.retriedOptionIds;
   useEffect(() => {
     if (!focusRetry.current || !retriedIds.length) return;
@@ -595,8 +597,8 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
               options.map((option, index) => {
                 const chosen = selectedIds.includes(option.id);
                 const correct =
-                  !!attempt && check.correctOptionIds.includes(option.id);
-                const wrong = !!attempt && chosen && !correct;
+                  !!attempt && !unresolved && check.correctOptionIds.includes(option.id);
+                const wrong = !!attempt && !unresolved && chosen && !correct;
                 // A partly correct multi-select answer must remain editable.
                 const eliminated =
                   !attempt && !check.multiple && retriedIds.includes(option.id);
@@ -820,7 +822,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
           ref={feedbackRef}
           tabIndex={-1}
           className={`check-feedback ${
-            attempt.correct
+            unresolved ? "is-review" : attempt.correct
               ? "is-correct"
               : attempt.dontKnow
               ? "is-review"
@@ -829,14 +831,14 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
           role="status"
         >
           <h3 className="check-feedback-title">
-            {attempt.correct ? (
+            {unresolved ? <CircleHelp size={18} aria-hidden="true" /> : attempt.correct ? (
               <CheckCircle2 size={18} aria-hidden="true" />
             ) : attempt.dontKnow ? (
               <CircleHelp size={18} aria-hidden="true" />
             ) : (
               <CircleX size={18} aria-hidden="true" />
             )}
-            {attempt.correct
+            {unresolved ? "Let’s review this feedback" : attempt.correct
               ? "That’s right"
               : attempt.dontKnow
               ? "Let’s work through it"
@@ -883,7 +885,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
                 )}
               </dd>
             </div>
-            {!attempt.correct && (
+            {!attempt.correct && !unresolved && (
               <div className="is-right">
                 <dt>Correct answer</dt>
                 <dd>
@@ -902,14 +904,16 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
               </div>
             )}
           </dl>
-          {feedbackTeaching || (
+          {unresolved && <p className="written-grading-note">Marked for review. This result won’t count toward readiness. We’ll use a fresh case to check the idea.</p>}
+          {feedbackTeaching || (!unresolved && (
             <div className="check-feedback-explanation">
               <MarkdownView
                 content={check.explanation}
                 languageHint={language}
               />
             </div>
-          )}
+          ))}
+          {!unresolved && onDispute && <button type="button" className="check-coach-button" onClick={() => { focusFeedback.current = true; onDispute(check); }}>This feedback missed something</button>}
           {attempt.assisted && !attempt.retriedOptionIds?.length && (
             <p className="written-grading-note">
               With support · try a fresh case before this counts toward

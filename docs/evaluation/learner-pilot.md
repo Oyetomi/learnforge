@@ -2,6 +2,8 @@
 
 Status: protocol prepared; no participants recruited and no results recorded. This is a moderated discovery study, not proof that LearnForge teaches better than another app.
 
+The [comparison kit](comparison.md) provides version capture, a draft three-subject task pack and a deterministic question-boundary audit. Its generated records are not participant observations. Matched A/B tasks and independent domain review are still required before using this protocol with learners.
+
 ## Decision to inform
 
 Can a learner understand the next action, explain why an answer needs work, recover from a mistake, and apply the idea in a fresh situation without losing their place? Does optional retrieval help them resume their goal rather than interrupt it?

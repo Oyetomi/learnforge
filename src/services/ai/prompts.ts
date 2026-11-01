@@ -299,7 +299,7 @@ function formatFullMessageContent(
   }
 
   if (msg.check_attempt)
-    content += `\nRecorded attempt: ${JSON.stringify(msg.check_attempt)}`;
+    content += `\nRecorded attempt: ${JSON.stringify({ ...msg.check_attempt, questionReview: undefined })}`;
   if (msg.competency_assessment)
     content += `\nReadiness review: ${JSON.stringify(
       msg.competency_assessment

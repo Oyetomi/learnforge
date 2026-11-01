@@ -1,0 +1,96 @@
+{
+  "scope": "Pure question-authoring boundary only; deliberately injected fixtures, not generated questions. Accepted means format-valid, not factually verified.",
+  "createdAt": "2026-11-01T10:52:45.245Z",
+  "node": "v26.8.1",
+  "commits": {
+    "learnforge": "b2f946f63141edd529f93791dc59079447977a5e",
+    "learnharness": "d9452abc275f8aa16c71680440c05e6b5b8b67cd"
+  },
+  "results": [
+    {
+      "id": "correct-key",
+      "question": "What is 2 + 2?",
+      "explanation": "Two pairs total four.",
+      "semanticStatus": "correct",
+      "options": [
+        {
+          "id": "a",
+          "label": "4"
+        },
+        {
+          "id": "b",
+          "label": "5"
+        }
+      ],
+      "key": "a",
+      "learnforgeAccepted": true,
+      "learnharnessAccepted": true
+    },
+    {
+      "id": "wrong-key",
+      "question": "What is 2 + 2?",
+      "explanation": "Two plus two is five.",
+      "semanticStatus": "incorrect",
+      "options": [
+        {
+          "id": "a",
+          "label": "4"
+        },
+        {
+          "id": "b",
+          "label": "5"
+        }
+      ],
+      "key": "b",
+      "learnforgeAccepted": true,
+      "learnharnessAccepted": true
+    },
+    {
+      "id": "ambiguous-single-select",
+      "question": "Which number is greater than zero?",
+      "explanation": "One is positive.",
+      "semanticStatus": "two-correct-options",
+      "options": [
+        {
+          "id": "a",
+          "label": "1"
+        },
+        {
+          "id": "b",
+          "label": "2"
+        },
+        {
+          "id": "c",
+          "label": "-1"
+        }
+      ],
+      "key": "a",
+      "learnforgeAccepted": true,
+      "learnharnessAccepted": true
+    },
+    {
+      "id": "nonexistent-key",
+      "question": "What is 2 + 2?",
+      "explanation": "Two pairs total four.",
+      "semanticStatus": "structurally-invalid",
+      "options": [
+        {
+          "id": "a",
+          "label": "4"
+        },
+        {
+          "id": "b",
+          "label": "5"
+        }
+      ],
+      "key": "missing",
+      "learnforgeAccepted": false,
+      "learnharnessAccepted": false
+    }
+  ],
+  "sourceSha256": {
+    "learnforgeChecks": "5a7714da8913b7726ad73ee8925f610e15777e58718263a6716588fd4c278d18",
+    "learnharnessQuestions": "531ca33bf0ed578d44e3e63ba1fd1f18cec5680088996603e15c61cfc6ee16b8",
+    "learnharnessValueNormalization": "3b42df41a221ff5e27339424675d3f4e9c92e1b6ed300f6e3f0d863dbe9ce476"
+  }
+}

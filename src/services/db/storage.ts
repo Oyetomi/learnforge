@@ -328,12 +328,12 @@ export class LocalDatabase {
     return fullMsg;
   }
 
-  disputeWrittenAttempt(sessionId: string, checkId: string): boolean {
+  disputeCheckAttempt(sessionId: string, checkId: string): boolean {
     const message = this.messages.get(sessionId)?.find((m) => m.check_attempt?.checkId === checkId);
     const attempt = message?.check_attempt;
-    if (!message || !attempt?.grading) return false;
+    if (!message || !attempt || attempt.grading?.reviewRequested) return false;
     message.check_attempt = { ...attempt, correct: false, assisted: true,
-      grading: { ...attempt.grading, status: "uncertain", reviewRequested: true } };
+      grading: { ...(attempt.grading || { feedback: "The learner asked to review this question and its answer.", criteria: [] }), status: "uncertain", reviewRequested: true } };
     message.content += "\nFeedback disputed by learner; this result is unresolved and excluded from readiness.";
     this.persistMessages();
     return true;
@@ -354,9 +354,9 @@ export class LocalDatabase {
 
   disputeRetentionReview(sessionId: string, messageId: string): RetentionReview | null {
     const review = this.messages.get(sessionId)?.find((m) => m.id === messageId)?.retention_review;
-    if (!review?.attempt.grading || review.finishedAt !== undefined) return null;
+    if (!review || review.attempt.grading?.reviewRequested || review.finishedAt !== undefined) return null;
     review.attempt = { ...review.attempt, correct: false, assisted: true,
-      grading: { ...review.attempt.grading, status: "uncertain", reviewRequested: true } };
+      grading: { ...(review.attempt.grading || { feedback: "The learner asked to review this question and its answer.", criteria: [] }), status: "uncertain", reviewRequested: true } };
     this.persistMessages();
     return review;
   }
