@@ -44,9 +44,10 @@ export function NarrationSettings({ value, onChange, apiKey, onKeyChange, onKeyS
         <span>{enabled ? "Enabled" : "Enable"}</span>
       </label>
     </div>
-    <p>Connect your own ElevenLabs account. Audio starts only when you choose Listen; it never advances the lesson.</p>
-    {!enabled && <p>Device narration remains available without an ElevenLabs key. Disabling this plugin keeps your saved key for later.</p>}
-    {native ? <>
+    <p>Read lessons and explanations aloud with your own ElevenLabs account. Audio starts only when you choose Listen.</p>
+    {native && !enabled && <p>Device voice stays available. Disabling this plugin keeps your saved key for later.</p>}
+    {native ? <details className="settings-plugin-details" open={enabled}>
+      <summary>Connection and voice settings</summary>
       <label className="settings-field"><span>ElevenLabs API key <small>{configured ? "Saved in Keychain" : "Optional"}</small></span>
         <input type="password" autoComplete="off" spellCheck={false} value={apiKey}
           placeholder={configured ? "Leave blank to keep your saved key" : "Enter your ElevenLabs key"}
@@ -76,7 +77,7 @@ export function NarrationSettings({ value, onChange, apiKey, onKeyChange, onKeyS
         {loading && <Loader2 size={12} className="animate-spin" />} {loading ? "Loading voices…" : "Load voices"}
       </button></div>
       <p>Your key is stored in macOS Keychain. Pressing Listen sends the displayed explanation to ElevenLabs and uses its credits. Recent audio is cached while the app stays open. Device voice is available without ElevenLabs.</p>
-    </> : <p>ElevenLabs narration is configured in the Mac app. This browser can use its available device voice.</p>}
+    </details> : <p>Configure ElevenLabs in the Mac app. Device voice is available here.</p>}
     {error && <p ref={errorRef} className="narration-error" role="alert">{error}</p>}
   </section>;
 }

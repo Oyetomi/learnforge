@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCheckContext, questionPresentation } from "../questionPresentation";
+import { formatCheckContext, questionPresentation, needsReferenceScreen } from "../questionPresentation";
 
 describe("code in question headings", () => {
   it("moves long Go declarations into code context, preserving exact source and short named references", () => {
@@ -56,5 +56,17 @@ describe("code in question headings", () => {
         'Consider the following router setup:\n\n```go\nmux := http.NewServeMux()\nmux.HandleFunc("GET /posts/{$}", postsListHandler)\n```'
       );
     });
+  });
+});
+
+describe("reference reading stops", () => {
+  it("keeps a short scenario or small snippet with its question", () => {
+    expect(needsReferenceScreen("You greet an elder at 8 AM.")).toBe(false);
+    expect(needsReferenceScreen("```js\nconst n = 2;\nconsole.log(n);\n```")).toBe(false);
+    expect(needsReferenceScreen("")).toBe(false);
+  });
+  it("gives substantial source passages and long listings a separate reading surface", () => {
+    expect(needsReferenceScreen("A long reference passage. ".repeat(30))).toBe(true);
+    expect(needsReferenceScreen(Array.from({length:12},(_,i)=>String(i)).join("\n"))).toBe(true);
   });
 });

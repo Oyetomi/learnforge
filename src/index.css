@@ -5379,3 +5379,10 @@ dialog.review-dialog { overflow: hidden; max-height: calc(100dvh - 40px); }
 .focused-session .check-feedback:has(.answer-tutoring) .check-answer-lines > div { padding: 10px 12px; border-color: #3a4544; background: #202827; }
 .focused-session .check-feedback:has(.answer-tutoring) .check-answer-lines dd :is(.prose,p) { font-size: 13px; line-height: 1.65; }
 .focused-session .check-feedback:has(.answer-tutoring) .check-answer-lines dt { font-size: 10px; letter-spacing: .04em; }
+
+/* Disabled integrations stay quiet while keeping configuration discoverable. */
+.settings-plugin-details { min-width: 0; border-top: 1px solid #343c46; margin-top: 10px; }
+.settings-plugin-details > summary { cursor: pointer; padding: 12px 0; min-height: 40px; font-size: 12px; color: #bec8d3; }
+.settings-plugin-details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.settings-plugin-details[open] { display: block; }
+.settings-plugin-details[open] > :not(summary) { margin-top: 12px; }

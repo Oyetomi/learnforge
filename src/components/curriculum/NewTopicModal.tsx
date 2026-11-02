@@ -724,8 +724,7 @@ export const NewTopicModal: React.FC<Props> = ({
               onOpenPlugins && (
                 <div className="exa-grounding-promo">
                   <span>
-                    <Blocks size={13} aria-hidden="true" /> Learning a
-                    fast-moving library, API, or paper?
+                    <Blocks size={13} aria-hidden="true" /> Want to learn from web sources?
                   </span>
                   <button
                     type="button"

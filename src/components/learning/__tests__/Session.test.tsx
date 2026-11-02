@@ -58,7 +58,8 @@ describe("one guided session", () => {
     );
     expect(html).toContain("Guided learning session");
     expect(html).toContain("A worker pool reads jobs");
-    expect(html).toContain("Continue to question");
+    expect(html).not.toContain("Continue to question");
+    expect(html).toContain("Choose one answer");
     expect(html).toContain("Message your AI coach");
     expect(html).toContain("Saved explanations");
     expect(html).toContain("Coding practice");
@@ -533,4 +534,22 @@ it("surfaces the transparent open-book explanation peek contract on unanswered c
   expect(html).toContain("Peek at explanation (switches to supported practice)");
   expect(html).toContain("Independent practice");
   expect(html).not.toContain("Anchored explanation prose.");
+});
+
+
+it("keeps a short reference beside its question and reserves a reading screen for long material", () => {
+  const check = { id: "reference", milestoneId: "m1", question: "Which response fits?",
+    options: [{id: "a", label: "First"}, {id: "b", label: "Second"}],
+    correctOptionIds: ["a"], multiple: false, explanation: "Private answer" };
+  const renderReference = (context: string) => renderToStaticMarkup(<ChatPane {...props} messages={[
+    {id: "reference-message", session_id: "s1", milestone_id: "m1", role: "assistant", content: "", created_at: 1,
+      learning_check: {...check, context}}
+  ]} />);
+  const short = renderReference("You meet a neighbor in the morning.");
+  expect(short).toContain("You meet a neighbor in the morning");
+  expect(short).toContain("Which response fits?");
+  expect(short).not.toContain("Continue to question");
+  const long = renderReference("A longer passage with important context. ".repeat(20));
+  expect(long).toContain("Continue to question");
+  expect(long).not.toContain("Which response fits?");
 });

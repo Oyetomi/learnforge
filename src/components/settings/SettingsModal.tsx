@@ -857,6 +857,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <label className="settings-plugin-switch">
                     <input
                       type="checkbox"
+                      aria-label="Enable Exa Neural Search"
                       checked={pluginsDraft.exa.enabled}
                       onChange={(e) =>
                         updateExa({ enabled: e.target.checked })
@@ -869,9 +870,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
 
                 <p className="settings-plugin-desc">
-                  {exaManifest.description}
+                  Use web sources to ground new topics in current information, with citations.
                 </p>
 
+                <details className="settings-plugin-details" open={pluginsDraft.exa.enabled}>
+                  <summary>Connection and search settings</summary>
                 <div className="settings-plugin-caps">
                   <span>Live topic grounding (/search)</span>
                   <span>Clean URL &amp; paper reader (/contents)</span>
@@ -1064,6 +1067,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     )}
                   </span>
                 </div>
+                </details>
               </section>
             </>
           ) : (

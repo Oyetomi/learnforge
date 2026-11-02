@@ -1,3 +1,4 @@
+import { needsReferenceScreen } from "../learning/questionPresentation";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   BookOpen,
@@ -390,8 +391,8 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
       .join("\n\n");
   };
   const reference = latest ? referenceFor(latest) : "";
-  // A guided cue belongs beside its decision, without a separate reading stop.
-  const separateReference = !!reference && latest?.practice !== "guided";
+  // Short givens and guided cues belong beside the decision. Longer references keep a reading screen.
+  const separateReference = needsReferenceScreen(reference) && latest?.practice !== "guided";
   const seenReferences = useRef(new Set<string>());
   const checkEntry = (): Activity =>
     latest && separateReference && !attempt && !seenReferences.current.has(latest.id)

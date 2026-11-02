@@ -34,6 +34,14 @@ describe("help remains outside learning progression", () => {
     expect(readSessionPosition("other:lesson")).toBeNull(); expect(data.get("learnforge:check-draft:q")).toBe("selected-answer");
     data.set("learnforge:session-position:bad", '{"activity":"execute-script"}'); expect(readSessionPosition("bad")).toBeNull();
   });
+  it("keeps a brief introductory sentence with the first teaching idea", () => {
+    const intro = "Greetings depend on who you are speaking to.";
+    expect(splitLessonIntoActivities(intro + "\n\n## The greeting\n\nA concrete example.\n\n## Apply it\n\nTry a new situation.")).toEqual([
+      intro + "\n\n## The greeting\n\nA concrete example.", "## Apply it\n\nTry a new situation."
+    ]);
+    const long = "A substantial introduction with its own explanation. ".repeat(10);
+    expect(splitLessonIntoActivities(long + "\n\n## Next idea\n\nContinue.")).toHaveLength(2);
+  });
   it("groups a concept's prose, code and explanation together rather than paginating paragraphs", () => {
     const first = "## One idea\n\nIntroduce it.\n\n```text\nexample\n\nmore\n```\n\nExplain the result.";
     expect(splitLessonIntoActivities(first + "\n\n---\n\n## Apply it\n\nA new task.")).toEqual([first, "## Apply it\n\nA new task."]);

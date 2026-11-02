@@ -157,5 +157,11 @@ export function splitLessonIntoSlides(markdown: string | undefined): string[] {
 /** A heading defines a learning idea; its prose, example and explanation stay together. */
 export function splitLessonIntoActivities(markdown: string | undefined): string[] {
   const clean = splitLessonIntoSlides(markdown).join("\n\n");
-  return splitLessonIntoSteps(clean, Number.POSITIVE_INFINITY);
+  const activities = splitLessonIntoSteps(clean, Number.POSITIVE_INFINITY);
+  // A brief unheaded lead-in provides context for the first idea, not a slide of its own.
+  if (activities.length > 1 && !HEADING.test(activities[0]) &&
+      activities[0].length <= 240 && !/```|~~~|\$\$/.test(activities[0])) {
+    return [activities[0] + "\n\n" + activities[1], ...activities.slice(2)];
+  }
+  return activities;
 }

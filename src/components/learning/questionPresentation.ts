@@ -119,3 +119,10 @@ export function questionPresentation(question: string) {
     .join("");
   return { stem, snippets };
 }
+
+/** Short givens stay next to the answer; only substantial references need a reading stop. */
+export function needsReferenceScreen(reference: string): boolean {
+  const text = reference.trim();
+  if (!text) return false;
+  return text.length > 420 || text.split("\n").length > 10;
+}
