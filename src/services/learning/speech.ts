@@ -21,6 +21,7 @@ import { cacheNarration, cachedNarration, loadNarrationPreferences, narrationKey
 
 export interface VoiceRecordingStatus {
   active: boolean;
+  phase?: "starting" | "listening" | "finishing" | "idle";
   transcript: string;
   isFinal: boolean;
   level: number;

@@ -6,285 +6,208 @@
 #include <string.h>
 #include <math.h>
 
+// Only snapshot data is protected by this mutex. Audio-engine operations stay
+// on the main queue and never hold a lock needed by the realtime input tap.
 static pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-static BOOL g_recording_active = NO;
-static BOOL g_has_tap = NO;
-static BOOL g_is_final = NO;
-static float g_audio_level = 0.0f;
+static BOOL g_recording_active = NO, g_has_tap = NO, g_is_final = NO;
+static float g_audio_level = 0;
 static uint64_t g_session_id = 0;
-static NSString *g_transcript = @"";
-static NSString *g_error = @"";
-
+static NSString *g_transcript = @"", *g_error = @"", *g_phase = @"idle";
 static AVAudioEngine *g_audio_engine = nil;
 static SFSpeechAudioBufferRecognitionRequest *g_recognition_request = nil;
 static SFSpeechRecognitionTask *g_recognition_task = nil;
 static SFSpeechRecognizer *g_speech_recognizer = nil;
-
 static AVSpeechSynthesizer *g_synthesizer = nil;
 
 static char *lf_dup_json_dict(NSDictionary *dict) {
-  NSError *err = nil;
-  NSData *data = [NSJSONSerialization dataWithJSONObject:dict options:0 error:&err];
-  if (!data || err) {
-    return strdup("{\"active\":false,\"transcript\":\"\",\"isFinal\":true,\"level\":0,\"error\":\"Serialization error\"}");
-  }
-  NSString *json = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-  const char *utf8 = [json UTF8String];
-  return strdup(utf8 ? utf8 : "{}");
+  NSData *data = [NSJSONSerialization dataWithJSONObject:dict options:0 error:NULL];
+  NSString *json = data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : @"{}";
+  return strdup(json.UTF8String ?: "{}");
 }
-
-static void lf_teardown_engine_locked(void) {
-  if (g_audio_engine) {
-    @try {
-      if (g_has_tap) {
-        [g_audio_engine.inputNode removeTapOnBus:0];
-        g_has_tap = NO;
-      }
-      if (g_audio_engine.isRunning) {
-        [g_audio_engine stop];
-      }
-    } @catch (NSException *_ex) {
-      g_has_tap = NO;
-    }
-  }
-  if (g_recognition_request) {
-    @try {
-      [g_recognition_request endAudio];
-    } @catch (NSException *_ex) {}
-  }
-  if (g_recognition_task) {
-    @try {
-      [g_recognition_task finish];
-    } @catch (NSException *_ex) {}
-  }
-  g_audio_engine = nil;
-  g_recognition_request = nil;
-  g_recognition_task = nil;
-  g_speech_recognizer = nil;
-  g_audio_level = 0.0f;
-}
-
-static void lf_begin_capture_on_main(uint64_t session_id, NSString *locale_id) {
+static char *lf_snapshot(void) {
   pthread_mutex_lock(&g_mutex);
-  if (!g_recording_active || session_id != g_session_id) {
-    pthread_mutex_unlock(&g_mutex);
-    return;
-  }
-
-  NSLocale *locale = locale_id.length > 0
-    ? [NSLocale localeWithLocaleIdentifier:locale_id]
-    : [NSLocale currentLocale];
-  SFSpeechRecognizer *recognizer = [[SFSpeechRecognizer alloc] initWithLocale:locale];
-  if (!recognizer) {
-    recognizer = [[SFSpeechRecognizer alloc] initWithLocale:[NSLocale localeWithLocaleIdentifier:@"en-US"]];
-  }
+  NSDictionary *dict = @{@"active": @(g_recording_active), @"transcript": g_transcript,
+    @"isFinal": @(g_is_final), @"level": @(g_audio_level), @"error": g_error, @"phase": g_phase};
+  pthread_mutex_unlock(&g_mutex);
+  return lf_dup_json_dict(dict);
+}
+static BOOL lf_session_active(uint64_t session) {
+  pthread_mutex_lock(&g_mutex);
+  BOOL active = session == g_session_id && g_recording_active;
+  pthread_mutex_unlock(&g_mutex);
+  return active;
+}
+static void lf_stop_input_on_main(void) {
+  @try {
+    if (g_audio_engine.isRunning) [g_audio_engine stop];
+    if (g_has_tap) { [g_audio_engine.inputNode removeTapOnBus:0]; g_has_tap = NO; }
+  } @catch (NSException *_ex) { g_has_tap = NO; }
+}
+static void lf_release_capture_on_main(void) {
+  lf_stop_input_on_main();
+  [g_recognition_request endAudio];
+  [g_recognition_task cancel];
+  g_audio_engine = nil; g_recognition_request = nil;
+  g_recognition_task = nil; g_speech_recognizer = nil;
+}
+static void lf_complete_on_main(uint64_t session, NSString *text, NSString *error) {
+  pthread_mutex_lock(&g_mutex);
+  if (session != g_session_id || !g_recording_active) { pthread_mutex_unlock(&g_mutex); return; }
+  if (text.length) g_transcript = [text copy];
+  g_error = error ?: @"";
+  g_recording_active = NO; g_is_final = YES; g_phase = @"idle"; g_audio_level = 0;
+  pthread_mutex_unlock(&g_mutex);
+  lf_release_capture_on_main();
+}
+static void lf_finish_on_main(uint64_t session) {
+  if (!lf_session_active(session)) return;
+  pthread_mutex_lock(&g_mutex);
+  g_phase = @"finishing"; g_audio_level = 0;
+  pthread_mutex_unlock(&g_mutex);
+  lf_stop_input_on_main();
+  [g_recognition_request endAudio];
+  [g_recognition_task finish];
+  // Keep the session identity and task alive until its final result arrives.
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 6 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+    if (lf_session_active(session)) {
+      pthread_mutex_lock(&g_mutex);
+      BOOL empty = g_transcript.length == 0;
+      pthread_mutex_unlock(&g_mutex);
+      lf_complete_on_main(session, nil, empty ? @"No speech was recognized. Check your microphone input and try again." : nil);
+    }
+  });
+}
+static void lf_begin_capture_on_main(uint64_t session, NSString *localeId) {
+  if (!lf_session_active(session)) return;
+  SFSpeechRecognizer *recognizer = [[SFSpeechRecognizer alloc] initWithLocale:[NSLocale localeWithLocaleIdentifier:localeId]];
   if (!recognizer || !recognizer.isAvailable) {
-    g_error = @"macOS Speech Recognition is currently unavailable. Check System Settings → Keyboard → Dictation.";
-    g_recording_active = NO;
-    pthread_mutex_unlock(&g_mutex);
-    return;
+    lf_complete_on_main(session, nil, @"Speech recognition is unavailable for your current language. Check System Settings → Keyboard → Dictation."); return;
   }
-
+  if (!recognizer.supportsOnDeviceRecognition) {
+    lf_complete_on_main(session, nil, @"On-device speech recognition is unavailable for this language. Add its Dictation language in System Settings → Keyboard, or use keyboard dictation in the text field."); return;
+  }
+  recognizer.queue = [NSOperationQueue mainQueue];
   AVAudioEngine *engine = [[AVAudioEngine alloc] init];
   SFSpeechAudioBufferRecognitionRequest *request = [[SFSpeechAudioBufferRecognitionRequest alloc] init];
   request.shouldReportPartialResults = YES;
-  if (@available(macOS 13.0, *)) {
-    request.addsPunctuation = YES;
-  }
-
+  request.requiresOnDeviceRecognition = YES;
+  if (@available(macOS 13.0, *)) request.addsPunctuation = YES;
+  g_audio_engine = engine; g_recognition_request = request; g_speech_recognizer = recognizer;
   @try {
-    AVAudioInputNode *inputNode = engine.inputNode;
-    AVAudioFormat *recordingFormat = [inputNode outputFormatForBus:0];
-    if (!recordingFormat || recordingFormat.channelCount == 0 || recordingFormat.sampleRate <= 0) {
-      g_error = @"No active microphone input device was found on this Mac.";
-      g_recording_active = NO;
-      pthread_mutex_unlock(&g_mutex);
-      return;
+    AVAudioInputNode *input = engine.inputNode;
+    AVAudioFormat *format = [input outputFormatForBus:0];
+    if (!format || format.channelCount == 0 || format.sampleRate <= 0) {
+      lf_complete_on_main(session, nil, @"No active microphone input was found. Check System Settings → Sound → Input."); return;
     }
-
-    SFSpeechAudioBufferRecognitionRequest *weakReq = request;
-    [inputNode installTapOnBus:0
-                    bufferSize:1024
-                        format:recordingFormat
-                         block:^(AVAudioPCMBuffer * _Nonnull buffer, AVAudioTime * _Nonnull _when) {
-      (void)_when;
-      [weakReq appendAudioPCMBuffer:buffer];
-      float rms = 0.0f;
-      if (buffer.floatChannelData != NULL && buffer.frameLength > 0) {
+    [input installTapOnBus:0 bufferSize:1024 format:format block:^(AVAudioPCMBuffer *buffer, AVAudioTime *when) {
+      (void)when;
+      [request appendAudioPCMBuffer:buffer];
+      float sum = 0;
+      if (buffer.floatChannelData && buffer.frameLength) {
         const float *samples = buffer.floatChannelData[0];
-        AVAudioFrameCount count = buffer.frameLength;
-        float sum = 0.0f;
-        for (AVAudioFrameCount i = 0; i < count; i++) {
-          float s = samples[i];
-          sum += s * s;
-        }
-        rms = sqrtf(sum / (float)count);
+        for (AVAudioFrameCount i=0; i<buffer.frameLength; i++) sum += samples[i]*samples[i];
       }
-      float normalized = fminf(1.0f, rms * 8.0f);
-      pthread_mutex_lock(&g_mutex);
-      if (session_id == g_session_id && g_recording_active) {
-        g_audio_level = normalized;
+      float level = buffer.frameLength ? fminf(1, sqrtf(sum/buffer.frameLength)*8) : 0;
+      if (pthread_mutex_trylock(&g_mutex) == 0) {
+        if (session == g_session_id && g_recording_active) g_audio_level = level;
+        pthread_mutex_unlock(&g_mutex);
       }
-      pthread_mutex_unlock(&g_mutex);
     }];
     g_has_tap = YES;
-
-    [engine prepare];
-    NSError *startErr = nil;
-    if (![engine startAndReturnError:&startErr] || startErr != nil) {
-      if (g_has_tap) {
-        [inputNode removeTapOnBus:0];
-        g_has_tap = NO;
-      }
-      g_error = startErr.localizedDescription ?: @"Could not start microphone audio capture.";
-      g_recording_active = NO;
-      pthread_mutex_unlock(&g_mutex);
-      return;
-    }
-
-    g_speech_recognizer = recognizer;
-    g_audio_engine = engine;
-    g_recognition_request = request;
-
-    g_recognition_task = [recognizer recognitionTaskWithRequest:request
-                                                  resultHandler:^(SFSpeechRecognitionResult * _Nullable result, NSError * _Nullable error) {
-      pthread_mutex_lock(&g_mutex);
-      if (session_id != g_session_id) {
-        pthread_mutex_unlock(&g_mutex);
-        return;
-      }
-      if (result != nil) {
-        NSString *text = result.bestTranscription.formattedString;
-        if (text != nil) {
-          g_transcript = [text copy];
-        }
-        if (result.isFinal) {
-          g_is_final = YES;
-        }
-      }
-      if (error != nil && g_recording_active) {
-        if (g_transcript.length == 0) {
-          g_error = error.localizedDescription ?: @"Speech recognition stopped.";
-        }
-        lf_teardown_engine_locked();
-        g_recording_active = NO;
-      }
-      pthread_mutex_unlock(&g_mutex);
-    }];
-  } @catch (NSException *exception) {
-    lf_teardown_engine_locked();
-    g_error = exception.reason ?: @"Audio input initialization failed.";
-    g_recording_active = NO;
-  }
-
-  pthread_mutex_unlock(&g_mutex);
-}
-
-char *lf_voice_start(const char *lang_cstr) {
-  @autoreleasepool {
-    NSString *localeId = (lang_cstr && strlen(lang_cstr) > 0)
-      ? [NSString stringWithUTF8String:lang_cstr]
-      : @"en-US";
-
-    pthread_mutex_lock(&g_mutex);
-    lf_teardown_engine_locked();
-    g_session_id += 1;
-    uint64_t currentSession = g_session_id;
-    g_transcript = @"";
-    g_error = @"";
-    g_is_final = NO;
-    g_audio_level = 0.0f;
-    g_recording_active = YES;
-    pthread_mutex_unlock(&g_mutex);
-
-    AVAuthorizationStatus micStatus = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
-    if (micStatus == AVAuthorizationStatusDenied || micStatus == AVAuthorizationStatusRestricted) {
-      pthread_mutex_lock(&g_mutex);
-      g_recording_active = NO;
-      g_error = @"Microphone permission is disabled. Enable LearnForge in System Settings → Privacy & Security → Microphone.";
-      NSDictionary *resp = @{
-        @"active": @NO,
-        @"transcript": @"",
-        @"isFinal": @YES,
-        @"level": @(0.0f),
-        @"error": g_error
-      };
-      pthread_mutex_unlock(&g_mutex);
-      return lf_dup_json_dict(resp);
-    }
-
-    [AVCaptureDevice requestAccessForMediaType:AVMediaTypeAudio completionHandler:^(BOOL granted) {
-      if (!granted) {
+    g_recognition_task = [recognizer recognitionTaskWithRequest:request resultHandler:^(SFSpeechRecognitionResult *result, NSError *error) {
+      if (!lf_session_active(session)) return;
+      if (result) {
         pthread_mutex_lock(&g_mutex);
-        if (currentSession == g_session_id) {
-          g_recording_active = NO;
-          g_error = @"Microphone access was not granted. Enable it in System Settings → Privacy & Security → Microphone.";
-        }
+        if (session == g_session_id && g_recording_active)
+          g_transcript = [result.bestTranscription.formattedString copy] ?: @"";
         pthread_mutex_unlock(&g_mutex);
-        return;
       }
-
-      [SFSpeechRecognizer requestAuthorization:^(SFSpeechRecognizerAuthorizationStatus status) {
-        if (status != SFSpeechRecognizerAuthorizationStatusAuthorized) {
-          pthread_mutex_lock(&g_mutex);
-          if (currentSession == g_session_id) {
-            g_recording_active = NO;
-            g_error = @"Speech Recognition permission was not granted. Enable LearnForge in System Settings → Privacy & Security → Speech Recognition.";
-          }
-          pthread_mutex_unlock(&g_mutex);
-          return;
-        }
-
+      if (result.isFinal || error) {
+        pthread_mutex_lock(&g_mutex);
+        BOOL empty = g_transcript.length == 0;
+        pthread_mutex_unlock(&g_mutex);
+        lf_complete_on_main(session, nil, empty ? (error.localizedDescription ?: @"No speech was recognized. Check your microphone input and try again.") : nil);
+      }
+    }];
+    [engine prepare];
+    NSError *error = nil;
+    if (![engine startAndReturnError:&error]) {
+      lf_complete_on_main(session, nil, error.localizedDescription ?: @"Could not start microphone capture."); return;
+    }
+    pthread_mutex_lock(&g_mutex);
+    if (session == g_session_id && g_recording_active) g_phase = @"listening";
+    pthread_mutex_unlock(&g_mutex);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 60 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+      if (lf_session_active(session)) lf_finish_on_main(session);
+    });
+  } @catch (NSException *exception) {
+    lf_complete_on_main(session, nil, exception.reason ?: @"Microphone initialization failed.");
+  }
+}
+char *lf_voice_start(const char *lang) {
+  @autoreleasepool {
+    NSString *localeId = lang && strlen(lang) ? [NSString stringWithUTF8String:lang] : @"en-US";
+    pthread_mutex_lock(&g_mutex);
+    uint64_t session = ++g_session_id;
+    g_transcript = @""; g_error = @""; g_phase = @"starting";
+    g_is_final = NO; g_audio_level = 0; g_recording_active = YES;
+    pthread_mutex_unlock(&g_mutex);
+    dispatch_async(dispatch_get_main_queue(), ^{
+      lf_release_capture_on_main();
+      if (!lf_session_active(session)) return;
+      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 45 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        pthread_mutex_lock(&g_mutex);
+        BOOL waiting = session == g_session_id && g_recording_active && [g_phase isEqualToString:@"starting"];
+        pthread_mutex_unlock(&g_mutex);
+        if (waiting) lf_complete_on_main(session, nil, @"Microphone setup timed out. Check microphone and Speech Recognition permissions in System Settings → Privacy & Security, then try again.");
+      });
+      [AVCaptureDevice requestAccessForMediaType:AVMediaTypeAudio completionHandler:^(BOOL granted) {
         dispatch_async(dispatch_get_main_queue(), ^{
-          lf_begin_capture_on_main(currentSession, localeId);
+          if (!lf_session_active(session)) return;
+          if (!granted) { lf_complete_on_main(session, nil, @"Microphone access is disabled. Enable LearnForge in System Settings → Privacy & Security → Microphone."); return; }
+          [SFSpeechRecognizer requestAuthorization:^(SFSpeechRecognizerAuthorizationStatus status) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+              if (!lf_session_active(session)) return;
+              if (status != SFSpeechRecognizerAuthorizationStatusAuthorized) {
+                lf_complete_on_main(session, nil, @"Speech Recognition access is disabled. Enable LearnForge in System Settings → Privacy & Security → Speech Recognition."); return;
+              }
+              lf_begin_capture_on_main(session, localeId);
+            });
+          }];
         });
       }];
-    }];
-
-    NSDictionary *initial = @{
-      @"active": @YES,
-      @"transcript": @"",
-      @"isFinal": @NO,
-      @"level": @(0.0f),
-      @"error": @""
-    };
-    return lf_dup_json_dict(initial);
+    });
+    return lf_snapshot();
   }
 }
-
-char *lf_voice_poll_json(void) {
-  @autoreleasepool {
-    pthread_mutex_lock(&g_mutex);
-    NSDictionary *dict = @{
-      @"active": @(g_recording_active),
-      @"transcript": g_transcript ?: @"",
-      @"isFinal": @(g_is_final),
-      @"level": @(g_audio_level),
-      @"error": g_error ?: @""
-    };
-    pthread_mutex_unlock(&g_mutex);
-    return lf_dup_json_dict(dict);
-  }
-}
-
+char *lf_voice_poll_json(void) { @autoreleasepool { return lf_snapshot(); } }
 char *lf_voice_stop_json(void) {
   @autoreleasepool {
     pthread_mutex_lock(&g_mutex);
-    g_session_id += 1;
-    g_recording_active = NO;
-    lf_teardown_engine_locked();
-    NSDictionary *dict = @{
-      @"active": @NO,
-      @"transcript": g_transcript ?: @"",
-      @"isFinal": @YES,
-      @"level": @(0.0f),
-      @"error": g_error ?: @""
-    };
+    uint64_t session = g_session_id;
+    BOOL active = g_recording_active, starting = [g_phase isEqualToString:@"starting"];
+    if (active) g_phase = @"finishing";
     pthread_mutex_unlock(&g_mutex);
-    return lf_dup_json_dict(dict);
+    if (active) dispatch_async(dispatch_get_main_queue(), ^{
+      if (starting) lf_complete_on_main(session, nil, nil);
+      else lf_finish_on_main(session);
+    });
+    return lf_snapshot();
   }
 }
+
+#ifdef LF_SPEECH_TESTING
+// No microphone, permissions or speech provider is involved in lifecycle tests.
+void lf_voice_test_start(void) {
+  pthread_mutex_lock(&g_mutex);
+  ++g_session_id; g_recording_active = YES; g_is_final = NO;
+  g_phase = @"listening"; g_transcript = @""; g_error = @"";
+  pthread_mutex_unlock(&g_mutex);
+}
+void lf_voice_test_result(const char *text) {
+  lf_complete_on_main(g_session_id, [NSString stringWithUTF8String:text], nil);
+}
+#endif
 
 static BOOL lf_is_novelty_voice_name(NSString *name) {
   if (!name) return YES;

@@ -5,6 +5,8 @@ mod narration;
 #[serde(rename_all = "camelCase")]
 pub struct VoiceRecordingStatus {
     pub active: bool,
+    #[serde(default)]
+    pub phase: String,
     pub transcript: String,
     pub is_final: bool,
     pub level: f32,
@@ -97,6 +99,7 @@ fn voice_poll_recording() -> Result<VoiceRecordingStatus, String> {
     {
         Ok(VoiceRecordingStatus {
             active: false,
+            phase: "idle".to_string(),
             transcript: String::new(),
             is_final: true,
             level: 0.0,
@@ -115,6 +118,7 @@ fn voice_stop_recording() -> Result<VoiceRecordingStatus, String> {
     {
         Ok(VoiceRecordingStatus {
             active: false,
+            phase: "idle".to_string(),
             transcript: String::new(),
             is_final: true,
             level: 0.0,

@@ -1,13 +1,12 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { Loader2, Mic, Square } from "lucide-react";
 import {
   canTranscribeRecordedAudioWithAI,
   isTauriDesktopRuntime,
-  pollNativeVoiceRecording,
-  startNativeVoiceRecording,
-  stopNativeVoiceRecording,
   transcribeAudioBlobWithOpenAI,
 } from "../../services/learning/speech";
+
+import { createNativeDictation } from "../../services/learning/nativeDictation";
 
 interface SpeechRecognitionAlternativeLike {
   transcript: string;
@@ -80,9 +79,12 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
   label = "Dictate your thinking",
   compact = false,
 }) => {
+  const statusId = useId();
   const [clientReady, setClientReady] = useState(false);
   const [listening, setListening] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [statusMsg, setStatusMsg] = useState("");
   const [audioLevel, setAudioLevel] = useState(0);
   const [livePreview, setLivePreview] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -90,34 +92,22 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
   const modeRef = useRef<"none" | "tauri" | "webspeech" | "mediarecorder">(
     "none"
   );
+  const webFinishTimer = useRef<ReturnType<typeof setTimeout> | undefined>();
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const uncommittedInterimRef = useRef("");
-  const pollTimerRef = useRef<number | null>(null);
-  const errorTimerRef = useRef<number | null>(null);
+  const nativeSessionRef = useRef<ReturnType<typeof createNativeDictation> | null>(null);
+  const mounted = useRef(true);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const nativeTranscriptRef = useRef("");
+
 
   const callbackRef = useRef(onTranscript);
   callbackRef.current = onTranscript;
 
-  const showError = (msg: string) => {
-    setErrorMsg(msg);
-    if (errorTimerRef.current !== null) {
-      window.clearTimeout(errorTimerRef.current);
-    }
-    errorTimerRef.current = window.setTimeout(() => {
-      setErrorMsg("");
-      errorTimerRef.current = null;
-    }, 6500);
-  };
+  const showError = (msg: string) => { if (mounted.current) { setErrorMsg(msg); setStatusMsg(""); } };
 
   const cleanupTimersAndStreams = () => {
-    if (pollTimerRef.current !== null) {
-      window.clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
     if (mediaStreamRef.current) {
       for (const track of mediaStreamRef.current.getTracks()) {
         try {
@@ -130,6 +120,7 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
   };
 
   useEffect(() => {
+    mounted.current = true;
     const hasSupport =
       isTauriDesktopRuntime() ||
       Boolean(getSpeechRecognitionCtor()) ||
@@ -137,13 +128,11 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
     setClientReady(hasSupport);
 
     return () => {
-      if (errorTimerRef.current !== null) {
-        window.clearTimeout(errorTimerRef.current);
-      }
+      mounted.current = false;
+      clearTimeout(webFinishTimer.current);
+      nativeSessionRef.current?.dispose();
+      nativeSessionRef.current = null;
       cleanupTimersAndStreams();
-      if (modeRef.current === "tauri") {
-        void stopNativeVoiceRecording().catch(() => {});
-      }
       try {
         recognitionRef.current?.abort();
       } catch {}
@@ -175,6 +164,7 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!mounted.current) { stream.getTracks().forEach(track => track.stop()); return; }
       mediaStreamRef.current = stream;
       audioChunksRef.current = [];
       const recorder = new MediaRecorder(stream);
@@ -197,16 +187,17 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
         setLivePreview("");
         modeRef.current = "none";
 
-        if (chunks.length === 0) return;
+        if (!mounted.current) return;
+        if (chunks.length === 0) { showError("No audio was captured. Check your microphone and try again."); return; }
         const blob = new Blob(chunks, { type: mimeType });
-        if (blob.size < 200) return;
+        if (blob.size < 200) { showError("The recording was too short. Try speaking for a little longer."); return; }
 
         setTranscribing(true);
         try {
           const text = await transcribeAudioBlobWithOpenAI(blob, currentLang());
-          if (text) {
-            callbackRef.current(text);
-          }
+          if (!mounted.current) return;
+          if (text) { callbackRef.current(text); setStatusMsg("Dictation added. Review the text before submitting."); }
+          else showError("No speech was recognized. Check your microphone input and try again.");
         } catch (err) {
           showError(
             err instanceof Error
@@ -232,102 +223,37 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
   };
 
   const startTauriNativeDictation = async () => {
-    setErrorMsg("");
-    setLivePreview("");
-    nativeTranscriptRef.current = "";
+    setErrorMsg(""); setStatusMsg(""); setLivePreview(""); setStarting(true);
     modeRef.current = "tauri";
-
-    try {
-      const initial = await startNativeVoiceRecording(currentLang());
-      if (initial.error) {
-        modeRef.current = "none";
-        setListening(false);
-        showError(initial.error);
-        return;
-      }
-      setListening(true);
-      pollTimerRef.current = window.setInterval(async () => {
-        try {
-          const status = await pollNativeVoiceRecording();
-          setAudioLevel(status.level || 0);
-          if (status.transcript) {
-            nativeTranscriptRef.current = status.transcript;
-            setLivePreview(status.transcript);
-          }
-          if (status.error) {
-            cleanupTimersAndStreams();
-            modeRef.current = "none";
-            setListening(false);
-            setAudioLevel(0);
-            const captured = nativeTranscriptRef.current.trim();
-            nativeTranscriptRef.current = "";
-            setLivePreview("");
-            if (captured) {
-              callbackRef.current(captured);
-            } else {
-              showError(status.error);
-            }
-            return;
-          }
-          if (!status.active) {
-            cleanupTimersAndStreams();
-            modeRef.current = "none";
-            setListening(false);
-            setAudioLevel(0);
-            const captured = (
-              status.transcript || nativeTranscriptRef.current
-            ).trim();
-            nativeTranscriptRef.current = "";
-            setLivePreview("");
-            if (captured) {
-              callbackRef.current(captured);
-            }
-          }
-        } catch {
-          cleanupTimersAndStreams();
-          modeRef.current = "none";
-          setListening(false);
-        }
-      }, 150);
-    } catch (err) {
-      modeRef.current = "none";
-      setListening(false);
-      showError(
-        err instanceof Error
-          ? err.message
-          : "Could not start macOS microphone dictation."
-      );
-    }
+    nativeSessionRef.current = createNativeDictation({
+      status: status => {
+        setStarting(status.phase === "starting");
+        setListening(status.active);
+        setTranscribing(status.phase === "finishing");
+        setAudioLevel(status.level || 0);
+        setLivePreview(status.transcript);
+        setStatusMsg(status.phase === "starting" ? "Preparing microphone… Allow access if macOS asks." :
+          status.phase === "finishing" ? "Finishing your words…" :
+          "Listening. Speak, then choose Finish to add the text. It won’t submit the field.");
+      },
+      transcript: text => { callbackRef.current(text); setStatusMsg("Dictation added. Review the text before submitting."); },
+      error: showError,
+      end: () => {
+        modeRef.current = "none"; setStarting(false); setListening(false); setTranscribing(false);
+        setAudioLevel(0); setLivePreview("");
+      },
+    });
+    await nativeSessionRef.current.start(currentLang());
   };
 
   const stopActiveDictation = async () => {
     const activeMode = modeRef.current;
-    modeRef.current = "none";
-
     if (activeMode === "tauri") {
-      cleanupTimersAndStreams();
-      setListening(false);
-      setAudioLevel(0);
-      try {
-        const finalStatus = await stopNativeVoiceRecording();
-        const text = (
-          finalStatus.transcript || nativeTranscriptRef.current
-        ).trim();
-        nativeTranscriptRef.current = "";
-        setLivePreview("");
-        if (text) {
-          callbackRef.current(text);
-        } else if (finalStatus.error) {
-          showError(finalStatus.error);
-        }
-      } catch {
-        const fallbackText = nativeTranscriptRef.current.trim();
-        nativeTranscriptRef.current = "";
-        setLivePreview("");
-        if (fallbackText) callbackRef.current(fallbackText);
-      }
+      setStarting(false); setTranscribing(true); setStatusMsg(starting ? "Dictation cancelled." : "Finishing your words…");
+      await nativeSessionRef.current?.finish();
       return;
     }
+    if (activeMode !== "webspeech") modeRef.current = "none";
 
     if (activeMode === "mediarecorder" && mediaRecorderRef.current) {
       try {
@@ -342,28 +268,25 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
     }
 
     if (activeMode === "webspeech" && recognitionRef.current) {
-      const pending = uncommittedInterimRef.current.trim();
-      uncommittedInterimRef.current = "";
-      try {
-        recognitionRef.current.stop();
-      } catch {}
-      recognitionRef.current = null;
-      setListening(false);
-      setLivePreview("");
-      if (pending) {
-        callbackRef.current(pending);
-      }
+      setTranscribing(true); setListening(false); setStatusMsg("Finishing your words…");
+      const recognition = recognitionRef.current;
+      try { recognition.stop(); } catch { recognition.onend?.(); }
+      webFinishTimer.current = setTimeout(() => {
+        if (modeRef.current !== "webspeech") return;
+        recognition.onend?.();
+        try { recognition.abort(); } catch {}
+      }, 4000);
     }
   };
 
   const toggleListening = () => {
     if (disabled || transcribing) return;
-    if (listening) {
+    if (listening || starting) {
       void stopActiveDictation();
       return;
     }
 
-    setErrorMsg("");
+    setErrorMsg(""); setStatusMsg("");
 
     // 1. Desktop App: always use native macOS AVAudioEngine + SFSpeechRecognizer
     if (isTauriDesktopRuntime()) {
@@ -387,6 +310,7 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
       modeRef.current = "webspeech";
 
       recognition.onresult = (event) => {
+        if (modeRef.current !== "webspeech") return;
         const finalChunks: string[] = [];
         const interimChunks: string[] = [];
         for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -409,6 +333,9 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
       };
 
       recognition.onerror = (ev) => {
+        if (!mounted.current || modeRef.current !== "webspeech") return;
+        clearTimeout(webFinishTimer.current);
+        setTranscribing(false);
         const code = ev?.error || "";
         recognitionRef.current = null;
         uncommittedInterimRef.current = "";
@@ -425,13 +352,16 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
           showError(
             "Microphone permission was denied. Allow microphone access in your browser settings."
           );
-        } else if (code && code !== "aborted" && code !== "no-speech") {
+        } else if (code === "no-speech") {
+          showError("No speech was recognized. Check your microphone input and try again.");
+        } else if (code && code !== "aborted") {
           showError(`Voice dictation stopped (${code}).`);
         }
       };
 
       recognition.onend = () => {
         if (modeRef.current !== "webspeech") return;
+        clearTimeout(webFinishTimer.current); setTranscribing(false); setStatusMsg("");
         const pending = uncommittedInterimRef.current.trim();
         uncommittedInterimRef.current = "";
         recognitionRef.current = null;
@@ -452,7 +382,7 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
   };
 
   return (
-    <span className="voice-dictation-wrap">
+    <span className={`voice-dictation-wrap ${compact ? "is-compact" : ""}`}>
       <button
         type="button"
         className={`voice-dictation-button ${listening ? "is-listening" : ""} ${
@@ -460,23 +390,19 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
         }`}
         onClick={toggleListening}
         disabled={disabled || transcribing}
-        aria-pressed={listening}
+        aria-pressed={listening || starting}
+        aria-describedby={(starting || listening || transcribing || statusMsg || errorMsg) ? statusId : undefined}
         aria-label={
           transcribing
-            ? "Transcribing voice"
+            ? "Finishing dictation"
+            : starting ? "Cancel microphone setup"
             : listening
-            ? "Stop voice recording"
+            ? "Finish dictation and add text"
             : label
         }
-        title={
-          listening
-            ? livePreview
-              ? `Recording: "${livePreview}" — click to insert`
-              : "Recording voice — click to stop and insert"
-            : label
-        }
+        title={listening ? "Finish dictation and add the text to this field" : label}
       >
-        {transcribing ? (
+        {transcribing || starting ? (
           <Loader2 size={13} className="animate-spin" />
         ) : listening ? (
           <>
@@ -492,28 +418,25 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
         ) : (
           <Mic size={13} />
         )}
-        {(!compact || listening || transcribing) && (
+        {(!compact || listening || starting || transcribing) && (
           <span>
             {transcribing
-              ? "Transcribing…"
-              : listening
-              ? compact
-                ? "Stop"
-                : "Stop & insert"
-              : "Dictate"}
+              ? "Finishing…"
+              : starting ? "Cancel"
+              : listening ? "Finish"
+              : errorMsg ? "Try dictation again" : "Dictate"}
           </span>
         )}
       </button>
-      {listening && livePreview && (
-        <span className="voice-live-popover" role="status" aria-live="polite">
-          {livePreview}
+      {(starting || listening || transcribing || statusMsg) && !errorMsg && (
+        <span id={statusId} className="voice-dictation-status" role="status" aria-live="polite">
+          {livePreview ? <><span className="voice-dictation-preview">{livePreview}</span><br /></> : null}
+          {statusMsg || "Listening. Speak, then choose Finish to add the text."}
+          {listening && !starting && !transcribing && modeRef.current === "tauri" &&
+            <meter className="voice-input-meter" min={0} max={1} value={audioLevel} aria-label="Microphone input level" />}
         </span>
       )}
-      {errorMsg && (
-        <span className="voice-error-popover" role="alert">
-          {errorMsg}
-        </span>
-      )}
+      {errorMsg && <span id={statusId} className="voice-dictation-error" role="alert">{errorMsg}</span>}
     </span>
   );
 };
