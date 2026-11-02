@@ -1,3 +1,4 @@
+import { deleteKnowledgeData } from "./knowledgeGraph";
 import { forgetVisualSupport } from "./preferences";
 import { removeTrackConcepts } from "./conceptLedger";
 import type { LocalDatabase } from "../db/storage";
@@ -67,6 +68,7 @@ export function deleteTopicData(
   }
   forgetVisualSupport(checkIds);
   removeTrackConcepts(track.id);
+  deleteKnowledgeData(track.id);
   if (localStorage.getItem("learnforge:active-track") === track.id)
     localStorage.removeItem("learnforge:active-track");
   for (const s of sessions) database.deleteSession(s.id);

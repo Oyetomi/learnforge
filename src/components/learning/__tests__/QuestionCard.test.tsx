@@ -318,3 +318,8 @@ it("retains the original reference context when reviewing a written answer", () 
   expect(html).toContain("It stores a value.");
   expect(html).toContain("Unresolved");
 });
+
+it("does not offer a coach action when the containing workspace disables that route",()=>{
+ const html=renderToStaticMarkup(<QuestionCard check={check} attempt={attempt} isBusy={false} onSubmit={vi.fn()} onAskCoach={vi.fn()} onNewQuestion={vi.fn()} onContinue={vi.fn()} showCoachLink={false}/>);
+ expect(html).toContain("Continue");expect(html).not.toContain("Discuss with coach");
+});

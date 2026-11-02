@@ -45,6 +45,10 @@ it("permanently deletes owned records, drafts, progress and review cards while p
     starter_code: "",
     status: "active",
   });
+  localStorage.setItem("learnforge:knowledge:a", "owned graph");
+  localStorage.setItem("learnforge:knowledge:b", "other graph");
+  localStorage.setItem("learnforge:practice:a:run", "owned run");
+  localStorage.setItem("learnforge:practice:b:run", "other run");
   const ownedMessage = db.addMessage({
     session_id: a.id,
     milestone_id: m.id,
@@ -99,6 +103,10 @@ it("permanently deletes owned records, drafts, progress and review cards while p
   localStorage.setItem("learnforge:learning-preferences", "keep preferences");
   localStorage.setItem("learnforge:active-track", "a");
   expect(deleteTopicData(db, { id: "a", title: "Topic A" })).toEqual([m.id]);
+  expect(localStorage.getItem("learnforge:knowledge:a")).toBeNull();
+  expect(localStorage.getItem("learnforge:practice:a:run")).toBeNull();
+  expect(localStorage.getItem("learnforge:knowledge:b")).toBe("other graph");
+  expect(localStorage.getItem("learnforge:practice:b:run")).toBe("other run");
   const restored = new Database();
   expect(restored.getSessions().map((s) => s.id)).toEqual([b.id]);
   expect(restored.getMessages(a.id)).toEqual([]);

@@ -7,6 +7,8 @@ import {
   cleanMilestoneTitle,
 } from "./components/milestones/MilestoneSidebar";
 import { ChatPane } from "./components/chat/ChatPane";
+import { KnowledgeWorkspace } from "./components/knowledge/KnowledgeWorkspace";
+import { recordVisualSupport } from "./services/learning/preferences";
 import { recordDemonstratedConcept } from "./services/learning/conceptLedger";
 const EditorPane = lazy(() =>
   import("./components/editor/EditorPane").then((module) => ({
@@ -107,7 +109,7 @@ export default function App() {
     } catch {}
     return visibleTracks[0]?.id || "";
   });
-  const [workspaceView, setWorkspaceView] = useState<"session" | "curriculum">("session");
+  const [workspaceView, setWorkspaceView] = useState<"session" | "curriculum" | "knowledge">("session");
   const [unitPreparation, setUnitPreparation] = useState<{ id: string; state: "loading" | "error" | "cancelled"; error?: string } | null>(null);
   const [preparationRetry, setPreparationRetry] = useState(0);
   const [diagnosticFor, setDiagnosticFor] = useState<string | null>(null);
@@ -1255,6 +1257,11 @@ export default function App() {
     <div className="app-shell">
       <a className="app-skip-link" href="#main-content" onClick={() => document.getElementById("main-content")?.focus()}>Skip to learning workspace</a>
       <Header
+        knowledgeVisible={workspaceView === "knowledge"}
+        onOpenKnowledge={() => {
+          if (activeCheck && !messages.some(m => m.check_attempt?.checkId === activeCheck.id)) recordVisualSupport(activeCheck.id, "knowledge:material");
+          handleStopStreaming(); unitController.current?.abort(); setWorkspaceView(workspaceView === "knowledge" ? "session" : "knowledge"); setIsSidebarOpen(false);
+        }}
         curriculumVisible={selectedTrack?.curriculum ? workspaceView === "curriculum" : undefined}
         currentTrackId={currentTrackId}
         onSelectTrack={handleSelectTrack}
@@ -1303,7 +1310,7 @@ export default function App() {
           </>
         )}
         <main className="main-workspace" id="main-content" tabIndex={-1}>
-          {!currentSession ? (
+          {workspaceView === "knowledge" ? <KnowledgeWorkspace tracks={visibleTracks} initialTrackId={currentTrackId} database={db} pendingQuestion={!!activeCheck && !messages.some(m => m.check_attempt?.checkId === activeCheck.id)} onReturn={() => setWorkspaceView("session")} onOpenTopic={id => { handleSelectTrack(id); setWorkspaceView("session"); }} /> : !currentSession ? (
             <div className="empty-workspace">
               <BookOpen size={26} />
               <h1>What are you interested in?</h1>

@@ -1,0 +1,317 @@
+{
+  "comparisonDate": "2026-11-02",
+  "timezone": "Africa/Lagos",
+  "method": "Public GitHub issue inventory, selected reports, pinned source inspection, existing LearnForge verification. No new live tutor comparison or learner trial.",
+  "learnHarness": {
+    "head": {
+      "date": "2026-10-31T09:22:14Z",
+      "message": "release: prepare 0.4.1",
+      "sha": "e69e85269c064c6c9c49a8b06ae78c06e79c4a63"
+    },
+    "issueCounts": {
+      "OPEN": 220,
+      "CLOSED": 60
+    },
+    "totalIssues": 280,
+    "questionVerificationPR": {
+      "mergedAt": null,
+      "state": "CLOSED",
+      "title": "feat(questions): verify teach cards before delivery",
+      "url": "https://github.com/amosblomqvist/learnharness/pull/442"
+    },
+    "sourceFileSha256": {
+      "docs/architecture.md": "fe03ebd020f4c3ca4878c6fed0d4ee0a5194238f223d1e675b9220e92cd06c9e",
+      "docs/teaching-methodology.md": "814b1e617abda7b389a9fa91923da41f72fa7fd6be0e91d1eac4443d5f8fe929",
+      "src/core/question-core.ts": "531ca33bf0ed578d44e3e63ba1fd1f18cec5680088996603e15c61cfc6ee16b8",
+      "src/agent/teacher-agent.ts": "0b98072e2adbaa7c1e85d8cac861ec1ba31b9491b01953eb49d76eb5f26bc732",
+      "src/agent/tools.ts": "b4888c55786a46e8836b85c2131617831dccbfa3f00cd18a57aad5d20d01837b",
+      "src/agent/tools/fs-shared.ts": "a28a54960669c06e168fe7b3e079e9b64cbaa50357d97db5e164cb5f4a84b7ef",
+      "src/agent/tools/probe.ts": "39e2a0e1082f25428beff37445b67784e673eb1591c5aed591b38e9eed4cb71b",
+      "src/agent/tools/practice.ts": "3e06a61ec142a0a71deddbb020d3d6ed65ce9594494979643870064f6704fbc0",
+      "src/agent/prompts/practice/10-doctrine.md": "0dca0dbbed31465c1801210c2e89d38a2fc3851fa84d2cb5ff122fa6dd049d98"
+    },
+    "selectedIssues": [
+      {
+        "number": 16,
+        "title": "Ability for \"/btw\"-like functionality",
+        "state": "OPEN",
+        "updatedAt": "2026-10-25T19:13:04Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/16"
+      },
+      {
+        "number": 33,
+        "title": "Ability for Long term retention",
+        "state": "OPEN",
+        "updatedAt": "2026-10-26T18:38:11Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/33"
+      },
+      {
+        "number": 58,
+        "title": "Feature request: debugger",
+        "state": "OPEN",
+        "updatedAt": "2026-10-26T23:35:32Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/58"
+      },
+      {
+        "number": 60,
+        "title": "Feature request: adding ability to use subscriptions",
+        "state": "OPEN",
+        "updatedAt": "2026-10-30T02:57:19Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/60"
+      },
+      {
+        "number": 64,
+        "title": "[Bug] Jumping to next question like it's a marathon",
+        "state": "OPEN",
+        "updatedAt": "2026-10-26T10:03:08Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/64"
+      },
+      {
+        "number": 75,
+        "title": "Show probe progress: which areas are being checked and roughly how many questions are left",
+        "state": "OPEN",
+        "updatedAt": "2026-10-25T19:13:24Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/75"
+      },
+      {
+        "number": 99,
+        "title": "Let the quizzing mechanic differ between probing and teaching",
+        "state": "OPEN",
+        "updatedAt": "2026-10-25T19:13:36Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/99"
+      },
+      {
+        "number": 158,
+        "title": "Unified Adaptive Learning: Combine Teaching and Practice into One Continuous Loop",
+        "state": "OPEN",
+        "updatedAt": "2026-10-26T18:00:09Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/158"
+      },
+      {
+        "number": 166,
+        "title": "Feature Request: Session Note Creator (LaTeX/PDF Export)",
+        "state": "OPEN",
+        "updatedAt": "2026-10-26T09:00:24Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/166"
+      },
+      {
+        "number": 175,
+        "title": "Give the teach agent the ability to use documents as the source of what it should teach (for example papers, course content, etc)",
+        "state": "OPEN",
+        "updatedAt": "2026-10-26T20:15:50Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/175"
+      },
+      {
+        "number": 187,
+        "title": "Long questions (e.x. Probes) get cut off at the top",
+        "state": "CLOSED",
+        "updatedAt": "2026-10-27T23:10:48Z",
+        "closedAt": "2026-10-27T23:10:48Z",
+        "url": "https://github.com/amosblomqvist/learnharness/issues/187"
+      },
+      {
+        "number": 189,
+        "title": "Elevenlabs api key",
+        "state": "OPEN",
+        "updatedAt": "2026-10-30T13:50:21Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/189"
+      },
+      {
+        "number": 207,
+        "title": "[Feature Request / RFC] Multi-Workspace (Profile) Support to Isolate Knowledge Graphs Across Subjects",
+        "state": "OPEN",
+        "updatedAt": "2026-10-28T10:37:01Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/207"
+      },
+      {
+        "number": 235,
+        "title": "Support reference-assisted exercises that gradually transition to independent practice",
+        "state": "OPEN",
+        "updatedAt": "2026-10-27T17:08:36Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/235"
+      },
+      {
+        "number": 237,
+        "title": "Offer feedback-first retries in teaching checks before revealing the committed answer",
+        "state": "OPEN",
+        "updatedAt": "2026-10-27T17:08:42Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/237"
+      },
+      {
+        "number": 249,
+        "title": "Plan: a skill that teaches the current code",
+        "state": "OPEN",
+        "updatedAt": "2026-10-27T22:21:35Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/249"
+      },
+      {
+        "number": 312,
+        "title": "Quiz explanations cite option letters that don't match the shuffled display order",
+        "state": "OPEN",
+        "updatedAt": "2026-11-01T21:53:28Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/312"
+      },
+      {
+        "number": 403,
+        "title": "Crash while saving can delete a session with no error",
+        "state": "OPEN",
+        "updatedAt": "2026-10-31T12:20:32Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/403"
+      },
+      {
+        "number": 404,
+        "title": "Implement Spaced Repetition System(SRS) based on Ebbinghause forgetting curve",
+        "state": "OPEN",
+        "updatedAt": "2026-10-31T12:48:02Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/404"
+      },
+      {
+        "number": 414,
+        "title": "Learner file tools search other agents' session transcripts and credential dirs under ~",
+        "state": "OPEN",
+        "updatedAt": "2026-10-31T18:17:04Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/414"
+      },
+      {
+        "number": 417,
+        "title": "Verify a question's answer key before the card reaches the learner",
+        "state": "OPEN",
+        "updatedAt": "2026-10-31T18:17:08Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/417"
+      },
+      {
+        "number": 418,
+        "title": "Teaching turns often add several new ideas before a check that tests only one",
+        "state": "OPEN",
+        "updatedAt": "2026-10-31T18:17:31Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/418"
+      },
+      {
+        "number": 419,
+        "title": "Headless eval for teaching sessions: simulated learner + fixed rubric",
+        "state": "OPEN",
+        "updatedAt": "2026-10-31T18:17:11Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/419"
+      },
+      {
+        "number": 425,
+        "title": "Failed demo agent has no retry action",
+        "state": "OPEN",
+        "updatedAt": "2026-10-31T18:39:45Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/425"
+      },
+      {
+        "number": 444,
+        "title": "Light mode support (appearance)",
+        "state": "OPEN",
+        "updatedAt": "2026-11-01T06:05:56Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/444"
+      },
+      {
+        "number": 445,
+        "title": "PDF read-in often gets stuck and never delivers a brief",
+        "state": "OPEN",
+        "updatedAt": "2026-11-01T06:42:37Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/445"
+      },
+      {
+        "number": 455,
+        "title": "Teaching stops after answered quiz without next question or lesson conclusion",
+        "state": "OPEN",
+        "updatedAt": "2026-11-01T10:53:15Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/455"
+      },
+      {
+        "number": 459,
+        "title": "Save state of unfinished thoughts when switching between tabs, graph view (home)",
+        "state": "OPEN",
+        "updatedAt": "2026-11-01T11:38:30Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/459"
+      },
+      {
+        "number": 463,
+        "title": "Is / Should there be an upper limit to the number of questions asked during probing or practice stage?",
+        "state": "OPEN",
+        "updatedAt": "2026-11-01T13:11:55Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/463"
+      },
+      {
+        "number": 467,
+        "title": "C Code Formatting Is Broken in Programming Questions",
+        "state": "OPEN",
+        "updatedAt": "2026-11-01T23:22:52Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/467"
+      },
+      {
+        "number": 473,
+        "title": "Practice module lacks visual/demo/SVG capabilities that teaching already has",
+        "state": "OPEN",
+        "updatedAt": "2026-11-02T08:58:53Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/473"
+      },
+      {
+        "number": 477,
+        "title": "Local, offline dictation with NVIDIA Parakeet (sherpa-onnx) as an alternative to Deepgram",
+        "state": "OPEN",
+        "updatedAt": "2026-11-02T12:44:07Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/477"
+      },
+      {
+        "number": 479,
+        "title": "Discussion: answer formats that fit the question (numbers, ordering, code, sketches) instead of only multiple choice or free text",
+        "state": "OPEN",
+        "updatedAt": "2026-11-02T12:49:03Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/479"
+      },
+      {
+        "number": 482,
+        "title": "Teaching flow stops after answering a question and requires \u201cgo on\u201d",
+        "state": "OPEN",
+        "updatedAt": "2026-11-02T16:09:56Z",
+        "closedAt": null,
+        "url": "https://github.com/amosblomqvist/learnharness/issues/482"
+      }
+    ]
+  },
+  "learnForge": {
+    "head": "5ad8cd512f36f71c7d4e36ab53f8658a30ebf486",
+    "trackedWorkingDiffSha256": "8f3b66d9b21e2494fbb45c722248d0589dcaef322ea24bfe75bf066615d3c47d",
+    "uncommittedDictationFix": true,
+    "frontendTests": 423,
+    "rustTests": 2,
+    "physicalMicrophoneTested": false,
+    "newControlledComparisonRun": false
+  }
+}

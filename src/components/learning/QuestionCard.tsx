@@ -935,7 +935,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
                 ? "Your next step is being prepared. Continue whenever you’re ready."
                 : onContinue
                 ? "Take a moment to review. Continue when you’re ready."
-                : "Your answer and this explanation are saved with the lesson."}
+                : "Your answer and this explanation are saved."}
             </p>
           )}
           {attempt.thinking && (
@@ -976,7 +976,7 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
                   Another question
                 </button>
               ) : null}
-              {showActions && (
+              {showActions && showCoachLink && (
                 <button className="check-coach-button" onClick={onAskCoach}>
                   <MessageSquare size={14} />
                   Discuss with coach

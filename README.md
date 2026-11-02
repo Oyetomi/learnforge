@@ -53,6 +53,7 @@ LearnForge is a local-first learning app for technical and nontechnical subjects
 | Help without losing your place | Ask a side question with `/btw`, or open a hint, walkthrough, or visual alongside the current activity. |
 | Math and visual explanations | KaTeX equations, paper-style derivations, comparison tables, SVG illustrations, and supported interactive models. Embedded calculations stay together; standalone figures can retain step controls. |
 | Your own material | Use text, Markdown, PDFs, code files, or pasted notes as source context. Extraction and model interpretation have limits. |
+| Knowledge and practice | Build a topic map from saved material, inspect exact source passages and joint reasoning premises, then start a resumable practice run. Results distinguish unaided, supported, and disputed work without awarding curriculum progress. |
 | Study notes | Export study material as Markdown or Anki-compatible data. |
 | Optional revisits | Offer an earlier idea within the same topic. Off by default, integrated into learning rather than a daily-review modal. |
 | Optional coding | Syntax-highlighted examples and an editor with explicit execution providers. |

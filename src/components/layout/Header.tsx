@@ -1,11 +1,13 @@
 import React from "react";
-import { Download, PanelLeft, Plus, Settings } from "lucide-react";
+import { Download, PanelLeft, Plus, Settings, Network } from "lucide-react";
 import { SupportedLanguage } from "../../types";
 import "./tools-surfaces.css";
 import { TrackPicker } from "./TrackPicker";
 
 interface HeaderProps {
   curriculumVisible?: boolean;
+  onOpenKnowledge?: () => void;
+  knowledgeVisible?: boolean;
   currentTrackId: string;
   onSelectTrack: (trackId: string) => void;
   tracks: { id: string; title: string; language: SupportedLanguage | null }[];
@@ -19,6 +21,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   curriculumVisible,
+  onOpenKnowledge, knowledgeVisible,
   currentTrackId,
   onSelectTrack,
   tracks,
@@ -78,6 +81,7 @@ export const Header: React.FC<HeaderProps> = ({
       onManageTopics={onManageTopics}
     />
     <div className="header-actions">
+      {onOpenKnowledge && <button className="header-secondary-button knowledge-trigger" disabled={!tracks.length} onClick={onOpenKnowledge} aria-label="Knowledge and practice" aria-pressed={!!knowledgeVisible}><Network size={16}/><span>Practice</span></button>}
       <button
         className="header-secondary-button new-topic-trigger"
         onClick={(event) => {
