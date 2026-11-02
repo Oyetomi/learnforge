@@ -223,7 +223,7 @@ export function validateVisualExample(value: unknown): VisualExample | null {
 
 export function extractVisualExample(content: string): VisualExample | null {
   const block =
-    /```(?:forge-visual|forge-canvas)[^\r\n]*\r?\n([\s\S]*?)```/i.exec(
+    /^[ \t]*```(?:forge-visual|forge-canvas)[^\r\n]*\r?\n([\s\S]*?)^[ \t]*```[ \t]*\r?$/im.exec(
       content
     );
   const candidate = block ? block[1].trim() : "";

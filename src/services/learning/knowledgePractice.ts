@@ -1,11 +1,12 @@
 import type { CheckAttempt, LearningCheck, LearningReference, LearningPractice } from "../../types";
 import { aiJsonRequest, loadAIConnection, recordUsage } from "../ai/connection";
 import { gradeLearningCheck, validateLearningCheck } from "./checks";
-import { FREE_RESPONSE_INSTRUCTIONS, isAcceptedFreeResponseGrade } from "./freeResponse";
+import { isAcceptedFreeResponseGrade } from "./freeResponse";
 import { hasQuestionReview, questionSnapshot } from "./questionReview";
 import { createLearningReference, GROUNDING_INSTRUCTIONS, referenceContext } from "./grounding";
 import { answerTutoringPrompt } from "./tutoring";
 import { MATH_INSTRUCTIONS, TABLE_INSTRUCTIONS, ILLUSTRATION_INSTRUCTIONS } from "./visualContract";
+import { parseChatJson, StructuredResponseError } from "../ai/structuredResponse";
 import { practicePrefix, validKnowledgeGraph, type KnowledgeGraph } from "./knowledgeGraph";
 export interface PracticeRound {
     id: string;
@@ -106,25 +107,28 @@ export function practiceRecommendations(graph: KnowledgeGraph, sessions: Knowled
 async function practiceRequest(messages: {
     role: string;
     content: string;
-}[], signal: AbortSignal): Promise<unknown> {
+}[], signal: AbortSignal, allowedFences = ["json"]): Promise<unknown> {
     const response = await aiJsonRequest({ model: loadAIConnection().model, temperature: .3, max_tokens: 3000, response_format: { type: "json_object" }, messages }, { signal });
     if (!response.ok)
         throw new Error("The tutor couldn’t prepare this step. Your saved answer is unchanged.");
-    const envelope = await response.json();
-    recordUsage(envelope?.usage);
-    try {
-        return JSON.parse(String(envelope?.choices?.[0]?.message?.content || "").replace(/^```(?:json)?\s*|\s*```$/g, ""));
-    }
-    catch {
-        throw new Error("The tutor response was incomplete. Try again.");
-    }
+    let envelope: unknown;
+    try { envelope = await response.json(); }
+    catch { throw new StructuredResponseError("malformed"); }
+    recordUsage((envelope as { usage?: Parameters<typeof recordUsage>[0] })?.usage);
+    return parseChatJson(envelope, allowedFences);
 }
+const PRACTICE_QUESTION_CONTRACT = `QUESTION JSON CONTRACT:
+Return one JSON object, with no surrounding prose or outer code fence. Choose either:
+- Written response: {"kind":"free-response","question":"one clear application","expectedAnswer":"a defensible answer","explanation":"why it fits","rubric":[{"id":"meaning","criterion":"one concrete distinction that accepts equivalent correct reasoning"}]}. Commit 1–5 independently checkable criteria; omit options and correctOptionIds. Never assess spoken pronunciation from typed text.
+- Choice: {"kind":"choice","question":"one clear application","options":[{"id":"a","label":"an answer"},{"id":"b","label":"another answer"}],"correctOptionIds":["exact correct id"],"multiple":false,"explanation":"why the committed key fits"}. Supply 2–6 balanced options, unique ids, and all defensible correct ids. Set multiple true only for a multi-select question.
+An optional context string can contain necessary evidence or code. Keep the answer, explanation and rubric in their committed fields, not the question or context. Use natural wording and equivalent reasoning. Escape newlines, quotes and LaTeX backslashes inside JSON strings. Do not emit a forge-check wrapper.`;
+
 export async function generatePracticeRound(session: KnowledgePractice, targetId: string, practice: LearningPractice, signal: AbortSignal): Promise<PracticeRound> {
     const target = session.material.propositions.find(p => p.id === targetId);
     if (!target || !session.targetIds.includes(targetId) || session.rounds.length >= 12)
         throw new Error("This practice run has reached its limit. Finish it to review your work.");
     const prior = session.rounds.filter(r => r.targetId === targetId).map(r => ({ question: r.check.question, response: r.attempt?.response, selectedAnswers: r.check.options.filter(o => r.attempt?.selectedIds.includes(o.id)).map(o => o.label), thinking: r.attempt?.thinking, outcome: r.attempt ? outcomeFor(session, r) : "unanswered" }));
-    const value = await practiceRequest([{ role: "system", content: `Create ONE fresh practice question for the selected idea, in the original subject and language. Never introduce unrelated prerequisites or turn a nontechnical subject into programming. Do not repeat a previous question. ${practice === "guided" ? "Give a smaller observable example with one useful initial cue, then ask ONE remaining decision. Do not solve that remaining decision." : practice === "transfer" ? "Change a relevant condition so applying the same principle requires reasoning, not just replacing names or numbers. Do not teach the answer before asking." : "Ask a concrete unaided application at the same difficulty as the material. Do not disclose the answer in the introduction."} Prefer a short written explanation unless answer choices suit the task better. ${FREE_RESPONSE_INSTRUCTIONS} ${MATH_INSTRUCTIONS} ${TABLE_INSTRUCTIONS} ${GROUNDING_INSTRUCTIONS} Return only the check JSON object; do not emit a lesson, readiness assessment, roadmap update or mastery label. Use balanced answer choices if present.` }, { role: "user", content: JSON.stringify({ topic: session.title, idea: target.statement, sourceExcerpts: referenceContext(practiceReferences(session.material, [targetId]), target.statement), previousWork: prior }) }], signal);
+    const value = await practiceRequest([{ role: "system", content: `Create ONE fresh practice question for the selected idea, in the original subject and language. Never introduce unrelated prerequisites or turn a nontechnical subject into programming. Do not repeat a previous question. ${practice === "guided" ? "Give a smaller observable example with one useful initial cue, then ask ONE remaining decision. Do not solve that remaining decision." : practice === "transfer" ? "Change a relevant condition so applying the same principle requires reasoning, not just replacing names or numbers. Do not teach the answer before asking." : "Ask a concrete unaided application at the same difficulty as the material. Do not disclose the answer in the introduction."} Prefer a short written explanation unless answer choices suit the task better. ${PRACTICE_QUESTION_CONTRACT} ${MATH_INSTRUCTIONS} ${TABLE_INSTRUCTIONS} ${GROUNDING_INSTRUCTIONS} Return only the check JSON object; do not emit a lesson, readiness assessment, roadmap update or mastery label. Use balanced answer choices if present.` }, { role: "user", content: JSON.stringify({ topic: session.title, idea: target.statement, sourceExcerpts: referenceContext(practiceReferences(session.material, [targetId]), target.statement), previousWork: prior }) }], signal, ["json", "forge-check"]);
     const spec = validateLearningCheck(value);
     if (!spec || prior.some(p => p.question.trim() === spec.question.trim()))
         throw new Error("A fresh, answerable question wasn’t ready. Try again.");

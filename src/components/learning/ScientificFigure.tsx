@@ -252,7 +252,7 @@ function ScientificWalkthrough({ model, onInteract, notes, takeaway, language }:
     <div className="scientific-figure-context"><span>Illustrative states · changes follow the authored model</span><button type="button" className="scientific-figure-theme" aria-pressed={theme === "light"} title="Toggle light paper" onClick={toggleTheme}>Light paper</button></div>
     <div className={`scientific-figure-panels ${comparison ? "is-comparison" : ""}`}>
       {comparison && <StateDiagram model={model} state={initial} label="Starting state" rows={rows} language={codeLanguage} />}
-      <StateDiagram model={model} state={state} label={comparison ? "Current state" : state.label} rows={rows} language={codeLanguage} />
+      <StateDiagram key={state.id} model={model} state={state} label={comparison ? "Current state" : state.label} rows={rows} language={codeLanguage} />
     </div>
     <figcaption className="scientific-figure-caption">
       <div ref={caption} tabIndex={-1} aria-live="polite" aria-atomic="true">

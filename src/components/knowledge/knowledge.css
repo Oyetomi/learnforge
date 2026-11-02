@@ -95,3 +95,9 @@
 /* The app's global UI-font selector includes multiple :not clauses. */
 .app-shell .knowledge-workspace .knowledge-connections .knowledge-inference button,
 .app-shell .knowledge-workspace .knowledge-connections .knowledge-therefore>span { font-family:Georgia,serif; }
+
+.knowledge-recovery { max-width:760px; margin:20px 0; padding:20px 24px; }
+.knowledge-recovery h2 { font-size:16px; margin:0 0 8px; }
+.knowledge-recovery p { font-size:12px; line-height:1.7; }
+.knowledge-recovery .dialog-primary-button { margin-top:12px; }
+.knowledge-recovery:focus { outline:2px solid var(--accent); outline-offset:3px; }

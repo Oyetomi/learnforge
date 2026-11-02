@@ -79,6 +79,8 @@ import {
   STORAGE_STATUS_EVENT,
   type StorageStatusDetail,
 } from "../../services/db/storage";
+import { HelpPaneDivider } from "./HelpPaneDivider";
+import { DEFAULT_HELP_RATIOS, HELP_SPLIT_MIN_WIDTH, helpPaneWidth, readHelpRatios, saveHelpRatio } from "../../services/learning/helpLayout";
 import { LearningHelpPanel } from "./LearningHelpPanel";
 import type { HelpKind } from "../../services/learning/sessionHelp";
 import { canRestorePosition, readSessionPosition, saveSessionPosition } from "../../services/learning/sessionPosition";
@@ -178,6 +180,10 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   const savedPosition = React.useMemo(() => readSessionPosition(positionKey), [positionKey]);
   const stageRef = useRef<HTMLDivElement>(null);
   const [narrowHelp, setNarrowHelp] = useState(false);
+  const [stageWidth, setStageWidth] = useState(0);
+  const [helpExpanded, setHelpExpanded] = useState(false);
+  const [helpRatios, setHelpRatios] = useState(readHelpRatios);
+  const helpPanelId = React.useId();
   const [helpOpen, setHelpOpen] = useState(savedPosition?.helpOpen || false);
   const [helpKind, setHelpKind] = useState<HelpKind>(savedPosition?.helpKind || "walkthrough");
   const helpOpener = useRef<HTMLElement | null>(null);
@@ -499,16 +505,20 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
     setHelpForKey(helpContextKey); setHelpKind(kind); setHelpOpen(true);
   };
   const closeRequested = useRef(false);
-  const closeHelp = () => { closeRequested.current = true; setHelpOpen(false); };
+  const closeHelp = () => { closeRequested.current = true; setHelpOpen(false); setHelpExpanded(false); };
   useEffect(() => {
     if (!stageRef.current || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(entries => setNarrowHelp(entries[0].contentRect.width < 900));
+    const observer = new ResizeObserver(entries => {
+      const width = entries[0].contentRect.width;
+      setStageWidth(width); setNarrowHelp(width < HELP_SPLIT_MIN_WIDTH);
+    });
     observer.observe(stageRef.current); return () => observer.disconnect();
   }, []);
-  useEffect(() => { scrollRef.current?.toggleAttribute("inert", shownHelp && narrowHelp); }, [shownHelp, narrowHelp]);
+  useEffect(() => { scrollRef.current?.toggleAttribute("inert", shownHelp && (narrowHelp || helpExpanded)); }, [shownHelp, narrowHelp, helpExpanded]);
   useEffect(() => { if (!shownHelp && closeRequested.current) { closeRequested.current = false; (helpOpener.current || composerRef.current?.querySelector<HTMLElement>(`[data-help-kind="${helpKind}"]`))?.focus({ preventScroll: true }); } }, [shownHelp]);
 
   useEffect(() => {
+    setHelpExpanded(false);
     setStepIndex(savedPosition?.stepIndex ?? readLessonStep(activeMilestone?.id));
     setReplyIndex(savedPosition?.replyIndex || 0);
     setHelpOpen(savedPosition?.helpOpen || false);
@@ -710,6 +720,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   return (
     <section
       className="lesson-pane workspace-panel unified-session focused-session"
+      data-help-open={shownHelp ? "true" : undefined}
       data-question-active={
         activity === "check" && !!reviewCheck && !reviewAttempt
           ? "true"
@@ -813,7 +824,8 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
         activeMilestone={activeMilestone}
         messages={messages}
       />
-      <div className={`session-stage ${narrowHelp ? "is-narrow" : ""}`} ref={stageRef}>
+      <div className={`session-stage ${narrowHelp ? "is-narrow" : ""} ${shownHelp && helpExpanded ? "is-help-expanded" : ""}`} ref={stageRef}
+        style={shownHelp && stageWidth ? {"--help-pane-width":`${helpPaneWidth(stageWidth,helpRatios[helpKind])}px`} as React.CSSProperties : undefined}>
       <div className="session-flow" ref={scrollRef} onScroll={() => saveSessionPosition(positionKey, { ...currentPosition, scrollTop: scrollRef.current?.scrollTop || 0 })}>
         {(activity === "lesson" || activity === "reply" || !latest) && (
           <div className="lesson-heading">
@@ -1334,7 +1346,10 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
             </details>
           )}
       </div>
-      <LearningHelpPanel key={`${helpContextKey}:${helpKind}`} open={shownHelp} kind={helpKind} contextKey={helpContextKey} context={helpContext}
+      {shownHelp && !narrowHelp && !helpExpanded && <HelpPaneDivider stage={stageRef} stageWidth={stageWidth} width={helpPaneWidth(stageWidth,helpRatios[helpKind])} controls={helpPanelId}
+        onResize={(ratio,persist)=>{setHelpRatios(current=>({...current,[helpKind]:ratio}));if(persist)saveHelpRatio(helpKind,ratio);}}
+        onReset={()=>{const ratio=DEFAULT_HELP_RATIOS[helpKind];setHelpRatios(current=>({...current,[helpKind]:ratio}));saveHelpRatio(helpKind,ratio);}}/>}
+      <LearningHelpPanel panelId={helpPanelId} expanded={helpExpanded} onToggleExpanded={()=>setHelpExpanded(value=>!value)} key={`${helpContextKey}:${helpKind}`} open={shownHelp} kind={helpKind} contextKey={helpContextKey} context={helpContext}
         language={language}
         milestone={activeMilestone} check={helpCheck || null} answered={!!helpAttempt} existingVisual={activity === "lesson" || activity === "visual" ? availableVisual : undefined}
         narrow={narrowHelp} onClose={closeHelp} onKind={openHelp} onSupport={() => {
@@ -1392,6 +1407,16 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
       )}
       <div className="session-composer" ref={composerRef}>
         <div className="session-composer-row">
+          <Composer
+            key={`${trackId}:${activeMilestone?.id}`}
+            draftKey={`learnforge:composer-draft:${trackId}:${activeMilestone?.id}`}
+            compact
+            sideQuestion={btwMode}
+            codeIncluded={isCodeWorkspaceOpen}
+            onSendMessage={handleComposerSend}
+            isStreaming={isStreaming}
+            onStopStreaming={onStopStreaming}
+          />
           <div className="session-help-actions" aria-label="Get help">
             <button
               type="button"
@@ -1434,18 +1459,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
               <span>Walkthrough</span>
             </button>
           </div>
-          <Composer
-            key={`${trackId}:${activeMilestone?.id}`}
-            draftKey={`learnforge:composer-draft:${trackId}:${activeMilestone?.id}`}
-            compact
-            sideQuestion={btwMode}
-            codeIncluded={isCodeWorkspaceOpen}
-            onSendMessage={handleComposerSend}
-            isStreaming={isStreaming}
-            onStopStreaming={onStopStreaming}
-          />
-        </div>
-        <div className="session-telemetry-bar" aria-label="AI model and usage">
+          <div className="session-telemetry-bar" aria-label="AI model and usage">
           <button
             type="button"
             className="telemetry-model-pill"
@@ -1518,6 +1532,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
               </p>
             </div>
           </details>
+        </div>
         </div>
       </div>
       {historyOpen && (

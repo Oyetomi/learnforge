@@ -1,0 +1,335 @@
+/* Shared chrome materials. Content and scientific paper keep their own opaque surfaces. */
+:root {
+  --chrome-surface: #26292f;
+  --chrome-glass: rgba(36, 39, 46, .88);
+  --chrome-field: #16191e;
+  --chrome-edge: rgba(255, 255, 255, .13);
+  --chrome-divider: rgba(255, 255, 255, .07);
+  --chrome-highlight: rgba(255, 255, 255, .075);
+  --chrome-hover: rgba(255, 255, 255, .065);
+  --chrome-ink: #e5e9ef;
+  --chrome-muted: #a2acb9;
+  --chrome-shadow: 0 20px 60px #0005, 0 4px 14px #0003, inset 0 1px 0 var(--chrome-highlight);
+  --control-shadow: 0 1px 3px #0002, inset 0 1px 0 #ffffff09;
+  --control-focus: #dcb996;
+}
+
+/* Menus are a foreground layer, with rows that have one consistent rhythm. */
+.track-picker-popover[role="dialog"],
+.app-shell .btw-popover,
+.app-shell .session-usage-panel {
+  background: var(--chrome-surface);
+  border: 1px solid var(--chrome-edge);
+  border-radius: 16px;
+  box-shadow: var(--chrome-shadow);
+  color: var(--chrome-ink);
+}
+.track-picker-popover[role="dialog"] {
+  font-family: var(--font-ui, ui-monospace, monospace);
+  padding: 7px;
+}
+.track-picker-popover .track-picker-search {
+  padding: 9px 11px 12px;
+  gap: 10px;
+  border-color: var(--chrome-divider);
+}
+.track-picker-popover .track-picker-search input {
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 24px;
+  padding: 0;
+}
+/* The search group owns focus; avoid a second rectangle inside it. */
+.track-picker-popover .track-picker-search input:focus-visible { outline: none; }
+.track-picker-popover .track-picker-search:focus-within {
+  box-shadow: inset 0 -1px 0 var(--control-focus);
+}
+.track-picker-popover .track-picker-options { padding: 6px 0; }
+.track-picker-popover .track-picker-option {
+  min-height: 54px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  color: var(--chrome-ink);
+}
+.track-picker-popover .track-picker-option.is-highlighted {
+  background: var(--chrome-hover);
+  border-color: #ffffff0b;
+}
+.track-picker-popover .track-picker-option[aria-selected="true"] {
+  background: #d4b29012;
+  color: #f0d3b6;
+}
+.track-picker-popover .track-option-title { font-size: 13px; line-height: 1.55; }
+.track-picker-popover .track-option-title small { color: var(--chrome-muted); }
+.track-picker-popover .track-picker-manage {
+  min-height: 40px;
+  margin: 3px 0;
+  border: 0;
+  border-radius: 10px;
+  color: #d0d7e1;
+  background: transparent;
+}
+.track-picker-popover .track-picker-manage:hover { background: var(--chrome-hover); }
+.track-picker-popover .track-picker-footer {
+  padding: 10px 11px 5px;
+  border-color: var(--chrome-divider);
+  color: var(--chrome-muted);
+  font-size: 10px;
+}
+
+/* A quiet raised control, rather than a heavy outline around every action. */
+.app-shell :is(.dialog-secondary-button, .header-secondary-button, .help-layout-toggle, .help-close) {
+  min-height: 36px;
+  border: 1px solid #ffffff12;
+  border-radius: 10px;
+  background: #ffffff06;
+  color: #d9dfe7;
+  box-shadow: var(--control-shadow);
+  font-size: 12px;
+  font-weight: 500;
+}
+.app-shell :is(.dialog-secondary-button, .header-secondary-button, .help-layout-toggle, .help-close):hover:not(:disabled) {
+  border-color: #ffffff24;
+  background: var(--chrome-hover);
+  color: #f4f6fa;
+}
+.app-shell .dialog-primary-button {
+  min-height: 38px;
+  border: 1px solid #efd0ac45;
+  border-radius: 11px;
+  background: linear-gradient(180deg, #e9bf95, #ddb084);
+  color: #30251c;
+  box-shadow: 0 2px 5px #0002, inset 0 1px 0 #ffffff3b;
+  font-size: 12px;
+  font-weight: 500;
+}
+.app-shell .dialog-primary-button:hover:not(:disabled) {
+  background: linear-gradient(180deg, #f0cba4, #e7ba90);
+}
+.app-shell .dialog-primary-button.topic-delete-confirm { background: #d8a294; color: #291a16; }
+.app-shell .app-header .icon-button { border-radius: 10px; }
+.app-shell .app-header .icon-button:hover:not(:disabled) { background: var(--chrome-hover); }
+.app-shell .app-header { border-bottom-color: var(--chrome-divider); }
+.app-shell .track-picker-trigger { border-radius: 9px; }
+.app-shell .track-picker-trigger[aria-expanded="true"] { color: #f0d3b6; }
+
+/* Dialogs have one frame and a soft header, with a stable opaque reading body. */
+.app-shell .review-dialog { border-radius: 20px; box-shadow: 0 24px 80px #0008; }
+.app-shell .review-dialog > .review-surface {
+  border: 1px solid var(--chrome-edge);
+  border-radius: 20px;
+  background: #202329;
+  box-shadow: inset 0 1px 0 var(--chrome-highlight);
+}
+.app-shell .review-dialog .review-header {
+  min-height: 72px;
+  padding: 19px 24px;
+  background: #ffffff03;
+  border-bottom-color: var(--chrome-divider);
+}
+.app-shell .review-dialog .review-header h2 { font-size: 16px; font-weight: 500; letter-spacing: -.25px; }
+.app-shell .review-dialog .review-header .icon-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #ffffff06;
+  color: #abb5c3;
+}
+.app-shell .review-dialog .review-header .icon-button:hover { background: #ffffff10; color: #fff; }
+.app-shell .review-dialog::backdrop { background: #080a0d99; }
+.app-shell .settings-dialog .settings-sections {
+  padding: 4px;
+  border: 1px solid #ffffff08;
+  border-radius: 12px;
+  background: #11141970;
+}
+.app-shell .settings-dialog .settings-sections button { border-radius: 9px; font-size: 12px; }
+.app-shell .settings-dialog .settings-sections button[aria-pressed="true"] {
+  background: #363a43;
+  border-color: #ffffff12;
+  color: #f1e3d5;
+  box-shadow: 0 2px 6px #0002, inset 0 1px 0 #ffffff08;
+}
+.app-shell .settings-dialog .settings-content { gap: 20px; padding-top: 12px; }
+.app-shell .settings-dialog .settings-intro { color: var(--chrome-muted); font-size: 12px; }
+.app-shell .settings-dialog .settings-field > span { color: #bbc4d0; }
+.app-shell .settings-dialog .settings-field :is(input, select),
+.app-shell .new-topic-form :is(input[type="text"], input:not([type]), textarea) {
+  min-height: 46px;
+  border: 1px solid #ffffff15;
+  border-radius: 11px;
+  background-color: var(--chrome-field);
+  color: #e6ebf2;
+  box-shadow: inset 0 1px 2px #0002;
+  font-size: 13px;
+}
+.app-shell .settings-dialog .settings-field :is(input, select):hover:not(:disabled) { border-color: #ffffff2a; }
+.app-shell .settings-dialog .settings-field :is(input, select):focus-visible,
+.app-shell .new-topic-form :is(input,textarea):focus-visible {
+  outline: 2px solid #dcb996a6;
+  outline-offset: 3px;
+  border-color: #dcb99680;
+}
+
+/* One composer surface: the prompt has space, tools sit in its lower rail. */
+.app-shell .focused-session .session-composer {
+  container: sessioncomposer / inline-size;
+  padding: 14px 24px 8px;
+  gap: 6px;
+  background: #191c21;
+  border-top-color: var(--chrome-divider);
+}
+.app-shell .focused-session .session-composer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+  max-width: 980px;
+  border: 1px solid #ffffff18;
+  border-radius: 20px;
+  background: #22262d;
+  box-shadow: 0 3px 12px #0002, inset 0 1px 0 #ffffff06;
+  transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
+}
+.app-shell .focused-session .session-composer-row:focus-within {
+  border-color: #c6aa8b80;
+  box-shadow: 0 3px 12px #0002, 0 0 0 3px #dcb9960a, inset 0 1px 0 #ffffff08;
+}
+.app-shell .focused-session .session-composer-row .composer {
+  order: 0;
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: none;
+  flex: 0 1 auto;
+  margin: 0;
+  background: transparent;
+  border-radius: inherit;
+}
+.app-shell .focused-session .session-composer-row .composer-input {
+  min-height: 56px;
+  padding: 8px 13px 2px 18px;
+  gap: 8px;
+  border: 0;
+  border-radius: 20px 20px 0 0;
+  background: transparent;
+  align-items: flex-end;
+  box-shadow: none;
+}
+.app-shell .focused-session .session-composer-row textarea {
+  min-height: 40px;
+  padding: 6px 0;
+  font-size: 13px;
+  line-height: 22px;
+  color: #e6eaf0;
+}
+.app-shell .focused-session .session-composer-row textarea::placeholder { color: #a1aab8; }
+.app-shell .focused-session .session-composer-row .composer-footnote { display: none; }
+.app-shell .focused-session .session-composer-row .session-help-actions {
+  order: 1;
+  grid-column: 1;
+  flex: 0 0 auto;
+  width: 100%;
+  padding: 3px 8px 10px 13px !important;
+  margin: 0;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.app-shell .focused-session .session-help-actions button {
+  min-height: 30px;
+  padding: 5px 9px;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: #b5bfcc;
+  background: transparent;
+  font-size: 11px;
+}
+.app-shell .focused-session .session-help-actions button:hover:not(:disabled) { background: #ffffff09; color: #f0f3f8; }
+.app-shell .focused-session .session-help-actions button[aria-pressed="true"] {
+  background: #dcb99614;
+  border-color: #dcb99626;
+  color: #eed0b2;
+}
+.app-shell .focused-session .composer-input .send-button {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  margin-bottom: 1px;
+  background: #dcb996;
+  color: #2c241e;
+  box-shadow: inset 0 1px 0 #ffffff25;
+}
+.app-shell .focused-session .composer-input .send-button:disabled { background: #ffffff0e; color: #8c97a6; opacity: 1; box-shadow: none; }
+.app-shell .focused-session .composer-input .stop-button { background: #795150; color: #ffe7e1; }
+.app-shell .focused-session .composer-input .voice-dictation-button.is-compact:not(.is-listening) {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 0;
+  background: #ffffff07;
+  box-shadow: none;
+}
+.app-shell .focused-session .session-telemetry-bar {
+  order: 2;
+  grid-column: 2;
+  min-height: 30px;
+  max-width: 100%;
+  width: auto;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 3px 13px 10px 4px;
+  border: 0;
+}
+.app-shell .focused-session .telemetry-model-pill {
+  min-height: 26px;
+  padding: 3px 7px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+}
+.app-shell .focused-session .telemetry-model-pill strong { font-weight: 400; color: #adb8c7; font-size: 10px; }
+.app-shell .focused-session .telemetry-model-pill:hover { background: #ffffff06; }
+.app-shell .focused-session .session-usage-details > summary { min-height: 26px; display: flex; align-items: center; font-size: 10px; }
+
+/* Frost only the floating layers; solid defaults above cover older WebViews. */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .track-picker-popover[role="dialog"], .app-shell .btw-popover, .app-shell .session-usage-panel {
+    background: var(--chrome-glass);
+    backdrop-filter: blur(24px) saturate(1.2);
+    -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  }
+  .app-shell .review-dialog .review-header {
+    background: linear-gradient(180deg, #ffffff06, #ffffff01);
+  }
+}
+@container sessioncomposer (max-width: 660px) {
+  .app-shell .focused-session .session-composer-row { grid-template-columns: minmax(0, 1fr); }
+  .app-shell .focused-session .session-telemetry-bar { grid-column: 1; padding: 0 13px 8px; min-width: 0; justify-content: space-between; }
+  .app-shell .focused-session .session-help-actions { grid-column: 1; }
+}
+@media (max-width: 600px) {
+  .app-shell .focused-session .session-composer { padding: 10px 12px 6px; }
+  .app-shell .focused-session .session-composer-row { border-radius: 16px; grid-template-columns: minmax(0, 1fr); }
+  .app-shell .focused-session .session-telemetry-bar { grid-column: 1; padding: 0 13px 8px; min-width: 0; justify-content: space-between; }
+  .app-shell .focused-session .session-help-actions { grid-column: 1; }
+  .app-shell .focused-session .session-help-actions button span { display: inline; }
+  .app-shell .focused-session .session-composer-row .composer-input { padding: 8px 10px 2px 13px; }
+  .app-shell .focused-session .session-help-actions button { min-height: 34px; }
+  .app-shell .review-dialog .review-header { padding: 16px 18px; }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .track-picker-popover[role="dialog"], .app-shell .btw-popover, .app-shell .session-usage-panel {
+    background: var(--chrome-surface);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+@media (forced-colors: active) {
+  .track-picker-popover[role="dialog"], .app-shell .review-dialog > .review-surface,
+  .app-shell .focused-session .session-composer-row { background: Canvas; color: CanvasText; border-color: CanvasText; box-shadow: none; }
+  .app-shell .settings-dialog .settings-field select { appearance: auto; background-image: none; }
+  .app-shell .focused-session .session-help-actions button[aria-pressed="true"] { outline: 1px solid Highlight; }
+}

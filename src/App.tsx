@@ -1,3 +1,5 @@
+import "./motion.css";
+import "./components/layout/component-materials.css";
 import React, { useState, useEffect, useRef, Suspense, lazy } from "react";
 import { Code2, BookOpen, Route, Loader2 } from "lucide-react";
 import { handleTabNavigation } from "./components/layout/keyboard";

@@ -12,6 +12,8 @@ export function PracticeWorkspace({ initial, onBack, onSaved }: {
     onSaved: () => void;
 }) {
     const [session, setSession] = useState(initial), [busy, setBusy] = useState(""), [error, setError] = useState(""), [unsaved, setUnsaved] = useState(false);
+    const [failedPreparation, setFailedPreparation] = useState<{targetId:string;practice:LearningPractice}|null>(null);
+    const errorPanel = useRef<HTMLDivElement>(null);
     const [help, setHelp] = useState<{
         title: string;
         text: string;
@@ -24,6 +26,7 @@ export function PracticeWorkspace({ initial, onBack, onSaved }: {
     useEffect(() => { alive.current = true; heading.current?.focus(); return () => { alive.current = false; request.current?.abort(); }; }, []);
     useEffect(() => { if (help)
         helpHeading.current?.focus({ preventScroll: true }); }, [help]);
+    useEffect(() => { if (error) { errorPanel.current?.focus({preventScroll:true}); errorPanel.current?.scrollIntoView({block:"nearest"}); } }, [error]);
     const closeHelp = () => { setHelp(null); requestAnimationFrame(() => helpTrigger.current?.focus({ preventScroll: true })); };
     useEffect(() => { const key = (e: KeyboardEvent) => { if (e.key === "Escape" && help) {
         e.preventDefault();
@@ -43,7 +46,7 @@ export function PracticeWorkspace({ initial, onBack, onSaved }: {
             return false;
         }
     };
-    const perform = async <T,>(label: string, action: (signal: AbortSignal) => Promise<T>, done: (result: T) => void) => {
+    const perform = async <T,>(label: string, action: (signal: AbortSignal) => Promise<T>, done: (result: T) => void, onFailure?: () => void) => {
         if (request.current)
             return;
         const controller = new AbortController();
@@ -57,8 +60,10 @@ export function PracticeWorkspace({ initial, onBack, onSaved }: {
                 done(result);
         }
         catch (e) {
-            if (alive.current)
+            if (alive.current) {
                 setError(controller.signal.aborted ? "Preparation paused. Your saved question and answer are unchanged." : e instanceof Error ? e.message : "The tutor could not finish this step. Try again.");
+                onFailure?.();
+            }
         }
         finally {
             clearTimeout(timeout);
@@ -70,12 +75,16 @@ export function PracticeWorkspace({ initial, onBack, onSaved }: {
         }
     };
     const explain = (next: KnowledgePractice, r: PracticeRound) => void perform("explanation", signal => generatePracticeExplanation(next, r, signal), feedback => commit({ ...next, updatedAt: Date.now(), rounds: next.rounds.map(x => x.id === r.id ? { ...x, feedback } : x) }));
-    const prepare = (targetId: string, practice: LearningPractice = "independent") => void perform("question", signal => generatePracticeRound(session, targetId, practice, signal), next => {
-        if (commit({ ...session, updatedAt: Date.now(), rounds: [...session.rounds, next] })) {
-            setHelp(null);
-            requestAnimationFrame(() => heading.current?.scrollIntoView({ block: "start" }));
-        }
-    });
+    const prepare = (targetId: string, practice: LearningPractice = "independent") => {
+        if (request.current || unsaved || session.status!=="active") return;
+        setFailedPreparation(null);
+        void perform("question", signal => generatePracticeRound(session, targetId, practice, signal), next => {
+            if (commit({ ...session, updatedAt: Date.now(), rounds: [...session.rounds, next] })) {
+                setHelp(null);
+                requestAnimationFrame(() => heading.current?.scrollIntoView({ block: "start" }));
+            }
+        }, () => setFailedPreparation({targetId,practice}));
+    };
     const record = (check: LearningCheck, attempt: CheckAttempt) => {
         if (!round || unsaved)
             return;
@@ -97,18 +106,18 @@ export function PracticeWorkspace({ initial, onBack, onSaved }: {
     const attempted = new Set(session.rounds.filter(r => r.attempt && r.check.practice !== "guided").map(r => r.targetId));
     const nextTarget = session.targetIds.find(id => !attempted.has(id));
     const currentIdea = round && session.material.propositions.find(p => p.id === round.targetId);
-    const finish = () => { request.current?.abort(); commit({ ...session, status: "completed", updatedAt: Date.now() }); setHelp(null); };
+    const finish = () => { request.current?.abort(); setFailedPreparation(null); setError(""); commit({ ...session, status: "completed", updatedAt: Date.now() }); setHelp(null); };
     return <section className="knowledge-practice" aria-label="Practice workspace">
     <header className="knowledge-practice-heading"><div><span className="knowledge-eyebrow">Saved practice · {session.title}</span><h1 ref={heading} tabIndex={-1}>{session.status === "completed" ? "Your practice review" : "Try the idea in a fresh situation"}</h1><p>{attempted.size} of {session.targetIds.length} selected ideas tried · help is always available</p></div><div className="knowledge-actions"><button className="check-coach-button" disabled={unsaved} onClick={onBack}><ArrowLeft size={14}/> Back to knowledge</button>{session.status === "active" && <button className="check-coach-button" disabled={unsaved} onClick={finish}>End run and review</button>}</div></header>
     <p className="knowledge-note">Practice results stay separate from curriculum readiness. A correct answer or a map node is not proof of mastery.</p>
-    {error && <div className="continuation-error" role="alert"><p>{error}</p>{unsaved && <button onClick={() => commit(session)} className="dialog-secondary-button">Save again</button>}</div>}
+    {error && <div ref={errorPanel} tabIndex={-1} className="continuation-error knowledge-recovery" role="alert">{failedPreparation&&<h2>Question preparation paused</h2>}<p>{error}</p>{failedPreparation&&!unsaved&&<button className="dialog-primary-button" disabled={!!busy} onClick={()=>prepare(failedPreparation.targetId,failedPreparation.practice)}>Retry question</button>}{unsaved && <button onClick={() => commit(session)} className="dialog-secondary-button">Save again</button>}</div>}
     {busy && <div className="knowledge-busy" role="status"><Loader2 size={15} className="animate-spin"/> {busy === "question" ? "Preparing one fresh question…" : busy === "help" ? "Preparing your explanation…" : "Your answer is saved. Preparing tutoring…"}<button className="check-coach-button" onClick={() => request.current?.abort()}>Cancel preparation</button></div>}
     {session.status === "completed" ? <div className="knowledge-run-summary"><h2>What happened</h2>{session.targetIds.map(id => {
                 const idea = session.material.propositions.find(p => p.id === id)!;
                 const rounds = session.rounds.filter(r => r.targetId === id);
                 return <article key={id}><h3>{idea.statement}</h3>{rounds.length ? rounds.map(r => <details key={r.id}><summary>{OUTCOME_LABELS[outcomeFor(session, r)]} · {new Date(r.attempt?.submittedAt || session.createdAt).toLocaleDateString()}</summary>{r.attempt ? <ReviewedQuestionCard check={r.check} attempt={r.attempt} references={practiceReferences(session.material, [r.targetId])} isBusy={false} onSubmit={() => { }} onAskCoach={() => { }} onNewQuestion={() => { }} onDispute={r.attempt ? () => dispute(r.id) : undefined} showActions={false} showCoachLink={false}/> : <p>Question saved without an answer.</p>}{r.feedback && <MarkdownView content={r.feedback} compactFigures/>}</details>) : <p>Not tried in this run.</p>}</article>;
             })}</div> : <>
-      {!round && !busy && <section className="knowledge-start"><h2>A short practice run</h2><p>One fresh application for each selected idea. After a miss, you can work through a smaller example. Finish whenever you need to; your work stays saved.</p><button className="dialog-primary-button" disabled={unsaved} onClick={() => prepare(session.targetIds[0])}>Start first question</button></section>}
+      {!round && !busy && !failedPreparation && <section className="knowledge-start"><h2>A short practice run</h2><p>One fresh application for each selected idea. After a miss, you can work through a smaller example. Finish whenever you need to; your work stays saved.</p><button className="dialog-primary-button" disabled={unsaved} onClick={() => prepare(session.targetIds[0])}>Start first question</button></section>}
       {round && <div className={`knowledge-practice-body ${help ? "has-help" : ""}`}><div>
         <p className="knowledge-target">{round.attempt ? currentIdea?.statement : `Selected idea ${session.targetIds.indexOf(round.targetId) + 1} · apply it without reopening the source`}</p>
         <ReviewedQuestionCard key={round.check.id} check={round.check} attempt={round.attempt} references={references} reviewState={reviewState} isBusy={!!busy || unsaved} onSubmit={record} onAskCoach={() => askHelp("hint")} onNewQuestion={() => prepare(round.targetId, round.check.practice)} showCoachLink={false} onDispute={() => dispute(round.id)} onReturn={onBack} feedbackTeaching={round.attempt ? <section className="knowledge-tutoring" aria-label="Tutoring for your answer">{round.feedback ? <MarkdownView content={round.feedback} compactFigures/> : <><p>{busy === "explanation" ? "Your response stays saved while the explanation is prepared." : "Review the answer, then work through why it fits."}</p>{!busy && <button className="dialog-secondary-button" disabled={unsaved} onClick={() => explain(session, round)}>Explain this answer</button>}</>}</section> : undefined} onContinue={() => { if (round.check.practice === "guided")

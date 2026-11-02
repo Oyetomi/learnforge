@@ -50,7 +50,8 @@ LearnForge is a local-first learning app for technical and nontechnical subjects
 | --- | --- |
 | Adaptive learning flow | Uses answers, confidence, reasoning, and help usage to adjust guidance and the next activity. |
 | Worked tutoring | Explains correct, wrong, uncertain, and disputed answers before another question. Read one part at a time or read together. |
-| Help without losing your place | Ask a side question with `/btw`, or open a hint, walkthrough, or visual alongside the current activity. |
+| Help without losing your place | Ask a side question with `/btw`, or open a hint, walkthrough, or visual alongside the current activity. Resize or expand help while keeping your answer in place. |
+| Interface and feedback | Frosted floating menus, shared controls, a unified composer, and subtle dialog, panel and learning-step transitions. System reduced-motion support and solid material fallbacks. |
 | Math and visual explanations | KaTeX equations, paper-style derivations, comparison tables, SVG illustrations, and supported interactive models. Embedded calculations stay together; standalone figures can retain step controls. |
 | Your own material | Use text, Markdown, PDFs, code files, or pasted notes as source context. Extraction and model interpretation have limits. |
 | Knowledge and practice | Build a topic map from saved material, inspect exact source passages and joint reasoning premises, then start a resumable practice run. Results distinguish unaided, supported, and disputed work without awarding curriculum progress. |
