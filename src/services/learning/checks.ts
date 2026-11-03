@@ -316,8 +316,8 @@ export function isIndependentAttempt(attempt: CheckAttempt, messages: ChatMessag
   const question = messages.find(m => m.learning_check?.id === attempt.checkId &&
     m.learning_check.milestoneId === attempt.milestoneId)?.learning_check;
   return attempt.correct && !attempt.dontKnow && !attempt.assisted &&
-    !attempt.retriedOptionIds?.length && attempt.practice !== "guided" && question?.practice !== "guided" &&
-    attempt.confidence !== "unsure" && attempt.grading?.status !== "uncertain" && !attempt.grading?.reviewRequested;
+    !attempt.retriedOptionIds?.length && !attempt.visualSupportIds?.length && attempt.practice !== "guided" && question?.practice !== "guided" &&
+    attempt.confidence !== "unsure" && (!attempt.grading || attempt.grading.status === "correct") && !attempt.grading?.reviewRequested;
 }
 
 /** Activity completion is not mastery. Require distinct, unassisted applications. */

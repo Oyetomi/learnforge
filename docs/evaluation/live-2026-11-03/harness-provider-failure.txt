@@ -1,0 +1,368 @@
+- complementary:
+  - link "Home":
+    - /url: /
+  - button "Close sidebar":
+  - button "Teaching create a new teaching session":
+    - text: Teaching
+    - generic: create a new teaching session
+  - button "Practice create a new practice session":
+    - text: Practice
+    - generic: create a new practice session
+  - generic: Sessions
+  - textbox "Search sessions":
+    - /placeholder: Search…
+  - button "Teaching"
+  - button "Practice"
+  - button "All"
+  - button "Help me understand why increasing a price by 20% and then decreasing it… just now":
+    - generic: Help me understand why increasing a price by 20% and then decreasing it…
+    - generic: just now
+  - text: Background agents
+  - button "Settings":
+    - text: Settings
+- main:
+  - button:
+  - button "Help me understand why increasing a price by 20% and then decreasing it…"
+  - button "Plan":
+    - text: Plan
+  - generic: Planning
+  - log:
+    - generic: You
+    - generic: "Help me understand why increasing a price by 20% and then decreasing it by 20% does not usually restore the starting price. I know basic multiplication, but percentages confuse me. Start with a short diagnostic before explaining, adapt to my reasoning, and keep this a focused lesson. Reference for this exercise: a p% increase multiplies the current amount by 1 + p/100; a p% decrease multiplies the current amount by 1 - p/100. Each step uses the amount at that step, with no rounding, fees, or other changes. Use only this supplied reference; no external research."
+    - text: Probe
+    - generic: incorrect
+    - paragraph:
+      - text: A store has an item priced at
+      - math:
+        - generic: $
+        - generic: "100"
+      - generic: $
+      - text: "100"
+      - text: . The price is increased by
+      - math:
+        - generic: "20"
+        - generic: "%"
+      - generic: 20%
+      - text: ", and then the new price is decreased by"
+      - math:
+        - generic: "20"
+        - generic: "%"
+      - generic: 20%
+      - text: . What is the final price?
+    - paragraph: $98
+    - paragraph: $96
+    - paragraph: $104
+    - paragraph: $100
+    - generic: 50%
+    - button "YOUR THINKING":
+      - text: YOUR THINKING
+    - button "Why"
+    - text: Probe
+    - generic: correct
+    - paragraph:
+      - text: If an item currently costs
+      - math:
+        - generic: $
+        - generic: "120"
+      - generic: $
+      - text: "120"
+      - text: ", how many dollars is a"
+      - math:
+        - generic: "20"
+        - generic: "%"
+      - generic: 20%
+      - text: decrease?
+    - paragraph: $12
+    - paragraph: $20
+    - paragraph: $16
+    - paragraph: $24
+    - generic: 50%
+    - button "YOUR THINKING":
+      - text: YOUR THINKING
+    - button "Why"
+    - text: Probe
+    - generic: didn't know
+    - paragraph:
+      - text: According to the rule that a
+      - math:
+        - generic: "20"
+        - generic: "%"
+      - generic: 20%
+      - text: increase multiplies by
+      - math:
+        - generic: (
+        - generic: "1"
+        - generic: +
+        - generic: "0.20"
+        - generic: )
+      - generic: (1 +
+      - generic: 0.20)
+      - text: and a
+      - math:
+        - generic: "20"
+        - generic: "%"
+      - generic: 20%
+      - text: decrease multiplies by
+      - math:
+        - generic: (
+        - generic: "1"
+        - generic: −
+        - generic: "0.20"
+        - generic: )
+      - generic: (1 −
+      - generic: 0.20)
+      - text: ", what is the result of applying both steps to a starting amount"
+      - math:
+        - generic: A
+      - generic: A
+      - text: "?"
+    - paragraph:
+      - math:
+        - generic: A
+        - generic: ×
+        - generic: "1.20"
+        - generic: ×
+        - generic: "1.20"
+        - generic: =
+        - generic: A
+        - generic: ×
+        - generic: "1.44"
+      - generic: A ×
+      - generic: 1.20 ×
+      - generic: 1.20 =
+      - generic: A ×
+      - generic: "1.44"
+    - paragraph:
+      - math:
+        - generic: A
+        - generic: ×
+        - generic: "1.20"
+        - generic: ×
+        - generic: "0.80"
+        - generic: =
+        - generic: A
+        - generic: ×
+        - generic: "0.96"
+      - generic: A ×
+      - generic: 1.20 ×
+      - generic: 0.80 =
+      - generic: A ×
+      - generic: "0.96"
+    - paragraph:
+      - math:
+        - generic: A
+        - generic: ×
+        - generic: (
+        - generic: "1.20"
+        - generic: −
+        - generic: "0.20"
+        - generic: )
+        - generic: =
+        - generic: A
+        - generic: ×
+        - generic: "1.00"
+      - generic: A ×
+      - generic: (1.20 −
+      - generic: 0.20) =
+      - generic: A ×
+      - generic: "1.00"
+    - paragraph:
+      - math:
+        - generic: A
+        - generic: ×
+        - generic: (
+        - generic: "1.20"
+        - generic: +
+        - generic: "0.80"
+        - generic: )
+        - generic: =
+        - generic: A
+        - generic: ×
+        - generic: "2.00"
+      - generic: A ×
+      - generic: (1.20 +
+      - generic: 0.80) =
+      - generic: A ×
+      - generic: "2.00"
+    - generic: Answered “I don't know”.
+    - button "YOUR THINKING":
+      - text: YOUR THINKING
+    - button "Why"
+    - text: Probe concluded — your assessment
+    - generic: Base dependence of percentage changes
+    - generic: "Floor: reliably computes dollar amounts of simple percentage changes when the base is explicit (e.g., calculates 20% of 120 as 24 via multiplication). Ceiling: treats equal opposite percentage changes as additive inverses that cancel out (expected +20% and -20% to return to 100). Misconception: assumes percentage shifts are absolute rather than base-relative. Build from: concrete calculation of $100 -> $120, then showing that 20% of $120 is $24, leaving $96."
+    - generic: Multiplicative representation of sequential percentage changes
+    - generic: "Floor: understands basic multiplication. Ceiling: cannot yet express or compose sequential percentage changes as algebraic scaling factors (1 + p/100)(1 - p/100). Build from: stepping through the two-step multiplication process explicitly ($A \\\\times 1.20$, then that result $\\\\times 0.80$)."
+    - paragraph: The learner's concrete arithmetic is intact, but they intuitively expect equal positive and negative percentages to cancel. Teaching will build from concrete dollar-step arithmetic to showing how changing the base changes the absolute value, then generalize to sequential multipliers (1.20 * 0.80 = 0.96).
+    - paragraph: The diagnostic is complete, and we will build directly from your arithmetic foundation to show why the shifting base prevents the two steps from canceling.
+    - generic: Planning
+    - button "Open the full plan":
+      - img "Plan diagram":
+        - generic: Percentage Means Portion of
+        - generic: the Current Base
+        - generic: Asymmetric Dollar Steps on
+        - generic: Different Bases
+        - generic: Expressing Percentage Shifts
+        - generic: as Multipliers
+        - generic: "Sequential Multiplication:"
+        - generic: 1.20 * 0.80 = 0.96
+        - generic: "General Rule: 1 - p^2/10000"
+        - generic: < 1
+    - heading "Approach" [level=3]
+    - paragraph:
+      - text: The diagnostic showed that while you can multiply
+      - math:
+        - generic: "0.20"
+        - generic: ×
+        - generic: "120"
+        - generic: =
+        - generic: "24"
+      - generic: 0.20 ×
+      - generic: 120 =
+      - generic: "24"
+      - text: ", your working intuition treats"
+      - math:
+        - generic: +
+        - generic: "20"
+        - generic: "%"
+      - generic: +20%
+      - text: and
+      - math:
+        - generic: −
+        - generic: "20"
+        - generic: "%"
+      - generic: −20%
+      - text: as equal opposing adjustments that cancel out.
+    - paragraph:
+      - text: "To make the real mechanism obvious rather than just memorized, we will build from one unconditional truth:"
+      - strong: a percentage is never an absolute quantity; it is always a fraction of the current base amount.
+    - paragraph: "Here is how we will proceed:"
+    - list:
+      - strong: Percentage Means Portion of the Current Base
+      - text: ": Ground percentage change as an operation tied strictly to the number it acts on at that moment."
+      - strong: Asymmetric Dollar Steps on Different Bases
+      - text: ": Track concrete dollars when starting at"
+      - math:
+        - generic: $
+        - generic: "100"
+      - generic: $
+      - text: "100"
+      - text: . See why an increase of
+      - math:
+        - generic: $
+        - generic: "20"
+      - generic: $
+      - text: "20"
+      - text: is followed by a decrease of
+      - math:
+        - generic: $
+        - generic: "24"
+      - generic: $
+      - text: "24"
+      - text: ", leaving"
+      - math:
+        - generic: $
+        - generic: "96"
+      - generic: $
+      - text: "96"
+      - text: .
+      - strong: Expressing Percentage Shifts as Multipliers
+      - text: ": Translate \"add"
+      - math:
+        - generic: "20"
+        - generic: "%"
+      - generic: 20%
+      - text: "\" into multiplying by"
+      - math:
+        - generic: "1.20"
+      - generic: "1.20"
+      - text: ", and \"subtract"
+      - math:
+        - generic: "20"
+        - generic: "%"
+      - generic: 20%
+      - text: "\" into multiplying by"
+      - math:
+        - generic: "0.80"
+      - generic: "0.80"
+      - text: ", directly from the provided reference rule."
+      - strong:
+        - text: Sequential Multiplication (
+        - math:
+          - generic: "1.20"
+          - generic: ×
+          - generic: "0.80"
+          - generic: =
+          - generic: "0.96"
+        - generic: 1.20 ×
+        - generic: 0.80 =
+        - generic: "0.96"
+        - text: )
+      - text: ": Combine the two steps into a single arithmetic expression to see why the cumulative multiplier is less than"
+      - math:
+        - generic: "1"
+      - generic: "1"
+      - text: .
+      - strong:
+        - text: General Rule (
+        - math:
+          - generic: (
+          - generic: "1"
+          - generic: +
+          - generic: x
+          - generic: )
+          - generic: (
+          - generic: "1"
+          - generic: −
+          - generic: x
+          - generic: )
+          - generic: =
+          - generic: "1"
+          - generic: −
+          - generic: x
+          - generic: "2"
+          - generic: <
+          - generic: "1"
+        - generic: (1 +
+        - generic: x)(1 −
+        - generic: x) =
+        - generic: 1 −
+        - text: x
+        - generic: "2"
+        - text: <
+        - generic: "1"
+        - text: )
+      - text: ": Discover why any equal increase and decrease by"
+      - math:
+        - generic: p
+        - generic: "%"
+      - generic: p%
+      - text: always leaves an amount strictly less than the starting value whenever
+      - math:
+        - generic: p
+        - generic: ">"
+        - generic: "0"
+      - generic: p >
+      - generic: "0"
+      - text: .
+    - paragraph: Please confirm if this plan looks good to you, or let me know if you would like any adjustments before we begin.
+    - generic: You
+    - generic: Yes, start. Keep it concrete and explain one small example at a time.
+    - generic: "Something went wrong: 500: {\"message\":\"CloudCode API error (429): {\\n \\\"error\\\": {\\n \\\"code\\\": 429,\\n \\\"message\\\": \\\"Resource has been exhausted (e.g. check quota).\\\",\\n \\\"status\\\": \\\"RESOURCE_EXHAUSTED\\\"\\n }\\n}\\n\",\"type\":\"internal_error\"}"
+    - button "Retry"
+    - textbox "Ask, answer, or steer the lesson…"
+    - button "Send" [disabled]:
+    - button "14.1k / 272k —":
+      - generic: 14.1k / 272k
+      - generic: ·
+      - generic: —
+    - button "Start dictation":
+      - generic: Dictate
+    - button "gemini-3.8-flash-high":
+      - generic: gemini-3.8-flash-high
+      - generic: ▾
+    - button "off":
+      - generic: "off"
+      - generic: ▾
+- button "Open Next.js Dev Tools":
+- alert

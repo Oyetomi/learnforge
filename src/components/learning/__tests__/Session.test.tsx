@@ -191,7 +191,7 @@ it("opens a saved visual as its own activity without previous turns or the pendi
     />
   );
   expect(html).toContain("Current visual");
-  expect(html).toContain("Back to question");
+  expect(html).toContain("Open question");
   expect(html).not.toContain("An earlier long explanation");
   expect(html).not.toContain("The pending question");
   expect(html).not.toContain("An introduction to this visual");

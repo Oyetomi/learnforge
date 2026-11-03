@@ -35,6 +35,7 @@ import { CurriculumWorkspace } from "./components/curriculum/CurriculumWorkspace
 import { curriculumForTrack, curriculumUnits } from "./services/learning/curriculumPlan";
 import { prepareCurriculumUnit } from "./services/ai/curriculumOutline";
 import { NewTopicModal } from "./components/curriculum/NewTopicModal";
+import { LearningStart } from "./components/curriculum/LearningStart";
 import {
   LearningSession,
   ChatMessage,
@@ -118,6 +119,8 @@ export default function App() {
   const unitController = useRef<AbortController | null>(null);
   const selectedTrack = tracks.find(t => t.id === currentTrackId);
   const [isNewTopicModalOpen, setIsNewTopicModalOpen] = useState(false);
+  const [startGoal, setStartGoal] = useState<string>();
+  const [startWithMaterial, setStartWithMaterial] = useState(false);
   const [isManageTopicsOpen, setIsManageTopicsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<
@@ -1290,6 +1293,8 @@ export default function App() {
         }}
         isSidebarOpen={isSidebarOpen}
         onOpenNewTopic={() => {
+          setStartGoal(undefined);
+          setStartWithMaterial(false);
           setIsSidebarOpen((open) => (isCompactLayout ? false : open));
           setIsNewTopicModalOpen(true);
         }}
@@ -1313,29 +1318,14 @@ export default function App() {
         )}
         <main className="main-workspace" id="main-content" tabIndex={-1}>
           {workspaceView === "knowledge" ? <KnowledgeWorkspace tracks={visibleTracks} initialTrackId={currentTrackId} database={db} pendingQuestion={!!activeCheck && !messages.some(m => m.check_attempt?.checkId === activeCheck.id)} onReturn={() => setWorkspaceView("session")} onOpenTopic={id => { handleSelectTrack(id); setWorkspaceView("session"); }} /> : !currentSession ? (
-            <div className="empty-workspace">
-              <BookOpen size={26} />
-              <h1>What are you interested in?</h1>
-              <p>
-                Start with a goal. Review a full curriculum for a broad subject,
-                or take a focused lesson for one question. Learn through examples,
-                practice and tutoring shaped by your answers.
-              </p>
-              <button
-                className="dialog-primary-button"
-                onClick={() => setIsNewTopicModalOpen(true)}
-              >
-                Explore my interests
-              </button>
-              {removedTopicIds.length > 0 && (
-                <button
-                  className="check-coach-button"
-                  onClick={() => setIsManageTopicsOpen(true)}
-                >
-                  Clear previously removed topics
-                </button>
-              )}
-            </div>
+            <LearningStart
+              onStart={(goal, material) => {
+                setStartGoal(goal);
+                setStartWithMaterial(!!material);
+                setIsNewTopicModalOpen(true);
+              }}
+              onManageRemoved={removedTopicIds.length ? () => setIsManageTopicsOpen(true) : undefined}
+            />
           ) : workspaceView === "curriculum" && selectedTrack ? (
             <CurriculumWorkspace key={selectedTrack.id} track={selectedTrack} milestones={milestones} messages={messages} active={activeMilestone}
               onSelect={handleSelectMilestone} onResume={()=>setWorkspaceView("session")}
@@ -1497,6 +1487,8 @@ export default function App() {
       {isNewTopicModalOpen && (
         <NewTopicModal
           isOpen={isNewTopicModalOpen}
+          initialInterest={startGoal}
+          showMaterial={startWithMaterial}
           onClose={() => setIsNewTopicModalOpen(false)}
           onTrackCreated={handleTrackCreated}
           onOpenPlugins={() => {

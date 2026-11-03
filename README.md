@@ -20,17 +20,17 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license" /></a>
 </p>
 
-![LearnForge: a submitted answer and its worked tutoring explanation](docs/images/hero-session.jpg)
+![LearnForge: describe a learning goal or personalize an everyday example](docs/images/start-screen.jpg)
 
-*A provider-generated Yoruba greeting session in the current app: review your answer, read the explanation, and continue at your own pace.*
+*Start with your own question. Editable examples help you get going; notes and files are one click away. You review the goal and starting point before learning begins.*
 
-LearnForge is a local-first learning app for technical and nontechnical subjects. Start with something you want to understand, review the proposed scope, and learn through examples and fresh applications. Bring your own AI provider or a compatible local model server.
+LearnForge is a local-first learning app for technical and nontechnical subjects. Understand a sale price, learn a creative skill, or work through a difficult concept. Your answers help shape the explanation, the support you receive, and what to try next. Bring your own AI provider or a compatible local model server.
 
 ## Get started
 
 1. [Download the latest release](https://github.com/Oyetomi/learnforge/releases/latest). Apple Silicon Mac downloads include a DMG, an app ZIP, and `SHA256SUMS`. The current Mac build is ad-hoc signed and is **not notarized by Apple**.
 2. Open **Settings → AI connection**. Choose a provider, enter your own key or endpoint where needed, select a model, and test the connection. The default local-proxy preset requires a running server; the app does not bundle an AI model.
-3. Choose **New topic** and describe your goal. Review a full curriculum for a broad goal, or a focused lesson for a specific question.
+3. Describe your goal on the start screen, personalize an example, or choose **Add notes or a file**. Your draft carries into the goal form. Review a full curriculum for a broad goal, or a focused lesson for a specific question. Use **New topic** to start another subject later.
 
 ## How it works
 
@@ -40,15 +40,16 @@ LearnForge is a local-first learning app for technical and nontechnical subjects
 4. **Work through feedback.** Your submitted answer stays available while the tutor explains it. Continue when you are ready; a wrong or uncertain answer can lead to a smaller guided example.
 5. **Try a fresh case.** Supported practice is tracked separately. Independent applications, transfer to a different situation, and a tutor review guide readiness for the next concept.
 
-![Describe a learning goal or bring your own source material](docs/images/learning-goal.jpg)
+![A percentage question about a jacket price, with an answer selected](docs/images/hero-session.jpg)
 
-*Interest-first onboarding in the current app. A goal can also use uploaded notes or source material.*
+*An everyday question: does a 20% increase followed by a 20% discount cancel out? This authored demo uses the production interface. The selected answer has not been submitted.*
 
 ## Features
 
 | Feature | What it does |
 | --- | --- |
 | Adaptive learning flow | Uses answers, confidence, reasoning, and help usage to adjust guidance and the next activity. |
+| A useful starting screen | Enter a goal directly, edit an example, or bring your own material. The same draft stays with you through goal planning. |
 | Worked tutoring | Explains correct, wrong, uncertain, and disputed answers before another question. Read one part at a time or read together. |
 | Help without losing your place | Ask a side question with `/btw`, or open a hint, walkthrough, or visual alongside the current activity. Resize or expand help while keeping your answer in place. |
 | Interface and feedback | Frosted floating menus, shared controls, a unified composer, and subtle dialog, panel and learning-step transitions. System reduced-motion support and solid material fallbacks. |
@@ -59,9 +60,9 @@ LearnForge is a local-first learning app for technical and nontechnical subjects
 | Optional revisits | Offer an earlier idea within the same topic. Off by default, integrated into learning rather than a daily-review modal. |
 | Optional coding | Syntax-highlighted examples and an editor with explicit execution providers. |
 
-![A question and submitted answer remain available for review](docs/images/question-review.jpg)
+![Worked percentage tutoring with a comparison table](docs/images/question-review.jpg)
 
-*Question review from the same greeting session. Readiness is an application decision, not a guarantee of mastery.*
+*The worked explanation compares the amount each percentage uses. The question and tutoring screenshots use authored demo data, with no live provider calls or learner-outcome claims. Readiness is an estimate, not a guarantee of mastery.*
 
 ![Paper-style mathematical reasoning in LearnForge](docs/images/paper-math.jpg)
 

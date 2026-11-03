@@ -1,0 +1,276 @@
+{
+  "status": "partial-live-run-provider-quota-interrupted",
+  "date": "2026-11-03",
+  "kind": "tester-authored-app-walkthrough",
+  "humanParticipants": 0,
+  "topic": "changing-percentage-bases",
+  "learnforge": {
+    "version": "0.2.4",
+    "baseCommit": "87eef11514d9cd47011362afa411dc0ce2afff59",
+    "sourceSha256": {
+      "src/App.tsx": "268d8a54f040834267e7c17e335616d82be3a900a596de092724d39cd93a4872",
+      "src/components/chat/ChatPane.tsx": "c7905971345327747da7648eea24bbc05572e5889e6ba7c33cdd9fc4dd5b3363",
+      "src/services/learning/checks.ts": "874eba83489983b6016b3092b9b36fef9bf657506b65d46a972bee52f9d89966",
+      "src/services/learning/retention.ts": "eef4a99ba86969ea70810c92114489210f4947e44d6b9d4788516dc06628c975",
+      "src/services/learning/teaching.ts": "8fe6cbbaa1a97bc6a230a07142a6dee6e63fbfda9d989d4dc84fa19998826bd4",
+      "src/services/learning/__tests__/teaching.test.tsx": "057a4c87cf1771f87279ddaa869db77d42a04e1bb3600f90f8220ec820760b33",
+      "src/components/learning/__tests__/Session.test.tsx": "a4ac7f2d02d1573e89f9a1cef7be836c9c51cdbb27b6020eb3045f3557abb034"
+    }
+  },
+  "learnharness": {
+    "version": "0.4.1",
+    "commit": "e69e85269c064c6c9c49a8b06ae78c06e79c4a63",
+    "isolatedData": true,
+    "graphExtractionEnabled": false
+  },
+  "model": {
+    "requested": "gemini-3.8-flash-high",
+    "upstream": "http://127.0.0.1:10532/v1/chat/completions",
+    "underlyingWeightsVerified": false,
+    "transportMaxRequestsPerApp": 24,
+    "requestDeadlineSeconds": 90,
+    "discoveryContextTokens": 272000,
+    "discoveryMaxOutputTokens": 16384,
+    "discoveryLimitsAreMeasuredCapabilities": false
+  },
+  "confounds": [
+    "different app-native prompts, tools and sampling",
+    "different diagnostic questions",
+    "reasoning entered in LearnHarness probes but not optional LearnForge placement fields",
+    "single unreviewed draft task; no human learner",
+    "upstream quota interrupted before complete teaching cycles"
+  ],
+  "requests": [
+    {
+      "app": "learnharness",
+      "id": 1,
+      "at": "2026-11-03T07:06:10.051Z",
+      "model": "gemini-3.8-flash-high",
+      "stream": true,
+      "reasoning": null,
+      "temperature": null,
+      "max_tokens": 16384,
+      "tools": 9,
+      "httpStatus": 200,
+      "responseReportedModels": [
+        "gemini-3.8-flash-high"
+      ],
+      "providerQuotaFailure": false
+    },
+    {
+      "app": "learnforge",
+      "id": 1,
+      "at": "2026-11-03T07:06:11.588Z",
+      "model": "gemini-3.8-flash-high",
+      "stream": false,
+      "reasoning": null,
+      "temperature": 0.25,
+      "max_tokens": null,
+      "tools": 0,
+      "httpStatus": 200,
+      "responseReportedModels": [
+        "gemini-3.8-flash-high"
+      ],
+      "providerQuotaFailure": false
+    },
+    {
+      "app": "learnharness",
+      "id": 2,
+      "at": "2026-11-03T07:06:59.474Z",
+      "model": "gemini-3.8-flash-high",
+      "stream": true,
+      "reasoning": null,
+      "temperature": null,
+      "max_tokens": 16384,
+      "tools": 9,
+      "httpStatus": 200,
+      "responseReportedModels": [
+        "gemini-3.8-flash-high"
+      ],
+      "providerQuotaFailure": false
+    },
+    {
+      "app": "learnforge",
+      "id": 2,
+      "at": "2026-11-03T07:07:00.071Z",
+      "model": "gemini-3.8-flash-high",
+      "stream": false,
+      "reasoning": null,
+      "temperature": 0.25,
+      "max_tokens": null,
+      "tools": 0,
+      "httpStatus": 200,
+      "responseReportedModels": [
+        "gemini-3.8-flash-high"
+      ],
+      "providerQuotaFailure": false
+    },
+    {
+      "app": "learnharness",
+      "id": 3,
+      "at": "2026-11-03T07:08:10.495Z",
+      "model": "gemini-3.8-flash-high",
+      "stream": true,
+      "reasoning": null,
+      "temperature": null,
+      "max_tokens": 16384,
+      "tools": 9,
+      "httpStatus": 200,
+      "responseReportedModels": [
+        "gemini-3.8-flash-high"
+      ],
+      "providerQuotaFailure": false
+    },
+    {
+      "app": "learnforge",
+      "id": 3,
+      "at": "2026-11-03T07:08:11.746Z",
+      "model": "gemini-3.8-flash-high",
+      "stream": false,
+      "reasoning": null,
+      "temperature": 0.3,
+      "max_tokens": null,
+      "tools": 0,
+      "httpStatus": 200,
+      "responseReportedModels": [
+        "gemini-3.8-flash-high"
+      ],
+      "providerQuotaFailure": false
+    },
+    {
+      "app": "learnharness",
+      "id": 4,
+      "at": "2026-11-03T07:09:41.773Z",
+      "model": "gemini-3.8-flash-high",
+      "stream": true,
+      "reasoning": null,
+      "temperature": null,
+      "max_tokens": 16384,
+      "tools": 9,
+      "httpStatus": 200,
+      "responseReportedModels": [
+        "gemini-3.8-flash-high"
+      ],
+      "providerQuotaFailure": false
+    },
+    {
+      "app": "learnforge",
+      "id": 4,
+      "at": "2026-11-03T07:09:42.184Z",
+      "model": "gemini-3.8-flash-high",
+      "stream": false,
+      "reasoning": null,
+      "temperature": 0,
+      "max_tokens": 1400,
+      "tools": 0,
+      "httpStatus": 200,
+      "responseReportedModels": [
+        "gemini-3.8-flash-high"
+      ],
+      "providerQuotaFailure": false
+    },
+    {
+      "app": "learnharness",
+      "id": 5,
+      "at": "2026-11-03T07:09:47.701Z",
+      "model": "gemini-3.8-flash-high",
+      "stream": true,
+      "reasoning": null,
+      "temperature": null,
+      "max_tokens": 16384,
+      "tools": 9,
+      "httpStatus": 200,
+      "responseReportedModels": [
+        "gemini-3.8-flash-high"
+      ],
+      "providerQuotaFailure": false
+    },
+    {
+      "app": "learnharness",
+      "id": 6,
+      "at": "2026-11-03T07:09:50.868Z",
+      "model": "gemini-3.8-flash-high",
+      "stream": true,
+      "reasoning": null,
+      "temperature": null,
+      "max_tokens": 16384,
+      "tools": 11,
+      "httpStatus": 200,
+      "responseReportedModels": [
+        "gemini-3.8-flash-high"
+      ],
+      "providerQuotaFailure": false
+    },
+    {
+      "app": "learnharness",
+      "id": 7,
+      "at": "2026-11-03T07:09:54.661Z",
+      "model": "gemini-3.8-flash-high",
+      "stream": true,
+      "reasoning": null,
+      "temperature": null,
+      "max_tokens": 16384,
+      "tools": 11,
+      "httpStatus": 200,
+      "responseReportedModels": [
+        "gemini-3.8-flash-high"
+      ],
+      "providerQuotaFailure": false
+    },
+    {
+      "app": "learnharness",
+      "id": 8,
+      "at": "2026-11-03T07:54:50.439Z",
+      "model": "gemini-3.8-flash-high",
+      "stream": true,
+      "reasoning": null,
+      "temperature": null,
+      "max_tokens": 16384,
+      "tools": 11,
+      "httpStatus": 500,
+      "responseReportedModels": [],
+      "providerQuotaFailure": true
+    }
+  ],
+  "completed": {
+    "bothDiagnostics": true,
+    "bothApprovedPlans": true,
+    "learnforgeWorkedExample": true,
+    "learnforgeDraftReloadAndNavigation": true,
+    "bothTeachingCycles": false,
+    "liveTransfer": false,
+    "delayedHumanRetrieval": false
+  },
+  "validation": {
+    "testsPassed": 464,
+    "testFilesPassed": 65,
+    "typescriptAndWebBuild": "pass",
+    "macBuild": "pass",
+    "macInstall": {
+      "path": "/Applications/LearnForge.app",
+      "signatureVerified": true,
+      "runningAppRestarted": false,
+      "buildMatchesInstalledFiles": true,
+      "installedSha256": {
+        "Contents/Info.plist": "7645b96eef2ca79b8b76c0b52fdf6d01306acc1162d47063b73297f582623a14",
+        "Contents/_CodeSignature/CodeResources": "d4532f21b8e4bf461ab8094ba2fb7c8d7da1060f085bd3fb3d0d7436447fdb40",
+        "Contents/MacOS/learnforge": "f913a198c5c1d9ebac2c07018adf49b2fb0ba1e37ef43c9ccc78f0843182c77d",
+        "Contents/Resources/icon.icns": "5930b4b6d525ecab6013508f774c0ad8b08c79483fd1fde010bfb1ef1f435bba"
+      }
+    }
+  },
+  "evidenceSha256": {
+    "harness-diagnostic.jpg": "3eba5b525414ae2cadf2671f7ae7f33b52efc0b2c44c80ef0fa1b5302dd58d2c",
+    "forge-restored-draft.txt": "49339d854a7cfda9eba99e766ef9d9dd790f63302084e03597310168b92e8c67",
+    "harness-diagnostic.txt": "7e6d1147af2da1f4960e5d98ee47dca5d658d62eb00222b49ed8b5e9bb2cedc9",
+    "harness-plan.txt": "215272b70b7ae2d5bd3fb7221289cbf67ce4a5e1a54559d8692d73b97ebb7fc0",
+    "forge-figure-detour.txt": "60283691edd19acd0607e53c8be8cd20a09adae05bbc148417822ef098ad1609",
+    "forge-initial-lesson.txt": "a5b6a82890f88890a6e24c85f2b130d879a1606df9697e56a2babd511d8d6a80",
+    "forge-optional-figure.txt": "99db146c37fbbfc8ed618583ea99ffdcf81459c3b8557423199026c489faa40a",
+    "forge-direct-question.txt": "49339d854a7cfda9eba99e766ef9d9dd790f63302084e03597310168b92e8c67",
+    "forge-placement.txt": "0c9b3c0ed9239d51cfb76d2b7d70f57b6535517162fe727644f870ccacacdfcc",
+    "harness-provider-failure.jpg": "dd2c97879579658442fdfb670e586516758826bfd546df1887c4c8b4b1742938",
+    "harness-provider-failure.txt": "c83881dc82c9a2cb96b3370c75ae42e27e60dde3554653bd4a442186ff863f56",
+    "forge-direct-question.jpg": "3f797cf3231b288d63a0b1c6f6ddfdeea32127ef6e8895360427eafb2bd5f47f"
+  }
+}

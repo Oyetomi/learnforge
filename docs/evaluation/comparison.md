@@ -2,6 +2,8 @@
 
 Prepared 1 November 2026. A later [live native-app walkthrough](live-2026-11-01/report.md) now records one exploratory percentage case, including reproduced LearnForge defects. It used different models and did not complete matched teaching cycles or involve human learners; it does not establish an overall winner. The preparation and boundary experiment below retain their original scope.
 
+The [3 November same-model app walkthrough](live-2026-11-03/report.md) uses fresh isolated sessions and the same requested/response-reported model ID. Upstream quota interrupted teaching, so it remains a partial comparison. It records diagnostic differences, a verified direct-question navigation repair, and stronger saved support-evidence guards; no learning winner is claimed.
+
 Follow-on implementation: [question trust and recoverable feedback](../question-trust.md) adds a separate review gate to LearnForge's session/revisit surfaces. The results below describe the earlier pure authoring-boundary experiment, not that new gate or a live comparison.
 
 ## What we can conclude now

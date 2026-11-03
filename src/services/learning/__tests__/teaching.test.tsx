@@ -81,6 +81,23 @@ describe("guidance within a concept", () => {
 });
 
 describe("support and advancement boundaries", () => {
+  it("preserves support and retry evidence after reload even when the legacy assisted flag is absent", () => {
+    for (const patch of [{ visualSupportIds: ["help:walkthrough"] }, { retriedOptionIds: ["b"] }]) {
+      const restored: ChatMessage[] = JSON.parse(JSON.stringify([attempt("first"), attempt("q1", "transfer", patch)]));
+      expect(isIndependentAttempt(restored[1].check_attempt!, restored)).toBe(false);
+      expect(learningEvidence(restored, "m").readyToAdvance).toBe(false);
+      expect(acceptsReadiness(restored, "m", review(["first", "q1"]))).toBe(false);
+      expect(nextTeachingStep(restored, "m").stage).toBe("independent");
+      expect(retentionRating(check, restored[1].check_attempt!)).toBe(2);
+    }
+  });
+
+  it("does not promote contradictory persisted grading into independent readiness", () => {
+    const history = [attempt("first"), attempt("q1", "transfer", { grading: { status: "needs-work", feedback: "Reasoning needs correction", criteria: [] } })];
+    expect(isIndependentAttempt(history[1].check_attempt!, history)).toBe(false);
+    expect(acceptsReadiness(history, "m", review(["first", "q1"]))).toBe(false);
+  });
+
   it("does not accept guided practice as independent even when its assisted flag is missing", () => {
     const history = [attempt("a", "guided"), attempt("b", "guided")];
     expect(learningEvidence(history, "m").independentCorrect).toBe(0);

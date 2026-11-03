@@ -1,0 +1,75 @@
+- link "Skip to learning workspace":
+  - /url: "#main-content"
+- banner:
+  - button "Show learning path":
+  - generic "LearnForge":
+    - generic: learnforge.
+  - generic: Learning track
+  - 'button "Learning track: Understanding Compounded Percentage Changes"':
+    - generic: Understanding Compounded Percentage Changes
+  - button "Knowledge and practice":
+  - button "Create new topic":
+    - generic: New topic
+  - button "Export session notes":
+  - button "Settings":
+- main:
+  - button "Learning plan":
+    - text: Learning plan
+  - generic: Understanding Compounded Percentage Changes
+  - region "Guided learning session":
+    - text: Learning session
+    - 'status "Readiness: Building evidence"':
+      - generic: Building evidence
+    - button "Saved explanations":
+      - generic: Saved explanations
+    - generic: Explore the idea
+    - button "Open question"
+    - button "Review explanation"
+    - 'region "Visual example: Base Amount Shift in Sequential Changes"':
+      - button "Base Amount Shift in Sequential Changes Hide" [expanded]:
+        - generic: Base Amount Shift in Sequential Changes
+        - generic: Hide
+      - generic "More visual options":
+        - generic: More options
+      - figure "Interactive teaching figure":
+        - generic: Illustrative states · changes follow the authored model
+        - button "Light paper"
+        - region "After +10% Increase":
+          - heading "After +10% Increase" [level=4]
+          - strong: Price Value
+          - generic: $110
+          - generic: Increased by $10
+          - strong: Base for Next Step
+          - generic: $110
+          - generic: New larger reference
+          - generic: Sets new baseline
+          - list "Figure relationships":
+            - text: "Price Value → Base for Next Step: Sets new baseline"
+            - generic: (value)
+        - strong: Figure. After +10% Increase
+        - paragraph: 10% of $100 adds $10.
+        - group "Explore the figure":
+          - button "Apply -10% (x 0.90)":
+            - text: Apply -10% (x 0.90)
+        - navigation "Figure history":
+          - button "Back":
+            - text: Back
+          - generic: Step 2 of 2
+          - button "Forward" [disabled]:
+            - text: Forward
+          - button "Reset":
+            - text: Reset
+        - generic "Explanation and current state"
+    - textbox "Message your AI coach":
+      - /placeholder: Ask about this step…
+    - button "Dictate message to coach":
+    - button "Send message" [disabled]:
+    - generic "Get help":
+      - button "Ask a quick side question without leaving this step (/btw)"
+      - button "Give me a hint":
+      - button "Open a visual alongside this activity":
+      - button "Open a walkthrough alongside this activity":
+    - generic "AI model and usage":
+      - button "gemini-3.8-flash-high":
+        - strong: gemini-3.8-flash-high
+      - generic "Usage details"

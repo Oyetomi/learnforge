@@ -1,0 +1,79 @@
+/* A bounded form: text fields and binary controls have different sizing rules. */
+.app-shell .new-topic-dialog:not(.curriculum-review-dialog) {
+  width: min(640px, calc(100vw - 32px));
+  max-width: min(640px, calc(100vw - 32px));
+}
+.new-topic-dialog > .review-surface,
+.new-topic-dialog .new-topic-form { min-width: 0; width: 100%; }
+.new-topic-dialog .new-topic-form { padding: 22px 24px; }
+.new-topic-dialog .new-topic-form > * { min-width: 0; max-width: 100%; }
+.new-topic-dialog .new-topic-intro h3 { font-size: 18px; line-height: 1.4; margin: 0 0 8px; }
+.new-topic-dialog .new-topic-intro p { max-width: none; font-size: 12px; line-height: 1.7; margin-bottom: 20px; }
+.new-topic-dialog .curriculum-brief { grid-template-columns: minmax(0, 1fr); gap: 12px; margin: 20px 0; min-width: 0; }
+.new-topic-dialog .curriculum-brief > * { min-width: 0; max-width: 100%; }
+.new-topic-dialog :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea) { min-width: 0; max-width: 100%; }
+.new-topic-dialog :is(.diagnostic-first-choice, .exa-grounding-toggle) input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  flex: 0 0 18px;
+  padding: 0;
+  margin: 2px 0 0;
+  border-radius: 4px;
+  accent-color: #d2b497;
+  color-scheme: dark;
+}
+.new-topic-dialog .diagnostic-first-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 14px;
+  min-height: 0;
+  margin-top: 2px;
+  border: 1px solid #ffffff12;
+  border-radius: 11px;
+  background: #ffffff03;
+}
+.new-topic-dialog .diagnostic-first-choice:hover { background: #ffffff06; }
+.new-topic-dialog .diagnostic-first-choice:has(:checked) { background: #d2b49709; border-color: #d2b49740; }
+.new-topic-dialog .diagnostic-first-choice > span { flex: 1; min-width: 0; display: grid; gap: 4px; overflow-wrap: anywhere; }
+.new-topic-dialog .diagnostic-first-choice strong { font-size: 12px; font-weight: 500; line-height: 1.6; color: #e0e5eb; }
+.new-topic-dialog .diagnostic-first-choice small { font-size: 11px; color: #a7b1be; line-height: 1.65; }
+.new-topic-dialog .curriculum-scope-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.new-topic-dialog .curriculum-scope-options button { text-align: left; min-width: 0; padding: 13px 14px; border-radius: 11px; display: grid; gap: 5px; border-color: #ffffff15; }
+.new-topic-dialog .curriculum-scope-options strong { color: #d9dfe7; font-size: 12px; font-weight: 500; }
+.new-topic-dialog .curriculum-scope-options span { color: #99a5b4; font-size: 10px; line-height: 1.6; }
+.new-topic-dialog .curriculum-scope-options button[aria-pressed="true"] { border-color: #d2b49799; background: #d2b4970d; }
+.new-topic-dialog .curriculum-scope-options button[aria-pressed="true"] strong { color: #edd2b5; }
+.new-topic-dialog .goal-outcome-details { border-bottom: 1px solid #ffffff0e; padding: 0 0 13px; }
+.new-topic-dialog .goal-outcome-details summary { cursor: pointer; color: #b7c1ce; font-size: 11px; line-height: 1.7; padding: 5px 0; }
+.new-topic-dialog .goal-outcome-details summary > span { color: #929ca9; font-size: 10px; margin-left: 6px; }
+.new-topic-dialog .goal-outcome-details label { display: block; margin: 10px 0 8px; }
+.new-topic-dialog .curriculum-brief > label:not(.diagnostic-first-choice) { margin: 1px 0 -4px; font-size: 11px; color: #b6c0cd; }
+.new-topic-dialog .exa-grounding-bar { padding: 10px 12px; border-radius: 10px; }
+.new-topic-dialog .exa-grounding-toggle { flex: 1 1 180px; min-width: 0; }
+.new-topic-dialog .exa-grounding-toggle > span { min-width: 0; overflow-wrap: anywhere; }
+.new-topic-dialog .new-topic-reference summary { flex-wrap: wrap; overflow-wrap: anywhere; }
+.new-topic-dialog .boundary-probe-card { min-width: 0; }
+.new-topic-dialog .boundary-probe-options label { min-width: 0; }
+.new-topic-dialog .boundary-probe-options label > span { min-width: 0; overflow-wrap: anywhere; }
+.new-topic-dialog .new-topic-footer {
+  flex: 0 0 auto;
+  margin-top: 0;
+  padding: 14px 24px;
+  gap: 10px;
+  background: #202329;
+  border-top: 1px solid #ffffff12;
+}
+.new-topic-dialog .new-topic-footer > small { margin-right: auto; min-width: 0; max-width: 180px; color: #9faab8; font-size: 10px; line-height: 1.6; }
+.new-topic-dialog .new-topic-footer > button { flex-shrink: 0; }
+@media (max-width: 540px) {
+  .app-shell .new-topic-dialog:not(.curriculum-review-dialog) { width: calc(100vw - 20px); max-width: calc(100vw - 20px); }
+  .new-topic-dialog .new-topic-form { padding: 18px; }
+  .new-topic-dialog .new-topic-footer { padding: 12px 18px; flex-wrap: wrap; }
+  .new-topic-dialog .new-topic-footer > small { width: 100%; max-width: none; }
+  .new-topic-dialog .curriculum-scope-options button { padding: 11px; }
+  .new-topic-dialog .new-topic-intro h3 { font-size: 17px; }
+  .new-topic-dialog .boundary-probe-header { flex-wrap: wrap; }
+}

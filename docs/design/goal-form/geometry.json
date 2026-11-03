@@ -1,0 +1,26 @@
+[
+  {
+    "checkboxWidth": 18,
+    "dialogScrollWidth": 640,
+    "dialogWidth": 640,
+    "footerBottom": 699,
+    "formScrollWidth": 633,
+    "formWidth": 633,
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  {
+    "checkboxWidth": 18,
+    "dialogScrollWidth": 370,
+    "dialogWidth": 370,
+    "footerBottom": 823,
+    "formScrollWidth": 363,
+    "formWidth": 363,
+    "viewport": [
+      390,
+      844
+    ]
+  }
+]

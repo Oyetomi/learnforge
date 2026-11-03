@@ -2017,7 +2017,7 @@ button:active:not(:disabled) {
   font-weight: 500;
   margin-bottom: 9px;
 }
-.new-topic-form input {
+.new-topic-form input:not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
   width: 100%;
   background: #141619;
   border: 1px solid #424953;

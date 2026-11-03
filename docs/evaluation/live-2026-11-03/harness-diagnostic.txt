@@ -1,0 +1,80 @@
+- complementary:
+  - link "Home":
+    - /url: /
+  - button "Close sidebar":
+  - button "Teaching create a new teaching session":
+    - text: Teaching
+    - generic: create a new teaching session
+  - button "Practice create a new practice session":
+    - text: Practice
+    - generic: create a new practice session
+  - generic: Sessions
+  - textbox "Search sessions":
+    - /placeholder: Search…
+  - button "Teaching"
+  - button "Practice"
+  - button "All"
+  - button "Help me understand why increasing a price by 20% and then decreasing it… Waiting for input · just now":
+    - generic: Help me understand why increasing a price by 20% and then decreasing it…
+    - generic: Waiting for input · just now
+  - text: Background agents
+  - button "Settings":
+    - text: Settings
+- main:
+  - button:
+  - button "Help me understand why increasing a price by 20% and then decreasing it…"
+  - generic: Probing
+  - log:
+    - generic: You
+    - generic: "Help me understand why increasing a price by 20% and then decreasing it by 20% does not usually restore the starting price. I know basic multiplication, but percentages confuse me. Start with a short diagnostic before explaining, adapt to my reasoning, and keep this a focused lesson. Reference for this exercise: a p% increase multiplies the current amount by 1 + p/100; a p% decrease multiplies the current amount by 1 - p/100. Each step uses the amount at that step, with no rounding, fees, or other changes. Use only this supplied reference; no external research."
+    - generic: Probe
+    - paragraph:
+      - text: A store has an item priced at
+      - math:
+        - generic: $
+        - generic: "100"
+      - generic: $
+      - text: "100"
+      - text: . The price is increased by
+      - math:
+        - generic: "20"
+        - generic: "%"
+      - generic: 20%
+      - text: ", and then the new price is decreased by"
+      - math:
+        - generic: "20"
+        - generic: "%"
+      - generic: 20%
+      - text: . What is the final price?
+    - radiogroup:
+      - radio "$98":
+        - paragraph: $98
+      - radio "$96":
+        - paragraph: $96
+      - radio "$104":
+        - paragraph: $104
+      - radio "$100":
+        - paragraph: $100
+      - button "I don't know":
+        - generic: I don't know
+    - generic: Confidence
+    - slider "Confidence — the probability your selected answer is correct": "50"
+    - generic: 50%
+    - generic: YOUR THINKING
+    - textbox "Why this answer? Whatever comes to mind."
+    - generic: ↵ submits · ⇧↵ newline
+    - button "Submit answer" [disabled]
+    - button "6.4k / 272k —":
+      - generic: 6.4k / 272k
+      - generic: ·
+      - generic: —
+    - button "Start dictation":
+      - generic: Dictate
+    - button "gemini-3.8-flash-high":
+      - generic: gemini-3.8-flash-high
+      - generic: ▾
+    - button "off":
+      - generic: "off"
+      - generic: ▾
+- button "Open Next.js Dev Tools":
+- alert

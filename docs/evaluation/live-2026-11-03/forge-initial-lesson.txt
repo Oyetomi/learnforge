@@ -1,0 +1,111 @@
+- link "Skip to learning workspace":
+  - /url: "#main-content"
+- banner:
+  - button "Hide learning path" [expanded]:
+  - generic "LearnForge":
+    - generic: learnforge.
+  - generic: Learning track
+  - 'button "Learning track: Understanding Compounded Percentage Changes"':
+    - generic: Understanding Compounded Percentage Changes
+  - button "Knowledge and practice":
+    - generic: Practice
+  - button "Create new topic" [active]:
+    - generic: New topic
+  - button "Export session notes":
+  - button "Settings":
+- complementary "Learning path":
+  - text: Roadmap
+  - generic: Provisional roadmap
+  - strong:
+    - text: "1"
+    - generic: / 1
+  - navigation "Course roadmap":
+    - list:
+      - 'button "Open lesson 1: Tracking Sequential Percentage Multipliers. Current · step 1/2"':
+        - generic: "01"
+        - generic: Current · step 1/2
+        - generic: Tracking Sequential Percentage Multipliers
+  - button "Explore full roadmap":
+    - text: Explore full roadmap
+  - generic: 0 of 1 activities complete
+- main:
+  - button "Learning plan":
+    - text: Learning plan
+  - generic: Understanding Compounded Percentage Changes
+  - generic: One unit at a time
+  - region "Guided learning session":
+    - text: Learning session
+    - 'status "Readiness: Building evidence"':
+      - generic: Readiness
+      - generic: Building evidence
+    - button "Saved explanations":
+      - generic: Saved explanations
+    - generic: Explanation · step 1 of 2
+    - generic "Slide 1 of 2":
+      - generic: 1 / 2
+    - button "Back to question"
+    - text: LESSON 1
+    - generic: OF 1
+    - heading "Tracking Sequential Percentage Multipliers" [level=1]
+    - button "Listen to lesson":
+      - text: Listen to lesson
+    - paragraph:
+      - text: When a price changes by a percentage, the calculation always applies to the
+      - strong: current amount
+      - text: at that exact moment, not the original starting price.
+    - paragraph: "From your reference:"
+    - list:
+      - text: A
+      - math:
+        - generic: p
+        - generic: "%"
+      - generic: p%
+      - text: increase multiplies the current amount by
+      - math:
+        - generic: (
+        - generic: "1"
+        - generic: +
+        - generic: p
+        - generic: /
+        - generic: "100"
+        - generic: )
+      - generic: (1 +
+      - generic: p/100)
+      - text: .
+      - text: A
+      - math:
+        - generic: p
+        - generic: "%"
+      - generic: p%
+      - text: decrease multiplies the current amount by
+      - math:
+        - generic: (
+        - generic: "1"
+        - generic: −
+        - generic: p
+        - generic: /
+        - generic: "100"
+        - generic: )
+      - generic: (1 −
+      - generic: p/100)
+      - text: .
+    - button "Continue":
+      - text: Continue
+    - textbox "Message your AI coach":
+      - /placeholder: Ask about this step…
+    - button "Dictate message to coach":
+    - button "Send message" [disabled]:
+    - generic "Get help":
+      - button "/btw":
+        - generic: /btw
+      - button "Hint":
+        - generic: Hint
+      - button "Visual":
+        - generic: Visual
+      - button "Walkthrough":
+        - generic: Walkthrough
+    - generic "AI model and usage":
+      - button "gemini-3.8-flash-high Local proxy":
+        - strong: gemini-3.8-flash-high
+        - generic: Local proxy
+      - generic "Usage details"

@@ -18,7 +18,7 @@ export function retentionRating(check: LearningCheck, attempt: CheckAttempt): FS
   const correct = check.kind === "free-response" ? !!attempt.response?.trim() && isAcceptedFreeResponseGrade(check, attempt.grading)
     : gradeLearningCheck(check, attempt.selectedIds, attempt.dontKnow);
   if (attempt.dontKnow || !correct) return 1;
-  return check.practice === "guided" || attempt.practice === "guided" || attempt.assisted || attempt.confidence === "unsure" ? 2 : 3;
+  return check.practice === "guided" || attempt.practice === "guided" || attempt.assisted || !!attempt.visualSupportIds?.length || !!attempt.retriedOptionIds?.length || attempt.confidence === "unsure" ? 2 : 3;
 }
 
 export async function createRetentionCheck(card: SRSCard, milestone: Milestone, signal: AbortSignal, repair = false): Promise<LearningCheck> {

@@ -9,7 +9,6 @@ import {
   Compass,
   FileText,
   Search,
-  Target,
   Upload,
 } from "lucide-react";
 import {
@@ -49,53 +48,28 @@ import { VoiceDictationButton } from "../learning/VoiceDictationButton";
 import { PlanApproval } from "./PlanApproval";
 import { CurriculumApproval } from "./CurriculumApproval";
 import "./curriculum.css";
+import "./new-topic-layout.css";
 
 import { requestsDiagnosticFirst } from "../../services/learning/diagnosticIntent";
+import { loadGoalDraft as savedDraft, saveGoalDraft, GOAL_DRAFT_KEY as draftKey, STARTING_POINTS as startingPoints } from "../../services/learning/goalDraft";
 
-const draftKey = "learnforge:goal-draft";
-const startingPoints = [
-  "I’m not sure — help me find my starting point",
-  "I’m starting from the beginning",
-  "I know the basics and want to apply them",
-  "I have experience and want to deepen it",
-];
-function savedDraft(): {
-  interest?: string;
-  destination?: string;
-  startingPoint?: string;
-} {
-  try {
-    const d = JSON.parse(localStorage.getItem(draftKey) || "{}");
-    return d && typeof d === "object"
-      ? {
-          interest:
-            typeof d.interest === "string" ? d.interest.slice(0, 400) : "",
-          destination:
-            typeof d.destination === "string"
-              ? d.destination.slice(0, 800)
-              : "",
-          startingPoint: startingPoints.includes(d.startingPoint)
-            ? d.startingPoint
-            : startingPoints[0],
-        }
-      : {};
-  } catch {
-    return {};
-  }
-}
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onTrackCreated: (track: CourseTrack) => void;
   onOpenPlugins?: () => void;
+  initialInterest?: string;
+  showMaterial?: boolean;
 }
 export const NewTopicModal: React.FC<Props> = ({
   isOpen,
   onClose,
   onTrackCreated,
   onOpenPlugins,
+  initialInterest,
+  showMaterial = false,
 }) => {
-  const [interest, setInterest] = useState(() => savedDraft().interest || "");
+  const [interest, setInterest] = useState(() => initialInterest ?? savedDraft().interest ?? "");
   const [destination, setDestination] = useState(
     () => savedDraft().destination || ""
   );
@@ -185,19 +159,18 @@ export const NewTopicModal: React.FC<Props> = ({
     }
   }, [exaSources.length]);
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        draftKey,
-        JSON.stringify({ interest, destination, startingPoint })
-      );
-    } catch {}
+    saveGoalDraft({ interest, destination, startingPoint });
   }, [interest, destination, startingPoint]);
   useEffect(() => {
     mounted.current = true;
     const previous = document.activeElement as HTMLElement | null;
     if (isOpen) {
       dialogRef.current?.showModal();
-      inputRef.current?.focus();
+      if (showMaterial && referenceDetailsRef.current) {
+        referenceDetailsRef.current.open = true;
+        referenceDetailsRef.current.scrollIntoView({ block: "nearest" });
+        referenceDetailsRef.current.querySelector("textarea")?.focus({ preventScroll: true });
+      } else inputRef.current?.focus();
     }
     return () => {
       mounted.current = false;
@@ -598,6 +571,8 @@ export const NewTopicModal: React.FC<Props> = ({
     } catch {}
     onClose();
   };
+  const answeredProbeCount = probeQuestions.filter(q => probeResponses[q.id]?.dontKnow || probeResponses[q.id]?.selectedOptionId).length;
+  const waitingForProbeAnswers = diagnosticFirst && answeredProbeCount < probeQuestions.length;
   return (
     <dialog
       ref={dialogRef}
@@ -614,9 +589,10 @@ export const NewTopicModal: React.FC<Props> = ({
         <header className="review-header">
           <div>
             <Compass size={18} />
-            <h2 id="new-topic-title">
+            <h2 id="new-topic-title" ref={headingRef} tabIndex={-1}>
               {draftTrack
                 ? "Review your learning plan"
+                : proposal ? "Shape your learning plan"
                 : "What would you like to learn?"}
             </h2>
           </div>
@@ -643,8 +619,9 @@ export const NewTopicModal: React.FC<Props> = ({
               onRevise={() => setDraftTrack(null)}
             />
           )
-        ) : (
+        ) : (<>
           <form
+            id="new-topic-form"
             ref={formRef}
             className="new-topic-form"
             onSubmit={(e) => {
@@ -653,11 +630,6 @@ export const NewTopicModal: React.FC<Props> = ({
             }}
           >
             <div className="new-topic-intro">
-              <h3 ref={headingRef} tabIndex={-1}>
-                {proposal
-                  ? "Shape the path around your goal"
-                  : "Start with what you want to understand"}
-              </h3>
               <p>
                 {proposal
                   ? proposal.reason
@@ -697,10 +669,8 @@ export const NewTopicModal: React.FC<Props> = ({
                   <Globe size={13} aria-hidden="true" />
                   <span>
                     {exaSources.length > 0
-                      ? `Grounded with ${exaSources.length} live Exa ${
-                          exaSources.length === 1 ? "source" : "sources"
-                        }`
-                      : "Ground with live Exa docs & papers"}
+                      ? `${exaSources.length} web ${exaSources.length === 1 ? "source" : "sources"} attached`
+                      : "Use web sources"}
                   </span>
                 </label>
                 {interest.trim() && (
@@ -762,28 +732,27 @@ export const NewTopicModal: React.FC<Props> = ({
             )}
             {proposal && (
               <section className="curriculum-brief" aria-label="Learning scope">
-                <div className="curriculum-scope-options">
+                <div className="curriculum-scope-options" role="group" aria-label="Plan length">
                   {(["curriculum", "focused"] as const).map((value) => (
                     <button
                       key={value}
                       type="button"
+                      aria-label={value === "curriculum" ? "Full curriculum" : "Focused lesson"}
                       aria-pressed={scope === value}
                       disabled={busy}
                       onClick={() => setScope(value)}
                     >
-                      {value === "curriculum"
+                      <strong>{value === "curriculum"
                         ? "Full curriculum"
-                        : "Focused lesson"}
+                        : "Focused lesson"}</strong>
+                      <span>{value === "curriculum" ? "Build a subject step by step." : "Work through one question or skill."}</span>
                     </button>
                   ))}
                 </div>
-                <p>
-                  {scope === "curriculum"
-                    ? "A complete outline for an agreed goal, taught one unit at a time."
-                    : "One small question or skill, with explanation, practice and feedback."}
-                </p>
+                <details className="goal-outcome-details">
+                  <summary>Add a specific outcome <span>Optional</span></summary>
                 <label htmlFor="goal-destination">
-                  What do you want to be able to do? <span>(optional)</span>
+                  What do you want to be able to do?
                 </label>
                 <input
                   id="goal-destination"
@@ -791,10 +760,11 @@ export const NewTopicModal: React.FC<Props> = ({
                   onChange={(e) => setDestination(e.target.value)}
                   maxLength={800}
                   disabled={busy}
-                  placeholder="A practical outcome, or leave blank to use your goal"
+                  placeholder="For example, explain an idea clearly in a meeting"
                 />
+                </details>
                 <label htmlFor="goal-starting-point">
-                  Where are you starting?
+                  Your experience with this subject
                 </label>
                 <select
                   id="goal-starting-point"
@@ -802,38 +772,19 @@ export const NewTopicModal: React.FC<Props> = ({
                   onChange={(e) => setStartingPoint(e.target.value)}
                   disabled={busy}
                 >
-                  {startingPoints.map((point) => (
-                    <option key={point}>{point}</option>
+                  {startingPoints.map((point, index) => (
+                    <option key={point} value={point}>{["Help me find a starting point", "I’m new to this", "I know the basics", "I want to go deeper"][index]}</option>
                   ))}
                 </select>
                 <label className="diagnostic-first-choice">
                   <input type="checkbox" checked={diagnosticFirst} disabled={busy}
+                    aria-label="Check my starting point before teaching" aria-describedby="starting-point-check-help"
                     onChange={e => setDiagnosticChoice(e.target.checked)} />
-                  <span>Check my starting point before teaching</span>
+                  <span>
+                    <strong>Check my starting point before teaching</strong>
+                    <small id="starting-point-check-help">A few questions help choose what to explain first. Optional.</small>
+                  </span>
                 </label>
-                <p className="written-grading-note">A short check helps choose where to begin. You can choose “I don’t know” or turn this off.</p>
-                {scope === "curriculum" && !diagnosticFirst &&
-                  startingPoint !== "I’m starting from the beginning" &&
-                  probeQuestions.length === 0 && (
-                    <div className="boundary-probe-cta">
-                      <div>
-                        <strong>Calibrate before freezing the outline</strong>
-                        <small>
-                          Answer 3 quick boundary questions so already-known
-                          basics are pruned upfront.
-                        </small>
-                      </div>
-                      <button
-                        type="button"
-                        className="check-coach-button"
-                        disabled={busy}
-                        onClick={() => void startBoundaryProbe()}
-                      >
-                        <Target size={13} />
-                        Probe my starting boundary
-                      </button>
-                    </div>
-                  )}
                 {probeQuestions.length > 0 && (
                   <div
                     className="boundary-probe-panel"
@@ -842,7 +793,7 @@ export const NewTopicModal: React.FC<Props> = ({
                   >
                     <div className="boundary-probe-header">
                       <div>
-                        <strong>Quick boundary check</strong>
+                        <strong>Find your starting point</strong>
                         <small>
                           Your answers help choose what to explain first. This is a starting point, not mastery evidence.
                         </small>
@@ -851,9 +802,9 @@ export const NewTopicModal: React.FC<Props> = ({
                         type="button"
                         className="check-coach-button"
                         disabled={busy}
-                        onClick={() => { setProbeQuestions([]); setDiagnosticChoice(false); }}
+                        onClick={() => { setProbeQuestions([]); setDiagnosticChoice(false); setError(""); }}
                       >
-                        Skip probe
+                        Skip check
                       </button>
                     </div>
                     {probeQuestions.map((q, idx) => {
@@ -985,14 +936,11 @@ export const NewTopicModal: React.FC<Props> = ({
                     })}
                   </div>
                 )}
-                <small>
-                  Placement is optional. The plan is reviewed before anything is
-                  added.
-                </small>
               </section>
             )}
             <details
               ref={referenceDetailsRef}
+              open={showMaterial || undefined}
               className={`new-topic-reference ${
                 referenceContent.trim() || exaSources.length > 0
                   ? "has-file"
@@ -1008,8 +956,8 @@ export const NewTopicModal: React.FC<Props> = ({
               <summary>
                 <FileText size={14} />{" "}
                 {exaReady
-                  ? "Teach from live docs, URLs, or my own material"
-                  : "Teach from my own material"}{" "}
+                  ? "Add notes, files, or web links"
+                  : "Add notes or a file"}{" "}
                 {(exaSources.length > 0 || referenceContent.trim()) && (
                   <em>
                     {exaSources.length > 0 && referenceContent.trim()
@@ -1230,7 +1178,11 @@ export const NewTopicModal: React.FC<Props> = ({
                 {notice}
               </p>
             )}
+          </form>
             <footer className="new-topic-footer">
+              {proposal && <small role="status">{waitingForProbeAnswers
+                ? `${answeredProbeCount} of ${probeQuestions.length} answered. “I’m not sure” is fine.`
+                : "You’ll review the plan before starting."}</small>}
               <button
                 className="dialog-secondary-button"
                 type="button"
@@ -1241,8 +1193,10 @@ export const NewTopicModal: React.FC<Props> = ({
               <button
                 className="dialog-primary-button"
                 type="submit"
+                form="new-topic-form"
                 disabled={
                   busy ||
+                  waitingForProbeAnswers ||
                   (!interest.trim() &&
                     !referenceContent.trim() &&
                     exaSources.length === 0)
@@ -1259,15 +1213,12 @@ export const NewTopicModal: React.FC<Props> = ({
                   ? "Check my starting point"
                   : proposal
                   ? scope === "curriculum"
-                    ? probeQuestions.length > 0
-                      ? "Prepare calibrated outline"
-                      : "Prepare curriculum outline"
+                    ? "Prepare curriculum"
                     : "Prepare focused lesson"
                   : "Shape my learning goal"}
               </button>
             </footer>
-          </form>
-        )}
+          </>)}
       </div>
     </dialog>
   );

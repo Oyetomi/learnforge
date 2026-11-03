@@ -668,9 +668,6 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
       const next = visibleStep + 1;
       setStepIndex(next);
       if (activeMilestone) saveLessonStep(activeMilestone.id, next);
-    } else if (activeMilestone?.visual && preferences.visuals === "auto") {
-      setLessonVisual(true);
-      setActivity("visual");
     } else goToQuestion();
   };
   const stageLabel =
@@ -797,7 +794,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
             activity !== "reference" &&
             latest && (
               <button onClick={goToQuestion}>
-                {attempt ? "Review answer" : "Back to question"}
+                {attempt ? "Review answer" : "Open question"}
               </button>
             )}
           {!busy && activity !== "lesson" && lessonSteps.length > 0 && (
@@ -955,6 +952,19 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                 </div>
               )}
               <div className="activity-continue">
+                {(overview || visibleStep === lessonSteps.length - 1) &&
+                  activeMilestone?.visual && preferences.visuals === "auto" && (
+                    <button
+                      className="check-coach-button"
+                      onClick={() => {
+                        setLessonVisual(true);
+                        setActivity("visual");
+                      }}
+                    >
+                      <Eye size={14} />
+                      Explore the example
+                    </button>
+                  )}
                 {!overview && visibleStep > 0 && (
                   <button
                     className="check-coach-button"
@@ -969,7 +979,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                 >
                   {!overview && visibleStep < lessonSteps.length - 1
                     ? "Continue"
-                    : "Try this idea"}
+                    : "Try a question"}
                   <ArrowRight size={14} />
                 </button>
               </div>

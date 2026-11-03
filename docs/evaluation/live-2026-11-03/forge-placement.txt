@@ -1,0 +1,91 @@
+- link "Skip to learning workspace":
+  - /url: "#main-content"
+- banner:
+  - button "Hide learning path" [disabled]:
+  - generic "LearnForge":
+    - generic: learnforge.
+  - generic: Learning track
+  - 'button "Learning track: Choose a topic"':
+    - generic: Choose a topic
+  - button "Knowledge and practice" [disabled]:
+    - generic: Practice
+  - button "Create new topic":
+    - generic: New topic
+  - button "Export session notes" [disabled]:
+  - button "Settings":
+- main:
+  - heading "What are you interested in?" [level=1]
+  - paragraph: Start with a goal. Review a full curriculum for a broad subject, or take a focused lesson for one question. Learn through examples, practice and tutoring shaped by your answers.
+  - button "Explore my interests"
+- dialog "What would you like to learn?":
+  - banner:
+    - heading "What would you like to learn?" [level=2]
+    - button "Close new topic":
+  - heading "Shape the path around your goal" [level=3]
+  - paragraph: Your goal addresses a single, specific mathematical misconception that can be resolved in a direct, short lesson.
+  - generic: Your learning goal
+  - textbox "Your learning goal":
+    - /placeholder: What would you like to be able to do?
+    - text: "Help me understand why increasing a price by 20% and then decreasing it by 20% does not usually restore the starting price. I know basic multiplication, but percentages confuse me. Start with a short diagnostic before explaining, adapt to my reasoning, and keep this a focused lesson. Reference for this exercise: a p% increase multiplies the current amount by 1 + p/100; a p% decrease multiplies the current amount by 1 - p/100. Each step uses the amount at that step, with no rounding, fees, or other changes. Use only this supplied reference; no external research."
+  - text: Want to learn from web sources?
+  - button "Connect Exa plugin"
+  - region "Learning scope":
+    - button "Full curriculum"
+    - button "Focused lesson" [pressed]
+    - paragraph: One small question or skill, with explanation, practice and feedback.
+    - generic: What do you want to be able to do? (optional)
+    - textbox "What do you want to be able to do? (optional)":
+      - /placeholder: A practical outcome, or leave blank to use your goal
+    - generic: Where are you starting?
+    - combobox "Where are you starting?":
+      - option "I’m not sure — help me find my starting point" [selected]
+      - option "I’m starting from the beginning"
+      - option "I know the basics and want to apply them"
+      - option "I have experience and want to deepen it"
+    - checkbox "Check my starting point before teaching" [checked]
+    - generic: Check my starting point before teaching
+    - paragraph: A short check helps choose where to begin. You can choose “I don’t know” or turn this off.
+    - region "Starting-point check":
+      - strong: Quick boundary check
+      - text: Your answers help choose what to explain first. This is a starting point, not mastery evidence.
+      - button "Skip probe"
+      - group "1. percentage multiplier definition Using the reference formula (1 + p/100), what multiplier represents increasing a price by 20%?":
+        - generic: 1. percentage multiplier definition
+        - text: Using the reference formula (1 + p/100), what multiplier represents increasing a price by 20%?
+        - radio "Multiplying the base price by 1.20"
+        - generic: Multiplying the base price by 1.20
+        - radio "Multiplying the base price by 0.20"
+        - generic: Multiplying the base price by 0.20
+        - radio "Multiplying the base price by 2.00"
+        - generic: Multiplying the base price by 2.00
+        - radio "I’m not sure yet"
+        - generic: I’m not sure yet
+      - group "2. compounded percentage multipliers If an item undergoes a 20% increase followed by a 20% decrease, which overall calculation represents the final price?":
+        - generic: 2. compounded percentage multipliers
+        - text: If an item undergoes a 20% increase followed by a 20% decrease, which overall calculation represents the final price?
+        - radio "Starting price multiplied by (1.20 - 0.80)"
+        - generic: Starting price multiplied by (1.20 - 0.80)
+        - radio "Starting price multiplied by (1.20 × 0.80)"
+        - generic: Starting price multiplied by (1.20 × 0.80)
+        - radio "Starting price multiplied by (1.00 + 0.00)"
+        - generic: Starting price multiplied by (1.00 + 0.00)
+        - radio "I’m not sure yet"
+        - generic: I’m not sure yet
+      - group "3. base value asymmetry Why does a 20% decrease after a 20% increase result in an overall price drop?":
+        - generic: 3. base value asymmetry
+        - text: Why does a 20% decrease after a 20% increase result in an overall price drop?
+        - radio "The 20% decrease is calculated from the new, larger intermediate value."
+        - generic: The 20% decrease is calculated from the new, larger intermediate value.
+        - radio "Decreasing percentages inherently carry greater mathematical weight than increases."
+        - generic: Decreasing percentages inherently carry greater mathematical weight than increases.
+        - radio "The second operation automatically cancels only half of the initial addition."
+        - generic: The second operation automatically cancels only half of the initial addition.
+        - radio "I’m not sure yet"
+        - generic: I’m not sure yet
+    - generic: Placement is optional. The plan is reviewed before anything is added.
+  - generic "Teach from my own material":
+    - text: Teach from my own material
+  - contentinfo:
+    - button "Cancel"
+    - button "Prepare focused lesson":
+      - text: Prepare focused lesson
