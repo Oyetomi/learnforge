@@ -1,0 +1,146 @@
+/* The roadmap is a connected, navigable map, with a focused view and an overview. */
+.roadmap-sidebar { padding-left: 13px; padding-right: 13px; }
+.roadmap-orientation { display: flex; justify-content: space-between; align-items: center; padding: 23px 9px 10px; color: var(--c-text-muted); font-size: 11px; }
+.roadmap-orientation strong { color: var(--c-accent-text); font-size: 12px; font-weight: 500; }
+.roadmap-orientation strong span { color: var(--c-text-faint-cool); }
+.roadmap-mini { overflow: auto; min-height: 100px; flex: 1; scrollbar-width: thin; }
+.roadmap-canvas-size { position: relative; margin: 0 auto; flex-shrink: 0; }
+.roadmap-canvas { position: relative; transform-origin: top left; }
+.roadmap-connectors { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+.roadmap-edge { color: #637083; }
+.roadmap-edge > path { fill: none; stroke: currentColor; stroke-width: 1; }
+.roadmap-edge.is-related { color: var(--c-accent-deep); }
+.roadmap-edge text { fill: var(--c-text-muted); font-size: 11px; font-family: -apple-system,BlinkMacSystemFont,sans-serif; }
+.roadmap-node { position: absolute; display: flex; flex-direction: column; text-align: left; padding: 11px 13px; border: 1px solid var(--c-line-hover); border-radius: 8px; background: var(--c-surface-1); color: var(--c-text); box-shadow: 0 2px 8px #0001; transition: border-color 120ms,background-color 120ms; }
+.roadmap-node:hover { background: var(--c-surface-raised); border-color: #8493a6; }
+.roadmap-node.is-current { border-color: var(--c-accent-deep); background: var(--c-accent-wash); box-shadow: 0 0 0 3px #d2ad870b; color: var(--c-accent-bright); }
+.roadmap-node.is-distant { border-color: var(--c-line-strong); background: var(--c-surface-sunken); color: var(--c-text-quiet-cool); }
+.roadmap-node.is-complete { border-color: #607e6c; }
+.roadmap-node-status { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--c-text-muted); margin-bottom: 7px; }
+.roadmap-node-status > span { margin-left: auto; color: var(--c-text-disabled); }
+.roadmap-node-status i { width: 4px; height: 4px; border-radius: 50%; background: #73849b; }
+.is-current .roadmap-node-status { color: var(--c-accent-text); }
+.is-current .roadmap-node-status i { background: var(--c-accent-soft); }
+.is-complete .roadmap-node-status { color: #b2ccba; }
+.roadmap-node-title { display: block; font-size: 12px; font-weight: 400; line-height: 1.45; overflow-wrap: anywhere; }
+.roadmap-node small { display: block; font-size: 11px; color: #a3bbaa; margin-top: 6px; }
+.roadmap-expand { display: flex; align-items: center; justify-content: space-between; width: 100%; border: 1px solid var(--c-line-hover); background: transparent; color: var(--c-text); padding: 10px 11px; border-radius: 6px; margin-top: 14px; font-size: 11px; }
+.roadmap-expand:hover { border-color: #b39478; color: #dfc3a4; }
+.roadmap-summary { padding: 14px 3px 2px; font-size: 11px; color: var(--c-text-muted); }
+.roadmap-summary small { display: block; font-size: 11px; margin-top: 5px; color: var(--c-text-faint); }
+.roadmap-dialog { width: min(1080px,calc(100vw - 28px)); height: min(850px,90dvh); }
+.roadmap-dialog .review-surface { height: 100%; display: flex; flex-direction: column; }
+.roadmap-controls { display: flex; align-items: center; gap: 16px; border-bottom: 1px solid var(--border); padding: 12px 20px; }
+.roadmap-controls > span { font-size: 11px; color: var(--c-text-muted); }
+.roadmap-controls > div { margin-left: auto; display: flex; gap: 7px; }
+.roadmap-controls button { display: flex; align-items: center; gap: 7px; border: 1px solid var(--c-line-hover); border-radius: 6px; padding: 6px 8px; background: transparent; color: var(--c-text-secondary-cool); font-size: 11px; }
+.roadmap-controls button[aria-pressed='true'] { color: #dfc3a4; border-color: #a28d72; }
+.roadmap-stage { flex: 1; min-height: 150px; overflow: auto; padding: 24px; background-color: var(--c-bg-deep); background-image: radial-gradient(#ffffff0d 1px,transparent 1px); background-size: 18px 18px; scrollbar-width: thin; }
+.roadmap-context { display: flex; justify-content: space-between; gap: 30px; padding: 17px 22px; border-top: 1px solid var(--border); }
+.roadmap-context > div { flex: 1; }
+.roadmap-context span { display: block; color: var(--c-accent-deep); font-size: 11px; letter-spacing: 1px; margin-bottom: 5px; }
+.roadmap-context strong { color: var(--c-text-body); font-size: 13px; font-weight: 500; }
+.roadmap-context p { font-size: 11px; line-height: 1.7; color: var(--c-text-muted); margin: 7px 0 0; }
+.roadmap-context > p { font-size: 11px; margin: 0; max-width: 250px; }
+.check-submit-row { position: relative; z-index: 1; padding: 16px 0 6px; background: transparent; box-shadow: none; }
+@media(max-width:600px) { .roadmap-controls { padding: 10px 13px; gap: 8px; flex-wrap: wrap; } .roadmap-context { padding: 15px; flex-direction: column; gap: 10px; } .roadmap-context > p { display: none; } .roadmap-dialog { height: 91dvh; } }
+.roadmap-dialog { max-width: 1080px; }
+.check-submit-row .check-dont-know { margin: 0; }
+/* Quiet concept landmarks, rather than another stack of cards. */
+.roadmap-node, .roadmap-node.is-current, .roadmap-node.is-distant, .roadmap-node.is-complete {
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+  align-items: center;
+  padding: 24px 9px 10px;
+}
+.roadmap-node:hover { background: #ffffff03; }
+.roadmap-node.is-current .roadmap-node-title { color: #decbb6; }
+.roadmap-node-title { order: 2; text-align: center; font-size: 12px; font-weight: 500; line-height: 1.55; }
+.roadmap-node-status { order: 3; margin: 7px 0 0; font-size: 11px; justify-content: center; }
+.roadmap-node-status > span { display: none; }
+.roadmap-node-status > i, .roadmap-node-status > svg { position: absolute; top: 3px; left: calc(50% - 5px); width: 10px; height: 10px; }
+.roadmap-node-status > i { background: var(--c-surface-sunken); border: 1px solid #6e7d90; }
+.roadmap-node.is-current .roadmap-node-status > i { background: var(--c-accent-text); border-color: var(--c-accent-text); }
+.roadmap-node small { order: 4; }
+.roadmap-edge { color: #4e5866; }
+.roadmap-edge.is-related { color: #a28d72; }
+.roadmap-edge text { fill: var(--c-text-disabled); font-size: 11px; }
+.prose-section-break { height: 12px; margin: 10px 0; }
+.prose hr { display: none; }
+.prose code.inline-code { border: 0; border-radius: 4px; padding: 2px 4px; background: #ffffff05; color: #cbb9a7; }
+.adaptive-context { margin-bottom: 22px; padding-left: 13px; border-left: 2px solid #a28d72; }
+.adaptive-context > span { color: #c8b19a; font-size: 11px; }
+.adaptive-context p { color: var(--c-text); font-size: 13px; line-height: 1.75; margin: 7px 0; }
+.adaptive-context small { color: var(--c-text-muted); font-size: 11px; }
+.readiness-review { padding: 15px 0; margin-bottom: 18px; }
+.readiness-review strong { color: #b2ccba; font-size: 14px; font-weight: 500; }
+.readiness-review p { color: var(--c-text-secondary-cool); font-size: 13px; line-height: 1.8; margin-top: 8px; }
+@font-face { font-family: 'JetBrains Mono'; src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2'); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: 'JetBrains Mono'; src: url('/fonts/JetBrainsMono-Medium.woff2') format('woff2'); font-style: normal; font-weight: 500 700; font-display: swap; }
+@font-face { font-family: 'Google Sans Code'; src: url('/fonts/GoogleSansCode-Variable.ttf') format('truetype'); font-style: normal; font-weight: 300 800; font-display: swap; }
+@font-face { font-family: 'Google Sans Code'; src: url('/fonts/GoogleSansCode-Italic-Variable.ttf') format('truetype'); font-style: italic; font-weight: 300 800; font-display: swap; }
+:root { --font-ui: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace; --font-code: 'Google Sans Code', monospace; --font-mono: var(--font-code); font-family: var(--font-ui); }
+.app-shell, .app-shell :where(button,input,textarea,summary,h1,h2,h3,h4,h5,p,span,small,strong,code,pre,figcaption,div):not(.katex):not(.katex *) { font-family: var(--font-ui); }
+.roadmap-edge text { font-family: var(--font-ui); }
+.app-shell :is(pre,code,.snippet-gutter):not(.katex):not(.katex *),
+.app-shell :is(pre,code,.snippet-gutter) span:not(.katex):not(.katex *),
+.app-shell .monaco-editor :is(.view-line span,.line-numbers):not(.codicon):not(.codicon *) { font-family: var(--font-code); }
+.interest-results { margin-top: 24px; }
+.interest-results h4 { color: var(--c-text-subtle); font-size: 11px; font-weight: 400; margin: 0 0 8px; }
+.interest-topic { display: flex; align-items: center; gap: 16px; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--c-line); padding: 16px 0; background: transparent; color: var(--c-text-body); }
+.interest-topic:hover { color: var(--c-accent-strong); }
+.interest-topic > span { flex: 1; min-width: 0; }
+.interest-topic strong { display: block; font-size: 13px; font-weight: 500; line-height: 1.6; }
+.interest-topic small { display: block; font-size: 11px; color: var(--c-text-quiet-cool); line-height: 1.7; margin-top: 6px; }
+.interest-topic > svg { flex-shrink: 0; }
+.interest-own-topic { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; color: var(--c-text-subtle); font-size: 11px; margin-top: 15px; padding: 5px 0; }
+
+/* One scale across the reading surface: title, prompt, body, supporting UI. */
+.session-flow .lesson-heading h1 { font-size: 22px; line-height: 1.5; font-weight: 500; letter-spacing: -.025em; }
+.session-flow .prose :is(h1,h2) { font-size: 18px; line-height: 1.6; font-weight: 500; color: var(--c-text-strong); }
+.session-flow .prose h3 { font-size: 15px; line-height: 1.7; font-weight: 500; color: var(--c-text-bright); }
+.check-question .prose, .session-turn .check-question .prose { font-size: 16px; line-height: 1.75; font-weight: 500; }
+.check-question .prose code.inline-code { font-size: .88em; }
+.check-option .prose, .session-turn .check-option .prose { font-size: 13px; line-height: 1.8; font-weight: 400; }
+.check-kicker { font-size: 11px; font-weight: 400; margin-bottom: 12px; }
+.check-code-context { margin-top: 18px; }
+.check-code-context .snippet { margin: 12px 0; }
+.adaptive-context > span { font-size: 12px; color: #cbb9a7; }
+.adaptive-context > p { font-size: 13px; margin: 6px 0; }
+.adaptive-context details { margin-top: 8px; }
+.adaptive-context summary { cursor: pointer; font-size: 11px; color: var(--c-text-subtle); }
+.adaptive-context details .prose { margin-top: 9px; font-size: 12px; }
+@media(max-width:600px) { .session-flow .lesson-heading h1 { font-size: 20px; } .check-question .prose, .session-turn .check-question .prose { font-size: 15px; } }
+
+.check-repair-intro { font-size: 13px; color: var(--c-text-secondary-cool); line-height: 1.8; }
+.check-answer-detail { margin-top: 12px; }
+.check-answer-detail summary { color: var(--c-text-subtle); font-size: 11px; cursor: pointer; }
+.check-answer-detail > .prose { margin-top: 12px; }
+
+/* A focused activity: source, question, choices, and one response area. */
+.knowledge-check { padding: 22px; border: 1px solid var(--c-line); border-radius: 12px; background: #ffffff02; }
+.knowledge-check .check-kicker { margin-bottom: 18px; }
+.knowledge-check .check-context { margin: 0 0 20px; padding: 0; border: 0; }
+.knowledge-check .check-context .snippet { margin: 0; }
+.knowledge-check .check-code-context { margin: 0 0 20px; }
+.knowledge-check .check-code-context .snippet:first-child { margin-top: 0; }
+.knowledge-check .check-options { margin-top: 18px; }
+.knowledge-check .check-option { padding: 13px 14px; border-color: var(--c-line-strong); background: transparent; }
+.knowledge-check .check-option.is-selected { border-color: var(--c-accent-deep); background: #d2b49709; }
+.check-option.check-unknown { border-style: dashed; color: var(--c-text-subtle); font-size: 13px; }
+.check-unknown .check-option-letter { border-radius: 50%; }
+.knowledge-check .check-confidence { margin-top: 23px; padding-top: 18px; border-top: 1px solid var(--c-line); gap: 7px; }
+.check-confidence > span { margin-right: auto; }
+.check-confidence small, .check-reasoning > label > span { color: var(--c-text-disabled); font-size: 11px; font-weight: 400; margin-left: 7px; }
+.knowledge-check .check-reasoning { border: 0; padding: 0; margin-top: 17px; }
+.knowledge-check .check-reasoning > label { margin: 0 0 9px; font-size: 11px; }
+.knowledge-check .check-reasoning textarea { min-height: 78px; font-size: 13px; line-height: 1.7; background: var(--c-surface-sunken); border-color: var(--c-line-strong); }
+.knowledge-check .check-submit-row { margin-top: 17px; padding: 0; justify-content: flex-end; }
+.knowledge-check .check-submit-row .check-coach-button { margin-right: auto; order: -1; }
+@media(max-width:600px) {
+  .knowledge-check { padding: 16px 13px; border-radius: 8px; }
+  .knowledge-check .check-option { padding: 12px 10px; gap: 9px; }
+  .check-confidence > span { flex-basis: 100%; margin-bottom: 4px; }
+}

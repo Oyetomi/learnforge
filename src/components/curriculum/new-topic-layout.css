@@ -21,7 +21,7 @@
   padding: 0;
   margin: 2px 0 0;
   border-radius: 4px;
-  accent-color: #d2b497;
+  accent-color: var(--c-accent-text);
   color-scheme: dark;
 }
 .new-topic-dialog .diagnostic-first-choice {
@@ -38,19 +38,19 @@
 .new-topic-dialog .diagnostic-first-choice:hover { background: #ffffff06; }
 .new-topic-dialog .diagnostic-first-choice:has(:checked) { background: #d2b49709; border-color: #d2b49740; }
 .new-topic-dialog .diagnostic-first-choice > span { flex: 1; min-width: 0; display: grid; gap: 4px; overflow-wrap: anywhere; }
-.new-topic-dialog .diagnostic-first-choice strong { font-size: 12px; font-weight: 500; line-height: 1.6; color: #dfe7f0; }
-.new-topic-dialog .diagnostic-first-choice small { font-size: 11px; color: #aab5bf; line-height: 1.65; }
+.new-topic-dialog .diagnostic-first-choice strong { font-size: 12px; font-weight: 500; line-height: 1.6; color: var(--c-text-strong); }
+.new-topic-dialog .diagnostic-first-choice small { font-size: 11px; color: var(--c-text-subtle); line-height: 1.65; }
 .new-topic-dialog .curriculum-scope-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .new-topic-dialog .curriculum-scope-options button { text-align: left; min-width: 0; padding: 13px 14px; border-radius: 12px; display: grid; gap: 5px; border-color: #ffffff15; }
-.new-topic-dialog .curriculum-scope-options strong { color: #d9dfe7; font-size: 12px; font-weight: 500; }
-.new-topic-dialog .curriculum-scope-options span { color: #98a3b1; font-size: 11px; line-height: 1.6; }
+.new-topic-dialog .curriculum-scope-options strong { color: var(--c-text-bright); font-size: 12px; font-weight: 500; }
+.new-topic-dialog .curriculum-scope-options span { color: var(--c-text-quiet); font-size: 11px; line-height: 1.6; }
 .new-topic-dialog .curriculum-scope-options button[aria-pressed="true"] { border-color: #d2b49799; background: #d2b4970d; }
-.new-topic-dialog .curriculum-scope-options button[aria-pressed="true"] strong { color: #f0d5bc; }
+.new-topic-dialog .curriculum-scope-options button[aria-pressed="true"] strong { color: var(--c-accent-bright); }
 .new-topic-dialog .goal-outcome-details { border-bottom: 1px solid #ffffff0e; padding: 0 0 13px; }
-.new-topic-dialog .goal-outcome-details summary { cursor: pointer; color: #b8c0cc; font-size: 11px; line-height: 1.7; padding: 5px 0; }
-.new-topic-dialog .goal-outcome-details summary > span { color: #8fa0b5; font-size: 11px; margin-left: 6px; }
+.new-topic-dialog .goal-outcome-details summary { cursor: pointer; color: var(--c-text-secondary); font-size: 11px; line-height: 1.7; padding: 5px 0; }
+.new-topic-dialog .goal-outcome-details summary > span { color: var(--c-text-faint-cool); font-size: 11px; margin-left: 6px; }
 .new-topic-dialog .goal-outcome-details label { display: block; margin: 10px 0 8px; }
-.new-topic-dialog .curriculum-brief > label:not(.diagnostic-first-choice) { margin: 1px 0 -4px; font-size: 11px; color: #b8c0cc; }
+.new-topic-dialog .curriculum-brief > label:not(.diagnostic-first-choice) { margin: 1px 0 -4px; font-size: 11px; color: var(--c-text-secondary); }
 .new-topic-dialog .exa-grounding-bar { padding: 10px 12px; border-radius: 12px; }
 .new-topic-dialog .exa-grounding-toggle { flex: 1 1 180px; min-width: 0; }
 .new-topic-dialog .exa-grounding-toggle > span { min-width: 0; overflow-wrap: anywhere; }
@@ -63,10 +63,10 @@
   margin-top: 0;
   padding: 14px 24px;
   gap: 10px;
-  background: #1b1f24;
+  background: var(--c-surface-1);
   border-top: 1px solid #ffffff12;
 }
-.new-topic-dialog .new-topic-footer > small { margin-right: auto; min-width: 0; max-width: 180px; color: #a2aab6; font-size: 11px; line-height: 1.6; }
+.new-topic-dialog .new-topic-footer > small { margin-right: auto; min-width: 0; max-width: 180px; color: var(--c-text-muted); font-size: 11px; line-height: 1.6; }
 .new-topic-dialog .new-topic-footer > button { flex-shrink: 0; }
 @media (max-width: 540px) {
   .app-shell .new-topic-dialog:not(.curriculum-review-dialog) { width: calc(100vw - 20px); max-width: calc(100vw - 20px); }

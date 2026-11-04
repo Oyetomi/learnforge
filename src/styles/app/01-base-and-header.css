@@ -1,0 +1,235 @@
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--c-text);
+  background: var(--c-bg-deep);
+  font-synthesis: none;
+  --color-bg: 17 19 21;
+  --color-surface: 32 34 38;
+  --color-surface-hover: 41 44 49;
+  --color-border: 52 56 63;
+  --color-accent: 229 170 114;
+  --color-accent-hover: 240 183 129;
+  --color-success: 164 206 177;
+  --color-warning: 220 180 117;
+  --color-danger: 229 164 155;
+  --color-text: 199 203 210;
+  --color-muted: 162 170 182;
+  --color-heading: 240 241 243;
+  --bg: rgb(var(--color-bg));
+  --panel: var(--c-surface-sunken);
+  --surface: rgb(var(--color-surface));
+  --border: rgb(var(--color-border));
+  --muted: var(--c-text-faint);
+  --heading: rgb(var(--color-heading));
+  --accent: rgb(var(--color-accent));
+  --accent-soft: #e5aa7212;
+  --form-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239ca8b8' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+button,
+select,
+textarea {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s, border-color 0.16s;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+button:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+::selection {
+  background: #e5aa7233;
+}
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--c-line-strong);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+.app-shell {
+  height: 100vh;
+  height: 100dvh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.app-header {
+  height: 70px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 25px;
+  border-bottom: 1px solid var(--border);
+  background: var(--c-surface-sunken);
+}
+.brand {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.85px;
+  color: var(--heading);
+  white-space: nowrap;
+  width: 202px;
+  flex-shrink: 0;
+}
+.brand-forge {
+  font-weight: 400;
+}
+.brand-period {
+  color: var(--accent);
+}
+.brand-mark {
+  width: 31px;
+  height: 34px;
+  border-radius: 8px;
+  color: var(--accent);
+  background: #e5aa7212;
+  display: grid;
+  place-items: center;
+}
+.header-divider {
+  width: 1px;
+  height: 26px;
+  background: var(--border);
+}
+.icon-button {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.icon-button:hover {
+  background: #ffffff09;
+  color: var(--heading);
+}
+.track-select-wrap {
+  min-width: 0;
+  max-width: 400px;
+}
+.eyebrow {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.1px;
+}
+.track-select-control {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  position: relative;
+}
+.track-select-control select {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--c-text-strong);
+  font-weight: 500;
+  font-size: 13px;
+  width: 100%;
+  padding: 3px 23px 3px 0;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.track-select-control svg {
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  color: var(--muted);
+}
+select option {
+  background: var(--c-surface-1);
+  color: var(--heading);
+}
+.header-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.review-button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: #d0d7e1;
+  background: transparent;
+  border: 1px solid var(--c-line);
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.review-button:hover {
+  background: #ffffff07;
+  border-color: #63666c;
+}
+.review-button svg {
+  color: #b9b0d6;
+}
+.count-badge {
+  background: #37323f;
+  color: #d6cee8;
+  font-size: 11px;
+  line-height: 17px;
+  min-width: 18px;
+  border-radius: 4px;
+  text-align: center;
+}
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.learning-sidebar {
+  width: 248px;
+  flex-shrink: 0;
+  background: var(--c-surface-sunken);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 27px 17px 16px;
+}
+.sidebar-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 7px;
+  color: var(--c-text-strong);
+  font-size: 13px;
+  font-weight: 600;
+}

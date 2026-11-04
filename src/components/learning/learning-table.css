@@ -3,20 +3,20 @@
   max-width: 100%;
   min-width: 0;
   margin: 18px 0;
-  color: #d9dfe7;
+  color: var(--c-text-bright);
   font-size: 13px;
   line-height: 1.65;
 }
-.learning-table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid #3c424c; border-radius: 8px; scrollbar-width: thin; scrollbar-color: #63666c #15191e; }
-.learning-table-scroll:focus-visible { outline: 2px solid #c6a381; outline-offset: 3px; }
+.learning-table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--c-line-strong); border-radius: 8px; scrollbar-width: thin; scrollbar-color: #63666c var(--c-surface-sunken); }
+.learning-table-scroll:focus-visible { outline: 2px solid var(--c-accent-deep); outline-offset: 3px; }
 .prose .learning-table table { width: 100%; margin: 0; border-collapse: separate; border-spacing: 0; text-align: left; font-size: inherit; line-height: inherit; }
-.prose .learning-table :is(th,td) { min-width: 9rem; padding: 12px 15px; border: 0; border-bottom: 1px solid #343c45; vertical-align: top; text-align: left; overflow-wrap: break-word; }
-.prose .learning-table th { background: #282b30; color: #edf0f4; font-weight: 500; font-size: 12px; }
-.prose .learning-table td { background: #15191e; color: #c7d2df; }
+.prose .learning-table :is(th,td) { min-width: 9rem; padding: 12px 15px; border: 0; border-bottom: 1px solid var(--c-line); vertical-align: top; text-align: left; overflow-wrap: break-word; }
+.prose .learning-table th { background: var(--c-surface-raised); color: var(--c-text-heading); font-weight: 500; font-size: 12px; }
+.prose .learning-table td { background: var(--c-surface-sunken); color: var(--c-text-body); }
 .prose .learning-table td + td, .prose .learning-table th + th { border-left: 1px solid #ffffff08; }
-.prose .learning-table tbody tr:nth-child(even) td { background: #1b1f24; }
-.prose .learning-table tbody tr:hover td { background: #282b30; }
+.prose .learning-table tbody tr:nth-child(even) td { background: var(--c-surface-1); }
+.prose .learning-table tbody tr:hover td { background: var(--c-surface-raised); }
 .prose .learning-table tbody tr:last-child td { border-bottom: 0; }
 .prose .learning-table :is(th,td) code.inline-code { color: #d4c1af; background: #ffffff06; font-size: .95em; }
-.prose .learning-table figcaption { margin-top: 8px; color: #98a3b1; font-size: 11px; }
+.prose .learning-table figcaption { margin-top: 8px; color: var(--c-text-quiet); font-size: 11px; }
 @media (max-width: 600px) { .prose .learning-table :is(th,td) { padding: 10px 12px; } }

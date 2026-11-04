@@ -1,0 +1,309 @@
+.review-dialog {
+  padding: 0;
+  max-width: min(576px, calc(100vw - 32px));
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--c-text);
+  border-radius: 12px;
+  margin: auto;
+  max-height: 90dvh;
+}
+.review-dialog::backdrop {
+  background: #07090bc9;
+  backdrop-filter: blur(4px);
+}
+
+.review-dialog pre {
+  background: var(--c-surface-sunken);
+}
+.katex-display {
+  margin: 0.75em 0 !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+@media (min-width: 1600px) {
+  .main-workspace {
+    padding: 30px 34px 0;
+  }
+  .workspace-panes {
+    gap: 22px;
+  }
+  .challenge-content {
+    padding: 30px;
+  }
+}
+@media (max-width: 1390px) {
+  .editor-heading {
+    font-size: 11px;
+    gap: 5px;
+  }
+  .editor-actions {
+    gap: 9px;
+  }
+  .run-button kbd {
+    display: none;
+  }
+  .newline-hint {
+    display: none;
+  }
+}
+@media (max-width: 1199px) {
+  .brand {
+    width: auto;
+    margin-right: 3px;
+  }
+  .learning-sidebar {
+    position: fixed;
+    z-index: 30;
+    top: 70px;
+    bottom: 0;
+    left: 0;
+    width: 272px;
+    box-shadow: 12px 0 50px #0006;
+  }
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    z-index: 29;
+    inset: 70px 0 0;
+    border: 0;
+    background: #0007;
+  }
+  .mobile-sidebar-close {
+    display: inline-flex;
+  }
+  .main-workspace {
+    padding: 22px 22px 0;
+  }
+}
+@media (max-width: 1023px) {
+  .app-header {
+    padding: 0 20px;
+    gap: 13px;
+  }
+  .header-actions {
+    gap: 12px;
+  }
+  .mobile-workspace-tabs {
+    display: flex;
+    align-self: flex-start;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 4px;
+    margin-bottom: 15px;
+    flex-shrink: 0;
+    background: var(--c-surface-sunken);
+  }
+  .mobile-workspace-tabs button {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--c-text-muted);
+    padding: 7px 12px;
+    font-size: 12px;
+  }
+  .mobile-workspace-tabs button[aria-selected="true"] {
+    background: var(--c-surface-raised);
+    color: var(--c-accent-bright);
+    box-shadow: 0 1px 3px #0003;
+  }
+  .lesson-column,
+  .editor-column {
+    display: none;
+    flex: 1;
+  }
+  .lesson-column.mobile-visible,
+  .editor-column.mobile-visible {
+    display: block;
+  }
+  .challenge-content {
+    padding: 25px;
+  }
+  .open-editor-button {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: var(--accent);
+    color: var(--c-accent-wash);
+    border: 0;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 22px;
+  }
+  .open-editor-button > svg:last-child {
+    margin-left: 10px;
+  }
+  .editor-heading {
+    font-size: 13px;
+  }
+  .run-button kbd {
+    display: inline;
+  }
+}
+@media (max-width: 700px) {
+  .brand {
+    font-size: 20px;
+    gap: 7px;
+  }
+  .brand-mark {
+    width: 25px;
+    height: 30px;
+    background: transparent;
+  }
+  .header-divider {
+    display: none;
+  }
+  .track-select-wrap {
+    max-width: 210px;
+  }
+  .track-select-control select {
+    font-size: 11px;
+  }
+  .eyebrow {
+    font-size: 11px;
+  }
+  .review-button {
+    padding: 7px;
+    gap: 6px;
+  }
+  .review-button > span:nth-child(2) {
+    display: none;
+  }
+  .header-actions {
+    gap: 6px;
+  }
+  .app-header {
+    padding: 0 15px;
+    gap: 10px;
+    height: 62px;
+  }
+  .learning-sidebar {
+    top: 62px;
+  }
+  .sidebar-backdrop {
+    top: 62px;
+  }
+  .main-workspace {
+    padding: 18px 15px 0;
+  }
+  h1 {
+    font-size: 22px;
+    margin-bottom: 8px;
+  }
+  .composer-footnote {
+    font-size: 11px;
+  }
+  .newline-hint {
+    display: inline;
+  }
+}
+@media (max-width: 480px) {
+  .brand > span:nth-child(2),
+  .export-button {
+    display: none;
+  }
+  .brand {
+    margin-right: 0;
+  }
+  .brand-mark {
+    width: 27px;
+    background: #e5aa7212;
+  }
+  .app-header {
+    padding: 0 12px;
+    gap: 9px;
+  }
+  .sidebar-toggle {
+    order: -1;
+  }
+  .track-select-wrap {
+    max-width: none;
+    flex: 1;
+  }
+  .track-select-control select {
+    font-size: 11px;
+  }
+  .main-workspace {
+    padding: 15px 11px 0;
+  }
+  h1 {
+    font-size: 20px;
+  }
+  .mobile-workspace-tabs {
+    width: 100%;
+    margin-bottom: 12px;
+  }
+  .mobile-workspace-tabs button {
+    flex: 1;
+    justify-content: center;
+    font-size: 11px;
+    padding: 7px 6px;
+  }
+  .panel-tabs {
+    padding: 0 15px;
+    gap: 22px;
+    height: 45px;
+  }
+  .challenge-content {
+    padding: 22px 18px;
+  }
+  .composer {
+    padding: 11px 12px 9px;
+  }
+  .quick-actions {
+    gap: 6px;
+  }
+  .quick-actions button {
+    padding: 7px;
+    font-size: 11px;
+    min-height: 30px;
+  }
+  .composer-footnote > span:first-child {
+    font-size: 11px;
+  }
+  .composer-footnote .newline-hint {
+    display: none;
+  }
+  .editor-toolbar {
+    padding: 0 10px;
+  }
+  .editor-heading {
+    font-size: 11px;
+  }
+  .editor-actions {
+    gap: 9px;
+  }
+  .reset-button span,
+  .run-button kbd {
+    display: none;
+  }
+  .run-button {
+    padding: 7px 8px;
+  }
+  .reset-confirm > span {
+    display: none;
+  }
+  .output-section.is-open {
+    height: 175px;
+  }
+  .output-empty p {
+    font-size: 11px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

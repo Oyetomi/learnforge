@@ -1,0 +1,290 @@
+/* Derivations stay visible as a workspace view, including existing coach history. */
+.derivation-content {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 25px;
+}
+.derivation-view-heading h1 {
+  font-size: 22px;
+  letter-spacing: -0.45px;
+  line-height: 1.4;
+  font-weight: 600;
+  margin: 0 0 9px;
+}
+.derivation-view-heading p {
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--c-text-muted);
+  margin: 0;
+}
+.derivation-history {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 22px;
+  color: var(--c-text-subtle);
+  font-size: 11px;
+}
+.derivation-history > div {
+  display: flex;
+  gap: 4px;
+}
+.derivation-history .icon-button {
+  border: 1px solid var(--c-line-strong);
+}
+.derivation-empty {
+  text-align: center;
+  padding: 48px 10px;
+  max-width: 360px;
+  margin: 0 auto;
+}
+.derivation-empty-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid #3d4742;
+  background: #ffffff02;
+  border-radius: 12px;
+  color: var(--c-text-secondary);
+  margin-bottom: 22px;
+}
+.derivation-empty h2 {
+  color: var(--c-text-strong);
+  font-weight: 500;
+  font-size: 15px;
+  margin: 0 0 12px;
+}
+.derivation-empty p {
+  color: var(--c-text-muted);
+  font-size: 12px;
+  line-height: 1.9;
+  margin: 0 0 23px;
+}
+.derivation-generate-button {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--c-line-hover);
+  background: transparent;
+  color: var(--c-text-body);
+  border-radius: 6px;
+  font-size: 11px;
+}
+.derivation-generate-button:hover {
+  border-color: var(--c-accent-deep);
+  color: var(--c-accent-strong);
+}
+.derivation-generation {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  margin-top: 24px;
+  padding: 12px;
+  border: 1px solid var(--c-line-hover);
+  background: #ffffff02;
+  border-radius: 6px;
+  color: #aebccb;
+  font-size: 11px;
+}
+.derivation-generation > svg {
+  flex-shrink: 0;
+}
+.derivation-generation button {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  margin-left: auto;
+  padding: 5px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #c8b19a;
+}
+.derivation-ladder {
+  min-width: 0;
+  max-width: 100%;
+}
+.prose .derivation-ladder code,
+.derivation-ladder code {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: var(--c-text-body);
+}
+.derivation-ladder mark {
+  display: inline;
+  white-space: inherit;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.ladder-start,
+.ladder-result,
+.ladder-steps,
+.ladder-steps > li,
+.ladder-steps > li > div {
+  min-width: 0;
+  max-width: 100%;
+}
+.ladder-steps h5,
+.ladder-steps p,
+.derivation-ladder h4 {
+  overflow-wrap: anywhere;
+}
+.derivation-content .derivation-ladder {
+  margin-top: 13px;
+}
+@media (max-width: 1199px) and (min-width: 1024px) {
+  .panel-tabs {
+    gap: 19px;
+    padding: 0 18px;
+  }
+}
+@media (max-width: 480px) {
+  .derivation-content {
+    padding: 23px 18px;
+  }
+  .mobile-workspace-tabs button {
+    gap: 5px;
+    font-size: 11px;
+    padding-left: 3px;
+    padding-right: 3px;
+  }
+  .mobile-workspace-tabs button svg {
+    width: 13px;
+    height: 13px;
+  }
+  .derivation-generation {
+    flex-wrap: wrap;
+  }
+}
+
+/* Visual derivation canvas: annotations explain each colored state transition. */
+.visual-ladder {
+  padding: 24px;
+  background-color: var(--c-surface-1);
+  background-image: linear-gradient(#ffffff03 1px, transparent 1px),
+    linear-gradient(90deg, #ffffff03 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+.visual-ladder > h4 {
+  font: 600 19px/1.4 Georgia, "Times New Roman", serif;
+  letter-spacing: -0.3px;
+  color: #9fc3d5;
+  margin-bottom: 24px;
+}
+.visual-ladder .ladder-start > span {
+  margin-bottom: 13px;
+}
+.visual-ladder .ladder-steps {
+  margin-top: 9px !important;
+}
+.visual-ladder .ladder-steps > li {
+  display: block;
+  padding: 0;
+}
+.visual-ladder .ladder-steps > li::before {
+  display: none;
+}
+.visual-ladder .ladder-steps > li > .ladder-transition {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 16px;
+  min-height: 112px;
+  padding: 14px 0;
+}
+.ladder-arrow {
+  display: flex;
+  align-self: stretch;
+  min-height: 84px;
+}
+.ladder-arrow svg {
+  height: 100%;
+  min-height: 84px;
+  width: 18px;
+  overflow: visible;
+}
+.ladder-annotation {
+  padding: 10px 0 12px;
+  min-width: 0;
+}
+.visual-ladder .ladder-steps h5 {
+  font: italic 15px/1.75 Georgia, "Times New Roman", serif;
+  color: var(--c-text-secondary);
+  margin: 0 0 9px;
+}
+.visual-ladder .ladder-evaluation code {
+  color: var(--c-text-faint);
+  font-size: 12px;
+  line-height: 1.9;
+}
+.visual-ladder .ladder-after {
+  padding: 7px 0 8px;
+}
+.prose .visual-ladder code,
+.visual-ladder code {
+  font-size: 13px;
+  line-height: 2.1;
+}
+.visual-ladder mark {
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 3px 8px;
+  margin: 0 4px;
+  display: inline-block;
+  vertical-align: baseline;
+  line-height: 1.35;
+}
+.ladder-formula {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  color: var(--c-text-strong);
+  font-size: 20px;
+  padding: 7px 1px;
+}
+.ladder-formula .katex-display {
+  margin: 0 !important;
+  text-align: left;
+}
+.ladder-formula .katex-display > .katex {
+  text-align: left;
+}
+.ladder-evaluation .ladder-formula {
+  font-size: 13px;
+  color: var(--c-text-subtle);
+  padding-top: 0;
+}
+.visual-ladder .ladder-result {
+  margin-top: 27px;
+  padding-top: 24px;
+}
+.visual-ladder .ladder-result > span {
+  color: #9fc3d5;
+  font: 600 17px/1.5 Georgia, "Times New Roman", serif;
+  margin-bottom: 14px;
+}
+@media (max-width: 480px) {
+  .visual-ladder {
+    padding: 19px 16px;
+  }
+  .visual-ladder .ladder-steps > li > .ladder-transition {
+    gap: 12px;
+  }
+  .visual-ladder .ladder-steps h5 {
+    font-size: 14px;
+  }
+  .ladder-formula {
+    font-size: 18px;
+  }
+}

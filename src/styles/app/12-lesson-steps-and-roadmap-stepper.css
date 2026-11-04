@@ -1,0 +1,189 @@
+/* ── Progressive lesson steps (added 2026-10-27, new classes only) ── */
+.lesson-step-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -12px 0 26px;
+  font-size: 11px;
+  color: var(--c-text-faint);
+}
+.lesson-step-dots {
+  display: inline-flex;
+  gap: 5px;
+}
+.lesson-step-dots i {
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--c-line);
+  transition: background 0.25s ease;
+}
+.lesson-step-dots i.is-seen {
+  background: #8a7560;
+}
+.lesson-step-dots i.is-current {
+  background: var(--accent);
+}
+.lesson-step-showall {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  padding: 2px 0;
+  color: var(--c-text-faint);
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--c-line-hover);
+}
+.lesson-step-showall:hover {
+  color: var(--heading);
+}
+.lesson-step + .lesson-step {
+  margin-top: 18px;
+}
+.lesson-step.is-past {
+  opacity: 0.45;
+  transition: opacity 0.3s ease;
+}
+.lesson-step.is-past:hover {
+  opacity: 0.8;
+}
+.lesson-step.is-current {
+  animation: lessonStepIn 0.32s ease-out both;
+}
+@keyframes lessonStepIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lesson-step.is-current {
+    animation: none;
+  }
+}
+.lesson-step-gate {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 26px;
+}
+.lesson-step-continue {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.lesson-step-gate small {
+  font-size: 11px;
+  color: #7f8896;
+}
+.lesson-step-gate kbd {
+  font: inherit;
+  border: 1px solid var(--c-line-strong);
+  border-radius: 4px;
+  padding: 0 5px;
+  color: var(--c-text-subtle);
+}
+
+/* ── Roadmap sidebar stepper ── */
+.roadmap-stepper {
+  list-style: none;
+  margin: 0;
+  padding: 6px 12px 12px;
+}
+.roadmap-step {
+  position: relative;
+}
+.roadmap-step > button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  padding: 11px 10px 12px;
+  margin: 4px 0;
+  color: inherit;
+}
+.roadmap-step > button:hover {
+  background: #ffffff05;
+}
+.roadmap-step.is-current > button {
+  background: #ffffff04;
+  border-color: var(--c-line-hover);
+}
+.roadmap-step-marker {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: 4px;
+  border: 1px solid var(--c-line-hover);
+  background: var(--c-surface-sunken);
+  color: var(--c-text-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  position: relative;
+  z-index: 1;
+}
+.roadmap-step.is-current .roadmap-step-marker {
+  border-color: #8a7560;
+  background: var(--c-accent-wash);
+  color: var(--c-accent-strong);
+}
+.roadmap-step.is-complete:not(.is-current) .roadmap-step-marker {
+  border-color: #6d9b87;
+  color: #9cc7ae;
+}
+.roadmap-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  width: 100%;
+}
+.roadmap-step-meta { display: flex; align-items: center; gap: 9px; }
+.roadmap-step-title {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--c-text-body);
+  overflow-wrap: break-word;
+}
+.roadmap-step.is-current .roadmap-step-title {
+  color: var(--heading);
+}
+.roadmap-step.is-locked .roadmap-step-title {
+  color: #8493a6;
+}
+.roadmap-step-status {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--c-text-quiet);
+}
+.roadmap-step.is-current .roadmap-step-status {
+  color: var(--c-accent-text);
+}
+.roadmap-step-bar {
+  display: block;
+  height: 2px;
+  margin-top: 5px;
+  border-radius: 2px;
+  background: var(--c-line);
+  overflow: hidden;
+}
+.roadmap-step-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}

@@ -42,6 +42,41 @@
 
   --reading-measure: 70ch;
 
+  /* Named palette. Stylesheets reference these instead of raw hex. */
+  --c-bg-deep: #101318;
+  --c-surface-sunken: #15191e;
+  --c-surface-1: #1b1f24;
+  --c-surface-2: #21262d;
+  --c-surface-raised: #282b30;
+  --c-surface-3: #2b323b;
+  --c-line-soft: #303741;
+  --c-line: #343c45;
+  --c-line-strong: #3c424c;
+  --c-line-hover: #444e5c;
+  --c-text-disabled: #7f8ea2;
+  --c-text-faint: #8f99a7;
+  --c-text-faint-cool: #8fa0b5;
+  --c-text-quiet: #98a3b1;
+  --c-text-quiet-cool: #9fb0c4;
+  --c-text-muted: #a2aab6;
+  --c-text-subtle: #aab5bf;
+  --c-text-secondary: #b8c0cc;
+  --c-text-secondary-cool: #bec7d3;
+  --c-text: #c7cbd2;
+  --c-text-body: #c7d2df;
+  --c-text-bright: #d9dfe7;
+  --c-text-strong: #dfe7f0;
+  --c-text-heading: #edf0f4;
+  --c-accent-wash: #30251e;
+  --c-accent-deep: #c6a381;
+  --c-accent-text: #d2b497;
+  --c-accent-soft: #dcb996;
+  --c-accent-strong: #e4c7ae;
+  --c-accent-base: #e5aa72;
+  --c-accent-bright: #f0d5bc;
+  --c-success-vivid: #4ade80;
+  --c-success-soft: #a5ceb2;
+  --c-danger-vivid: #f87171;
 }
 
 /* Reading surfaces. Code, math, and figure internals keep their own faces. */

@@ -3,10 +3,10 @@
   font-size: 15px;
   line-height: 1.6;
   font-weight: 500;
-  color: var(--heading, #edf0f4);
+  color: var(--heading, var(--c-text-heading));
 }
 .retention-session > header h2:focus-visible {
-  outline: 2px solid var(--accent, #e5aa72);
+  outline: 2px solid var(--accent, var(--c-accent-base));
   outline-offset: 4px;
 }
 .retention-session > header > div {

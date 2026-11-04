@@ -1,30 +1,30 @@
 /* Host-owned figures: measured vector relationships and real typesetting on paper. */
 .scientific-figure {
-  --figure-paper: #21262d;
+  --figure-paper: var(--c-surface-2);
   --figure-ink: #e5e4dc;
   --figure-muted: #a4b2a8;
   --figure-rule: #3d4742;
   --figure-accent: #b2ccba;
   --figure-border: #506357;
-  --figure-code: #d9dfe7;
+  --figure-code: var(--c-text-bright);
   --figure-keyword: #c7add7;
   --figure-string: #bad09e;
-  --figure-number: #dcb996;
+  --figure-number: var(--c-accent-soft);
   --figure-title: #b7cbdc;
   --figure-comment: #a4b2a8;
   --figure-link: #a3bbaa;
   --figure-flow: #aebbb0;
-  --figure-value: #d9dfe7;
+  --figure-value: var(--c-text-bright);
   --figure-underline: #829c89;
-  --figure-secondary: #c7cbd2;
+  --figure-secondary: var(--c-text);
   --figure-focus: #9cc7ae;
   --figure-button-border: #65786a;
   --figure-button-text: #d1e0d4;
   --figure-hover-border: #9bb7a3;
-  --figure-button-bg: #343c45;
-  --figure-hover-text: #edf0f4;
+  --figure-button-bg: var(--c-line);
+  --figure-hover-text: var(--c-text-heading);
   --figure-primary-border: #8aa591;
-  --figure-source-bg: #15191e;
+  --figure-source-bg: var(--c-surface-sunken);
 
   --figure-serif: KaTeX_Main, "Times New Roman", Georgia, serif;
   container: scientificfigure / inline-size;
@@ -192,30 +192,30 @@
 
 .scientific-figure[data-theme="light"] {
   --figure-paper: #f8fafc;
-  --figure-ink: #282b30;
+  --figure-ink: var(--c-surface-raised);
   --figure-muted: #637083;
   --figure-rule: #cbd0c7;
   --figure-accent: #315e55;
   --figure-border: #bfc5ba;
-  --figure-code: #343c45;
+  --figure-code: var(--c-line);
   --figure-keyword: #69446c;
   --figure-string: #3d654c;
   --figure-number: #8a4e29;
   --figure-title: #31576d;
   --figure-comment: #65786a;
   --figure-link: #506357;
-  --figure-flow: #444e5c;
-  --figure-value: #343c45;
+  --figure-flow: var(--c-line-hover);
+  --figure-value: var(--c-line);
   --figure-underline: #8aa591;
   --figure-secondary: #46534a;
   --figure-focus: #607e6c;
   --figure-button-border: #aebbb0;
   --figure-button-text: #344539;
   --figure-hover-border: #718a7a;
-  --figure-button-bg: #edf0f4;
+  --figure-button-bg: var(--c-text-heading);
   --figure-hover-text: #203d2d;
   --figure-primary-border: #4f6c5e;
-  --figure-source-bg: #edf0f4;
+  --figure-source-bg: var(--c-text-heading);
 }
 
 .scientific-figure-context { display:flex; align-items:center; justify-content:space-between; gap:16px; }

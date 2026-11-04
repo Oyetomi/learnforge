@@ -21,11 +21,11 @@
   margin: 0;
   padding: 0;
   border: 0;
-  color: #aab5bf;
+  color: var(--c-text-subtle);
   font: 400 12px/1.65 var(--font-ui, sans-serif);
 }
 .canvas-sandbox.is-auto-sized .canvas-sandbox-caption {
-  color: #aab5bf;
+  color: var(--c-text-subtle);
   font-size: 12px;
   line-height: 32px;
 }
@@ -35,7 +35,7 @@
   max-width: 100%;
   border: 0;
   border-radius: 6px;
-  background: #101318;
+  background: var(--c-bg-deep);
 }
 .canvas-sandbox-tools {
   position: relative;
@@ -50,17 +50,17 @@
   padding: 4px 8px;
   border: 1px solid transparent;
   border-radius: 6px;
-  color: #aab5bf;
+  color: var(--c-text-subtle);
   font-size: 11px;
   cursor: pointer;
   list-style: none;
 }
 .canvas-sandbox-tools > summary::-webkit-details-marker { display: none; }
 .canvas-sandbox-tools > summary:hover,
-.canvas-sandbox-tools[open] > summary { color: #dfe7f0; background: #ffffff07; }
+.canvas-sandbox-tools[open] > summary { color: var(--c-text-strong); background: #ffffff07; }
 .canvas-sandbox-tools > summary:focus-visible,
 .canvas-sandbox-tools-menu button:focus-visible {
-  outline: 2px solid #d2b497;
+  outline: 2px solid var(--c-accent-text);
   outline-offset: 2px;
 }
 .canvas-sandbox-tools-menu {
@@ -71,9 +71,9 @@
   min-width: 210px;
   max-width: calc(100vw - 48px);
   padding: 5px;
-  border: 1px solid #3c424c;
+  border: 1px solid var(--c-line-strong);
   border-radius: 8px;
-  background: #1b1f24;
+  background: var(--c-surface-1);
   box-shadow: 0 8px 20px #0005;
 }
 .canvas-sandbox.is-auto-sized .canvas-sandbox-tools-menu button {
@@ -87,7 +87,7 @@
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: #d9dfe7;
+  color: var(--c-text-bright);
   text-align: left;
   font: 400 11px/1.5 var(--font-ui, sans-serif);
 }
@@ -103,7 +103,7 @@
   margin: 0 0 10px;
   padding: 8px 10px;
   border-left: 2px solid #8e7c66;
-  color: #b8c0cc;
+  color: var(--c-text-secondary);
   font-size: 12px;
   line-height: 1.65;
 }
@@ -111,7 +111,7 @@
   margin: 0 0 12px;
 }
 .canvas-sandbox-error-copy details { margin-top: 7px; }
-.canvas-sandbox-error-copy summary { cursor: pointer; color: #b8c0cc; font-size: 11px; }
+.canvas-sandbox-error-copy summary { cursor: pointer; color: var(--c-text-secondary); font-size: 11px; }
 .canvas-sandbox-error-copy details code { display: block; margin-top: 6px; }
 @media (max-width: 600px) {
   .canvas-sandbox-tools > summary > span { display: none; }

@@ -1,0 +1,154 @@
+.sidebar-heading > span {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.sidebar-heading svg {
+  color: var(--muted);
+}
+.path-progress {
+  padding: 24px 7px 27px;
+}
+.path-progress > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+}
+.path-progress strong {
+  font-size: 12px;
+  color: var(--c-text-bright);
+  font-weight: 500;
+}
+.progress-track {
+  height: 4px;
+  background: var(--c-surface-3);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+.progress-track > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+  transition: width 0.3s;
+}
+.path-progress p {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 9px;
+}
+.sidebar-section-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #979da7;
+  letter-spacing: 1.3px;
+  padding: 0 8px 13px;
+}
+.sidebar-section-label span {
+  color: var(--c-text-muted);
+  letter-spacing: 0.3px;
+}
+.milestone-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  overflow-y: auto;
+  min-height: 100px;
+  padding: 2px;
+}
+.milestone-item {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 13px 9px;
+  gap: 10px;
+  text-align: left;
+  background: transparent;
+  position: relative;
+}
+.milestone-item:hover {
+  background: #ffffff04;
+}
+.milestone-item.is-active {
+  background: #e5aa720b;
+  border-color: #e5aa7228;
+}
+.milestone-number {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  flex-shrink: 0;
+  border: 1px solid var(--c-line);
+  border-radius: 50%;
+  font-size: 11px;
+  color: var(--c-text-muted);
+  margin-top: 1px;
+}
+.is-active .milestone-number {
+  background: var(--accent);
+  color: var(--c-accent-wash);
+  border-color: var(--accent);
+  font-weight: 700;
+}
+.is-complete .milestone-number {
+  background: #91b89c13;
+  color: #a4d4b2;
+  border-color: #91b89c40;
+}
+.milestone-copy {
+  min-width: 0;
+  display: block;
+  flex: 1;
+}
+.milestone-copy > span {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.65;
+  color: var(--c-text-subtle);
+}
+.is-active .milestone-copy > span {
+  color: var(--c-accent-bright);
+}
+.milestone-copy small {
+  display: block;
+  font-size: 11px;
+  margin-top: 5px;
+  color: var(--c-text-faint);
+}
+.is-active .milestone-copy small {
+  color: #d5a477;
+}
+.active-dot,
+.tiny-dot {
+  width: 5px;
+  height: 5px;
+  background: var(--accent);
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.milestone-item .active-dot {
+  margin-top: 9px;
+}
+.sidebar-bottom {
+  margin-top: auto;
+  padding-top: 26px;
+}
+.main-workspace {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 25px 26px 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-bg-deep);
+}

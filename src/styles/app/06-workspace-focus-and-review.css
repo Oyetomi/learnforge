@@ -1,0 +1,619 @@
+/* Keep the default workspace focused on the brief and code. */
+.challenge-content > h1 {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: -0.6px;
+  margin: 20px 0;
+}
+.challenge-content .challenge-prompt {
+  margin-top: 20px;
+}
+.challenge-help {
+  margin-top: 30px;
+  border-top: 1px solid var(--c-line-soft);
+  padding-top: 20px;
+}
+.challenge-help summary {
+  color: var(--c-text-quiet-cool);
+  cursor: pointer;
+  font-size: 12px;
+}
+.challenge-help summary:hover {
+  color: var(--c-text-strong);
+}
+.challenge-help p {
+  color: var(--c-text-muted);
+  font-size: 13px;
+  line-height: 1.9;
+  margin: 14px 0 0;
+}
+.challenge-help strong {
+  color: var(--c-text-body);
+  font-weight: 500;
+}
+.challenge-coach-link {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 30px;
+  font-size: 12px;
+  color: var(--c-text-faint-cool);
+}
+.challenge-coach-link button {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  color: var(--c-accent-soft);
+  border: 0;
+  background: transparent;
+  padding: 5px 0;
+}
+.challenge-coach-link button:hover {
+  color: var(--c-accent-bright);
+}
+.sidebar-save-note {
+  margin: 0;
+  padding: 0 7px;
+  font-size: 11px;
+  color: var(--c-text-quiet);
+}
+@media (max-width: 700px) {
+  .challenge-content > h1 {
+    font-size: 24px;
+  }
+}
+@media (max-width: 480px) {
+  .challenge-content > h1 {
+    font-size: 22px;
+  }
+}
+.main-workspace {
+  padding-bottom: 24px;
+}
+.milestone-total {
+  color: var(--c-text-faint);
+  margin-left: 4px;
+  letter-spacing: 1px;
+}
+@media (max-width: 700px) {
+  .main-workspace {
+    padding-bottom: 15px;
+  }
+}
+@media (max-width: 480px) {
+  .main-workspace {
+    padding-bottom: 11px;
+  }
+}
+@media (max-width: 1023px) {
+  .lesson-pane > .panel-tabs {
+    display: none;
+  }
+}
+.challenge-help summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 5px;
+}
+
+/* Productive motion: state feedback, with no delay before interaction. */
+:root {
+  --motion-fast: 110ms;
+  --motion-standard: 150ms;
+  --motion-easing: cubic-bezier(0.2, 0, 0.38, 0.9);
+}
+button {
+  transition: background var(--motion-fast) var(--motion-easing),
+    color var(--motion-fast) var(--motion-easing),
+    border-color var(--motion-fast) var(--motion-easing),
+    box-shadow var(--motion-fast) var(--motion-easing);
+}
+button:active:not(:disabled) {
+  filter: brightness(0.9);
+}
+.run-button {
+  min-width: 108px;
+  justify-content: center;
+}
+.send-button:active:not(:disabled) {
+  box-shadow: inset 0 2px 3px #0003;
+}
+.reset-confirm {
+  animation: reveal-feedback var(--motion-fast) var(--motion-easing);
+}
+.undo-reset {
+  color: var(--c-accent-strong);
+  white-space: nowrap;
+}
+.challenge-content,
+.chat-content {
+  animation: reveal-feedback var(--motion-fast) var(--motion-easing);
+}
+.execution-summary,
+.completion-callout {
+  animation: reveal-feedback var(--motion-standard) var(--motion-easing);
+}
+.review-dialog[open] {
+  animation: reveal-feedback var(--motion-standard) var(--motion-easing);
+}
+.review-dialog[open]::backdrop {
+  animation: reveal-feedback var(--motion-fast) var(--motion-easing);
+}
+@keyframes reveal-feedback {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Use the same control and surface language inside review. */
+.track-select-control {
+  border-radius: 6px;
+}
+.track-select-control select:focus-visible {
+  outline: none;
+}
+.track-select-control:has(select:focus-visible) {
+  outline: 2px solid #e5aa7280;
+  outline-offset: 4px;
+}
+.review-surface {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--c-surface-sunken);
+  overflow: hidden;
+}
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 17px 22px;
+  border-bottom: 1px solid var(--border);
+}
+.review-header > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--c-text-secondary);
+}
+.review-header h2 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e8ebef;
+  margin: 0;
+}
+.review-header .icon-button {
+  width: 32px;
+  height: 32px;
+}
+.review-body {
+  padding: 26px;
+  max-height: calc(90dvh - 68px);
+  overflow-y: auto;
+}
+.review-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--c-text-muted);
+  font-size: 12px;
+  margin-bottom: 22px;
+}
+.review-meta > span:last-child {
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--c-text-faint-cool);
+}
+.review-question .prose {
+  font-size: 16px;
+  line-height: 1.85;
+  color: var(--c-text-strong);
+}
+.review-question code {
+  font-size: 13px;
+}
+.review-question:focus,
+.review-answer:focus {
+  outline: none;
+}
+.review-answer {
+  margin-top: 27px;
+  padding-top: 23px;
+  border-top: 1px solid var(--border);
+}
+.review-answer h3,
+.review-rating h3 {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--c-text-muted);
+  margin: 0 0 12px;
+}
+.review-answer pre {
+  background: var(--c-bg-deep);
+  border: 1px solid var(--c-line-soft);
+  border-radius: 6px;
+  padding: 15px;
+  margin: 0;
+  font: 12px/1.9 "SFMono-Regular", Consolas, monospace;
+  color: var(--c-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.review-rating {
+  margin-top: 26px;
+}
+.review-rating h3 {
+  margin-bottom: 13px;
+}
+.review-rating-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.review-rating-options button {
+  padding: 12px 7px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-line-strong);
+  border-radius: 6px;
+  color: #d0d7e1;
+  text-align: center;
+}
+.review-rating-options button:hover {
+  border-color: #a28d72;
+  background: var(--c-surface-raised);
+}
+.review-rating-options strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+.review-rating-options span {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--c-text-muted);
+}
+.review-reveal {
+  margin-top: 30px;
+}
+.review-reveal > p {
+  color: var(--c-text-faint-cool);
+  font-size: 12px;
+  margin-bottom: 16px;
+}
+.review-reveal-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--accent);
+  color: var(--c-accent-wash);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 10px 15px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.review-reveal-button:hover {
+  background: #f0b781;
+}
+.review-finished {
+  text-align: center;
+  padding: 17px 8px 14px;
+}
+.review-finished-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 45px;
+  height: 45px;
+  color: var(--c-success-soft);
+  border: 1px solid #a5ceb22b;
+  background: #a5ceb209;
+  border-radius: 50%;
+  margin-bottom: 20px;
+}
+.review-finished h3 {
+  color: #e8ebef;
+  font-size: 20px;
+  letter-spacing: -0.4px;
+  margin: 0 0 12px;
+  font-weight: 600;
+}
+.review-finished p {
+  font-size: 13px;
+  color: var(--c-text-muted);
+  line-height: 1.8;
+  max-width: 330px;
+  margin: 0 auto 24px;
+}
+@media (max-width: 480px) {
+  .review-body {
+    padding: 22px 18px;
+  }
+  .review-question .prose {
+    font-size: 15px;
+  }
+  .review-meta {
+    font-size: 11px;
+    gap: 10px;
+  }
+  .review-rating-options {
+    gap: 6px;
+  }
+  .review-rating-options button {
+    padding: 11px 4px;
+  }
+  .review-rating-options span {
+    font-size: 11px;
+  }
+}
+
+.output-guidance {
+  font: 11px/1.8 -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--c-text-subtle);
+  margin: 0 0 10px;
+}
+
+.prose :not(pre) > code {
+  white-space: nowrap;
+  color: rgb(var(--color-accent));
+}
+
+/* Workspace refinement: a single track control and contextual assistance. */
+.app-header {
+  height: 68px;
+  gap: 24px;
+  padding: 0 22px;
+}
+.header-brand-group {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-shrink: 0;
+  width: 202px;
+}
+.workspace-brand {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--accent);
+}
+.workspace-brand > span {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--heading);
+  letter-spacing: -0.65px;
+}
+.workspace-brand > span > span {
+  color: var(--accent);
+}
+.header-track {
+  flex: 1;
+  min-width: 0;
+  max-width: 490px;
+}
+.header-track label {
+  display: block;
+  color: var(--c-text-faint);
+  font-size: 11px;
+  line-height: 1.6;
+  margin-bottom: 1px;
+}
+.header-track .track-select-control {
+  max-width: 100%;
+}
+.header-track select {
+  padding: 1px 26px 1px 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+.header-actions {
+  gap: 10px;
+}
+.header-secondary-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  color: var(--c-text-body);
+  background: transparent;
+  border: 1px solid var(--c-line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.header-secondary-button:hover {
+  color: var(--heading);
+  background: #ffffff06;
+  border-color: #59616d;
+}
+.header-secondary-button svg {
+  color: var(--c-text-muted);
+}
+.header-review-count {
+  background: var(--c-surface-3);
+  border-radius: 4px;
+  min-width: 18px;
+  text-align: center;
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--c-text-body);
+}
+.learning-sidebar {
+  background: var(--c-bg-deep);
+}
+.sidebar-heading {
+  font-weight: 500;
+}
+.path-progress {
+  padding-top: 25px;
+  padding-bottom: 25px;
+}
+.milestone-item {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+.milestone-copy > span {
+  line-height: 1.7;
+}
+.main-workspace {
+  padding-top: 22px;
+}
+.workspace-panel {
+  background: var(--c-surface-sunken);
+}
+.panel-tabs {
+  height: 49px;
+  padding-left: 24px;
+}
+.panel-tabs > button {
+  font-size: 12px;
+}
+.coach-working-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.challenge-content {
+  padding: 30px;
+}
+.challenge-content > h1 {
+  font-size: 24px;
+  line-height: 1.4;
+  margin-top: 22px;
+  margin-bottom: 22px;
+  font-weight: 600;
+  max-width: 620px;
+}
+.challenge-eyebrow > span:first-child {
+  letter-spacing: 1.4px;
+}
+.challenge-prompt .prose {
+  line-height: 1.9;
+  color: var(--c-text-secondary-cool);
+  font-size: 14px;
+}
+.challenge-howto {
+  border-top: 1px solid var(--c-line-soft);
+  margin-top: 30px;
+  padding-top: 23px;
+}
+.challenge-howto h2 {
+  font-size: 12px;
+  font-weight: 600;
+  color: #d0d7e1;
+  margin: 0 0 9px;
+}
+.challenge-howto p {
+  font-size: 12px;
+  line-height: 1.9;
+  color: var(--c-text-quiet);
+  margin: 0;
+}
+.challenge-howto strong {
+  font-weight: 500;
+  color: var(--c-text-body);
+}
+.challenge-support {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 32px;
+  gap: 10px;
+}
+.challenge-support > span {
+  font-size: 11px;
+  color: var(--c-text-faint);
+  margin-bottom: 2px;
+}
+.challenge-support button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  color: #c8b19a;
+}
+.challenge-support button:hover {
+  color: var(--c-accent-bright);
+}
+.challenge-support button > svg:last-child {
+  color: var(--c-text-faint);
+  margin-left: 5px;
+}
+.coach-task-context {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--c-surface-3);
+  background: var(--c-surface-sunken);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.coach-task-context > span {
+  color: var(--c-text-faint);
+}
+.coach-task-context button {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  align-items: center;
+  border: 0;
+  padding: 3px 0;
+  background: transparent;
+  color: var(--c-text-secondary-cool);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+.coach-task-context svg {
+  flex-shrink: 0;
+  color: var(--c-text-muted);
+}
+.chat-message .message-sender {
+  font-size: 11px;
+  font-weight: 500;
+  gap: 7px;
+}
+.from-coach .message-sender {
+  color: #b9b0d6;
+}
+.from-user {
+  padding: 14px;
+}
+.composer {
+  padding: 14px 18px 12px;
+}
+.quick-actions {
+  gap: 6px;
+}
+.quick-actions button {
+  padding: 6px 8px;
+  font-size: 11px;
+}
+.composer-input textarea {
+  font-size: 12px;
+}
+.composer-footnote {
+  font-size: 11px;
+}

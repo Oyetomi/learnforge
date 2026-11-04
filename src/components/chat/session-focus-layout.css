@@ -8,19 +8,19 @@
   gap: 12px;
   justify-content: flex-start;
 }
-.session-focus-header .session-plan-link { flex-shrink: 0; padding: 7px 9px; border-right: 1px solid #ffffff12; border-radius: 0; color: #d2b497; }
+.session-focus-header .session-plan-link { flex-shrink: 0; padding: 7px 9px; border-right: 1px solid #ffffff12; border-radius: 0; color: var(--c-accent-text); }
 .session-focus-header > .session-focus-heading { display: grid; flex: 1; min-width: 0; gap: 3px; }
-.session-focus-heading > strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #d9dfe7; font-weight: 500; font-size: 12px; line-height: 1.5; }
-.session-focus-stage { display: flex; align-items: center; gap: 10px; color: #9fb0c4; font-size: 11px; line-height: 1.5; }
+.session-focus-heading > strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--c-text-bright); font-weight: 500; font-size: 12px; line-height: 1.5; }
+.session-focus-stage { display: flex; align-items: center; gap: 10px; color: var(--c-text-quiet-cool); font-size: 11px; line-height: 1.5; }
 .session-focus-stage small { color: #bfaa94; font-size: 11px; }
 .session-focus-header > .session-focus-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .session-focus-actions > button { min-height: 32px; font-size: 11px; }
 .session-details { position: relative; }
-.session-details > summary { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; list-style: none; color: #aab5bf; cursor: pointer; }
+.session-details > summary { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; list-style: none; color: var(--c-text-subtle); cursor: pointer; }
 .session-details > summary::-webkit-details-marker { display: none; }
-.session-details > summary:hover, .session-details[open] > summary { background: #ffffff09; color: #f0d5bc; }
-.session-details-panel { position: absolute; right: 0; top: calc(100% + 12px); width: min(370px, calc(100vw - 52px)); max-height: 65dvh; overflow-y: auto; padding: 14px; border: 1px solid var(--chrome-edge, #3c424c); border-radius: 12px; background: var(--chrome-surface, #282b30); box-shadow: var(--chrome-shadow, 0 16px 40px #0006); }
-.session-details-panel .session-details-plan { margin: 0 0 12px; color: #d9dfe7; font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
+.session-details > summary:hover, .session-details[open] > summary { background: #ffffff09; color: var(--c-accent-bright); }
+.session-details-panel { position: absolute; right: 0; top: calc(100% + 12px); width: min(370px, calc(100vw - 52px)); max-height: 65dvh; overflow-y: auto; padding: 14px; border: 1px solid var(--chrome-edge, var(--c-line-strong)); border-radius: 12px; background: var(--chrome-surface, var(--c-surface-raised)); box-shadow: var(--chrome-shadow, 0 16px 40px #0006); }
+.session-details-panel .session-details-plan { margin: 0 0 12px; color: var(--c-text-bright); font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
 .session-details-panel .mastery-meter { margin-bottom: 12px; max-width: 100%; }
 .session-details-panel .session-route-strip { flex-wrap: wrap; padding: 12px 0; margin: 0 0 8px; background: transparent; border-block: 1px solid #ffffff10; }
 .session-details-panel .route-node { max-width: 100%; white-space: normal; }
@@ -33,8 +33,8 @@
 .app-shell .focused-session .session-composer-row .composer[data-expanded="false"] textarea { min-height: 28px; max-height: 32px; padding: 3px 0; line-height: 22px; font-size: 12px; }
 .app-shell .focused-session .session-composer-row .session-help-actions { grid-column: 2; width: auto; padding: 4px 8px 4px 0 !important; flex-wrap: nowrap; }
 .app-shell .focused-session .session-composer-row .session-telemetry-bar { display: none; }
-.app-shell .focused-session .composer-size-toggle { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: #a2aab6; }
-.app-shell .focused-session .composer-size-toggle:hover { background: #ffffff09; color: #f0d5bc; }
+.app-shell .focused-session .composer-size-toggle { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--c-text-muted); }
+.app-shell .focused-session .composer-size-toggle:hover { background: #ffffff09; color: var(--c-accent-bright); }
 .app-shell .focused-session .composer[data-expanded="false"][data-empty="true"] .send-button:not(.stop-button) { display: none; }
 .app-shell .focused-session .session-composer-row:has(.composer[data-expanded="true"]) .composer { grid-column: 1 / -1; }
 .app-shell .focused-session .session-composer-row:has(.composer[data-expanded="true"]) .composer-input { min-height: 58px; align-items: flex-end; padding-top: 8px; }

@@ -5,13 +5,13 @@
   gap: 8px;
 }
 .reference-shelf summary small {
-  color: var(--muted, #a2aab6);
+  color: var(--muted, var(--c-text-muted));
   font-size: 11px;
   margin-left: auto;
   white-space: nowrap;
 }
 .reference-shelf .reference-document {
-  border-top: 1px solid var(--border, #343c45);
+  border-top: 1px solid var(--border, var(--c-line));
   padding: 12px 0;
 }
 .reference-document > summary {
@@ -22,11 +22,11 @@
 }
 .reference-shelf .reference-identifier {
   font-size: 11px;
-  color: var(--muted, #a2aab6);
+  color: var(--muted, var(--c-text-muted));
   overflow-wrap: anywhere;
 }
 .reference-shelf ol:focus-visible {
-  outline: 2px solid var(--accent, #e5aa72);
+  outline: 2px solid var(--accent, var(--c-accent-base));
   outline-offset: 3px;
 }
 .reference-shelf .reference-document ol {
@@ -48,13 +48,13 @@
   border-radius: 999px;
   background: rgba(212, 176, 140, 0.14);
   border: 1px solid rgba(212, 176, 140, 0.35);
-  color: #e4c7ae;
+  color: var(--c-accent-strong);
 }
 .reference-external-link {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  color: #d2b497;
+  color: var(--c-accent-text);
   text-decoration: none;
 }
 .reference-external-link:hover {

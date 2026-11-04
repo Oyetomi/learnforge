@@ -22,11 +22,11 @@
 .session-usage-details > summary {
   cursor: pointer;
   padding: 8px 3px;
-  color: var(--muted, #a2aab6);
+  color: var(--muted, var(--c-text-muted));
   white-space: nowrap;
 }
 .session-usage-details > summary:focus-visible {
-  outline: 2px solid var(--accent, #e5aa72);
+  outline: 2px solid var(--accent, var(--c-accent-base));
   outline-offset: 2px;
 }
 .session-usage-panel {
@@ -35,11 +35,11 @@
   right: 0;
   bottom: calc(100% + 8px);
   width: min(340px, calc(100vw - 48px));
-  border: 1px solid var(--border, #343c45);
+  border: 1px solid var(--border, var(--c-line));
   border-radius: 8px;
   padding: 16px;
-  background: var(--panel, #15191e);
-  color: var(--heading, #edf0f4);
+  background: var(--panel, var(--c-surface-sunken));
+  color: var(--heading, var(--c-text-heading));
   box-shadow: 0 8px 24px #0005;
 }
 .session-usage-panel dl {
@@ -53,14 +53,14 @@
   gap: 20px;
 }
 .session-usage-panel dt {
-  color: var(--muted, #a2aab6);
+  color: var(--muted, var(--c-text-muted));
 }
 .session-usage-panel dd {
   margin: 0;
   text-align: right;
 }
 .session-usage-panel p {
-  color: var(--muted, #a2aab6);
+  color: var(--muted, var(--c-text-muted));
   font-size: 11px;
   line-height: 1.6;
   margin: 15px 0 0;
@@ -90,7 +90,7 @@
   font-size: 12px;
 }
 .check-retry-banner:focus-visible {
-  outline: 2px solid var(--accent, #e5aa72);
+  outline: 2px solid var(--accent, var(--c-accent-base));
   outline-offset: 3px;
 }
 @media (max-width: 560px) {
@@ -124,10 +124,10 @@
   gap: 8px;
   padding: 5px 20px;
   min-height: 30px;
-  border-bottom: 1px solid #282b30;
-  background: #101318;
+  border-bottom: 1px solid var(--c-surface-raised);
+  background: var(--c-bg-deep);
   font-size: 11px;
-  color: #8fa0b5;
+  color: var(--c-text-faint-cool);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -152,7 +152,7 @@
   color: #91b89c;
 }
 .session-route-strip .route-node.is-current {
-  color: #edf0f4;
+  color: var(--c-text-heading);
 }
 .session-route-strip .route-node.is-current strong {
   font-weight: 500;
@@ -165,9 +165,9 @@
 .session-route-strip .route-node.is-repair-badge {
   padding: 2px 7px;
   border-radius: 4px;
-  background: #30251e;
+  background: var(--c-accent-wash);
   border: 1px solid #70514b;
-  color: #e4c7ae;
+  color: var(--c-accent-strong);
   font-size: 11px;
 }
 .session-route-strip .route-node.is-return {
@@ -184,13 +184,13 @@
   max-width: 960px;
   border: 1px solid #594a3a;
   border-radius: 12px;
-  background: #15191e;
+  background: var(--c-surface-sunken);
   overflow: hidden;
 }
 .session-inline-lesson .session-inline-visual-bar {
   padding: 8px 14px;
-  border-bottom: 1px solid #2b323b;
-  background: #1b1f24;
+  border-bottom: 1px solid var(--c-surface-3);
+  background: var(--c-surface-1);
   color: #dfc3a4;
   font-size: 12px;
 }
