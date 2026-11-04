@@ -1,0 +1,69 @@
+/* Give the activity the window; navigation and messaging share compact rails. */
+.main-workspace:has(.session-focus-header) { padding-top: 12px; }
+.focused-session .session-focus-header {
+  position: relative;
+  z-index: 35;
+  min-height: 58px;
+  padding: 8px 18px;
+  gap: 12px;
+  justify-content: flex-start;
+}
+.session-focus-header .session-plan-link { flex-shrink: 0; padding: 7px 9px; border-right: 1px solid #ffffff12; border-radius: 0; color: #d2b497; }
+.session-focus-header > .session-focus-heading { display: grid; flex: 1; min-width: 0; gap: 3px; }
+.session-focus-heading > strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #d9dfe7; font-weight: 500; font-size: 12px; line-height: 1.5; }
+.session-focus-stage { display: flex; align-items: center; gap: 10px; color: #9fb0c4; font-size: 11px; line-height: 1.5; }
+.session-focus-stage small { color: #bfaa94; font-size: 11px; }
+.session-focus-header > .session-focus-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.session-focus-actions > button { min-height: 32px; font-size: 11px; }
+.session-details { position: relative; }
+.session-details > summary { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; list-style: none; color: #aab5bf; cursor: pointer; }
+.session-details > summary::-webkit-details-marker { display: none; }
+.session-details > summary:hover, .session-details[open] > summary { background: #ffffff09; color: #f0d5bc; }
+.session-details-panel { position: absolute; right: 0; top: calc(100% + 12px); width: min(370px, calc(100vw - 52px)); max-height: 65dvh; overflow-y: auto; padding: 14px; border: 1px solid var(--chrome-edge, #3c424c); border-radius: 12px; background: var(--chrome-surface, #282b30); box-shadow: var(--chrome-shadow, 0 16px 40px #0006); }
+.session-details-panel .session-details-plan { margin: 0 0 12px; color: #d9dfe7; font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
+.session-details-panel .mastery-meter { margin-bottom: 12px; max-width: 100%; }
+.session-details-panel .session-route-strip { flex-wrap: wrap; padding: 12px 0; margin: 0 0 8px; background: transparent; border-block: 1px solid #ffffff10; }
+.session-details-panel .route-node { max-width: 100%; white-space: normal; }
+.session-details-panel > button { width: 100%; padding: 10px; border-radius: 8px; text-align: left; }
+.session-details-panel > button:hover { background: #ffffff08; }
+.app-shell .focused-session .session-composer { padding: 8px 18px; }
+.app-shell .focused-session .session-composer-row { max-width: 1100px; grid-template-columns: minmax(0, 1fr) auto; border-radius: 12px; }
+.app-shell .focused-session .session-composer-row .composer { grid-column: 1; }
+.app-shell .focused-session .session-composer-row .composer-input { min-height: 42px; padding: 4px 8px 4px 13px; border-radius: 12px; align-items: center; }
+.app-shell .focused-session .session-composer-row .composer[data-expanded="false"] textarea { min-height: 28px; max-height: 32px; padding: 3px 0; line-height: 22px; font-size: 12px; }
+.app-shell .focused-session .session-composer-row .session-help-actions { grid-column: 2; width: auto; padding: 4px 8px 4px 0 !important; flex-wrap: nowrap; }
+.app-shell .focused-session .session-composer-row .session-telemetry-bar { display: none; }
+.app-shell .focused-session .composer-size-toggle { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: #a2aab6; }
+.app-shell .focused-session .composer-size-toggle:hover { background: #ffffff09; color: #f0d5bc; }
+.app-shell .focused-session .composer[data-expanded="false"][data-empty="true"] .send-button:not(.stop-button) { display: none; }
+.app-shell .focused-session .session-composer-row:has(.composer[data-expanded="true"]) .composer { grid-column: 1 / -1; }
+.app-shell .focused-session .session-composer-row:has(.composer[data-expanded="true"]) .composer-input { min-height: 58px; align-items: flex-end; padding-top: 8px; }
+.app-shell .focused-session .session-composer-row:has(.composer[data-expanded="true"]) .session-help-actions { grid-column: 1; padding: 3px 8px 8px 10px !important; }
+.app-shell .focused-session .session-composer-row:has(.composer[data-expanded="true"]) .session-telemetry-bar { display: flex; grid-column: 2; align-self: center; padding: 0 12px 5px 0; }
+.focused-session .session-flow { padding-top: 16px; }
+.focused-session[data-question-active="true"] .session-flow { padding-top: 10px; }
+.focused-session .check-context-pills { margin-top: 0; }
+@container sessioncomposer (max-width: 680px) {
+  .app-shell .focused-session .session-composer-row .composer { grid-column: 1 / -1; }
+  .app-shell .focused-session .session-composer-row .session-help-actions { grid-column: 1 / -1; padding: 0 8px 6px !important; }
+  .app-shell .focused-session .session-composer-row:has(.composer[data-expanded="true"]) .session-telemetry-bar { grid-column: 1 / -1; width: 100%; padding: 0 12px 5px; }
+}
+@media (max-width: 600px) {
+  .focused-session .session-focus-header { padding: 7px 12px; gap: 8px; }
+  .session-focus-header .session-plan-link { padding: 7px 4px; }
+  .session-plan-link > span { display: none; }
+  .session-focus-actions > button { max-width: 105px; line-height: 1.4; text-align: right; }
+  .session-focus-header > .session-focus-actions { gap: 6px; }
+  .app-shell .focused-session .session-composer { padding: 6px 10px; }
+  .session-focus-header .session-focus-heading > strong { font-size: 11px; }
+}
+
+.focused-session .check-context-pills:empty { display: none; }
+@media (min-width: 721px) and (max-height: 800px) {
+  .focused-session[data-question-active="true"] .check-kicker { margin-bottom: 10px; }
+  .focused-session[data-question-active="true"] .check-options { gap: 8px; margin-top: 12px; }
+  .focused-session[data-question-active="true"] .check-key-hints { margin-top: 8px; }
+  .focused-session[data-question-active="true"] .check-response-detail { margin-top: 4px; }
+  .focused-session[data-question-active="true"] .check-response-detail > summary { padding: 7px 0; }
+  .focused-session[data-question-active="true"] .check-submit-row { margin-top: 8px; padding-top: 6px; }
+}

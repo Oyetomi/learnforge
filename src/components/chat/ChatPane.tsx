@@ -11,6 +11,8 @@ import {
   ArrowRight,
   Eye,
   Lightbulb,
+  MoreHorizontal,
+  Route,
 } from "lucide-react";
 import type {
   ChatMessage,
@@ -85,6 +87,7 @@ import { LearningHelpPanel } from "./LearningHelpPanel";
 import type { HelpKind } from "../../services/learning/sessionHelp";
 import { canRestorePosition, readSessionPosition, saveSessionPosition } from "../../services/learning/sessionPosition";
 import "./learning-help.css";
+import "./session-focus-layout.css";
 import { estimatePromptTokens } from "../../services/ai/prompts";
 
 interface ChatPaneProps {
@@ -116,6 +119,9 @@ interface ChatPaneProps {
   onOpenSettings?: () => void;
   language?: string;
   allowCoding?: boolean;
+  onOpenPlan?: () => void;
+  planLabel?: string;
+  planTitle?: string;
 }
 
 /** Earlier versions stored quick-action instructions as the learner's message. */
@@ -173,6 +179,9 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   onOpenSettings,
   language,
   allowCoding = true,
+  onOpenPlan,
+  planLabel = "Learning plan",
+  planTitle,
 }) => {
   const preferences = useLearningPreferences();
   const SessionQuestionCard = reviewQuestions ? ReviewedQuestionCard : QuestionCard;
@@ -188,6 +197,19 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   const [helpKind, setHelpKind] = useState<HelpKind>(savedPosition?.helpKind || "walkthrough");
   const helpOpener = useRef<HTMLElement | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const sessionMenu = useRef<HTMLDetailsElement>(null);
+  const closeSessionMenu = () => {
+    if (!sessionMenu.current) return;
+    sessionMenu.current.open = false;
+    sessionMenu.current.querySelector("summary")?.focus({ preventScroll: true });
+  };
+  useEffect(() => {
+    const dismiss = (event: PointerEvent) => {
+      if (sessionMenu.current?.open && !sessionMenu.current.contains(event.target as Node)) sessionMenu.current.open = false;
+    };
+    document.addEventListener("pointerdown", dismiss);
+    return () => document.removeEventListener("pointerdown", dismiss);
+  }, []);
   const composerRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<HTMLDialogElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -725,102 +747,49 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
       }
       aria-label="Guided learning session"
     >
-      <div className="session-toolbar">
-        <span>
-          <BookOpen size={15} />
-          Learning session
-        </span>
-        {activeMilestone && evidence && (
-          <MasteryMeter
-            milestoneId={activeMilestone.id}
-            independentCorrect={evidence.independentCorrect}
-            readyToAdvance={evidence.readyToAdvance}
-            approved={approved}
-          />
-        )}
-        <div>
-          <button
-            onClick={() => setHistoryOpen(true)}
-            title="Saved explanations and conversation"
-          >
-            <History size={14} />
-            <span>Saved explanations</span>
-          </button>
-          {allowCoding && (
-            <button
-              onClick={onToggleCode}
-              aria-pressed={isCodeWorkspaceOpen}
-              title={
-                isCodeWorkspaceOpen
-                  ? "Hide coding practice"
-                  : "Open coding practice"
-              }
-            >
-              <Code2 size={14} />
-              <span>
-                {isCodeWorkspaceOpen ? "Hide code" : "Coding practice"}
-              </span>
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="session-activity-bar">
-        <span>{stageLabel}</span>
-        {slideCount > 1 && (!busy || held) && (
-          <span
-            className="slide-progress"
-            aria-label={`Slide ${slideNumber} of ${slideCount}`}
-          >
-            {Array.from({ length: slideCount }, (_, i) => (
-              <i
-                key={i}
-                className={
-                  i === slideNumber - 1
-                    ? "is-current"
-                    : i < slideNumber - 1
-                    ? "is-seen"
-                    : ""
-                }
-              />
-            ))}
-            <small>
-              {slideNumber} / {slideCount}
-            </small>
+      <header className="session-toolbar session-focus-header">
+        {onOpenPlan && <button type="button" className="session-plan-link" onClick={onOpenPlan} aria-label={`Open ${planLabel.toLowerCase()}`} title={planTitle || planLabel}>
+          <Route size={16} aria-hidden="true" /><span>{planLabel}</span>
+        </button>}
+        <div className="session-focus-heading">
+          <strong title={activeMilestone?.title}>{activeMilestone ? cleanMilestoneTitle(activeMilestone.title) : "Learning session"}</strong>
+          <span className="session-focus-stage" aria-live="polite">{approved ? "Ready for the next concept" : stageLabel}
+            {(activity === "lesson" || activity === "reply") && slideCount > 1 && (!busy || held) &&
+              <small aria-label={`Step ${slideNumber} of ${slideCount}`}>{slideNumber} / {slideCount}</small>}
           </span>
-        )}
-        <div>
-          {!busy &&
-            activity !== "check" &&
-            activity !== "reference" &&
-            latest && (
-              <button onClick={goToQuestion}>
-                {attempt ? "Review answer" : "Open question"}
-              </button>
-            )}
-          {!busy && activity !== "lesson" && lessonSteps.length > 0 && (
-            <button
-              title={
-                activity === "check" && latest && !attempt
-                  ? "Open full lesson screen (marks this question as open-book practice)"
-                  : undefined
-              }
-              onClick={() => {
-                if (activity === "check" && latest && !attempt) {
-                  recordVisualSupport(latest.id, "open-book:lesson");
-                }
-                setActivity("lesson");
-              }}
-            >
-              Review explanation
-            </button>
-          )}
         </div>
-      </div>
-      <SessionRouteStrip
-        milestones={milestones}
-        activeMilestone={activeMilestone}
-        messages={messages}
-      />
+        <div className="session-focus-actions">
+          {!busy && activity !== "check" && activity !== "reference" && latest && (
+            <button onClick={goToQuestion}>{attempt ? "Review answer" : "Open question"}</button>
+          )}
+          {!busy && activity !== "lesson" && lessonSteps.length > 0 && (
+            <button title={activity === "check" && !reviewAttempt ? "Show the lesson alongside this question; this counts as supported practice" : undefined}
+              aria-label={activity === "check" && !reviewAttempt ? inlineLessonOpen ? "Hide explanation" : "Peek at explanation (switches to supported practice)" : undefined}
+              onClick={() => {
+                if (activity === "check" && reviewCheck && !reviewAttempt) {
+                  if (!inlineLessonOpen && latest) recordVisualSupport(latest.id, "open-book:lesson");
+                  setInlineLessonOpen(value => !value);
+                } else setActivity("lesson");
+              }} aria-expanded={activity === "check" && !reviewAttempt ? inlineLessonOpen : undefined}>
+              {activity === "check" && !reviewAttempt ? inlineLessonOpen ? "Hide explanation" : "Peek at explanation" : "Review explanation"}</button>
+          )}
+          <details className="session-details" ref={sessionMenu} onKeyDown={event => {
+            if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeSessionMenu(); }
+          }}>
+            <summary aria-label="Session details and tools" title="Session details and tools"><MoreHorizontal size={18} /></summary>
+            <div className="session-details-panel">
+              {planTitle && <p className="session-details-plan">{planTitle}</p>}
+              {activeMilestone && evidence && <MasteryMeter milestoneId={activeMilestone.id} independentCorrect={evidence.independentCorrect} readyToAdvance={evidence.readyToAdvance} approved={approved} />}
+              <SessionRouteStrip milestones={milestones} activeMilestone={activeMilestone} messages={messages} />
+              <button onClick={() => { closeSessionMenu(); setHistoryOpen(true); }}><History size={14} /> Saved explanations</button>
+              {allowCoding && <button aria-pressed={isCodeWorkspaceOpen} onClick={() => { closeSessionMenu(); onToggleCode(); }}>
+                <Code2 size={14} />{isCodeWorkspaceOpen ? "Hide code" : "Coding practice"}
+              </button>}
+              {onOpenSettings && <button onClick={() => { closeSessionMenu(); onOpenSettings(); }}><ChevronDown size={14} /> AI connection</button>}
+            </div>
+          </details>
+        </div>
+      </header>
       <div className={`session-stage ${narrowHelp ? "is-narrow" : ""} ${shownHelp && helpExpanded ? "is-help-expanded" : ""}`} ref={stageRef}
         style={shownHelp && stageWidth ? {"--help-pane-width":`${helpPaneWidth(stageWidth,helpRatios[helpKind])}px`} as React.CSSProperties : undefined}>
       <div className="session-flow" ref={scrollRef} onScroll={() => saveSessionPosition(positionKey, { ...currentPosition, scrollTop: scrollRef.current?.scrollTop || 0 })}>
@@ -1018,26 +987,6 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                     onClick={() => setActivity("reference")}
                   >
                     View reference
-                  </button>
-                )}
-                {reviewCheck && !reviewAttempt && lessonSteps.length > 0 && (
-                  <button
-                    type="button"
-                    className="slide-reference-button is-lesson-peek"
-                    aria-expanded={inlineLessonOpen}
-                    onClick={() => {
-                      if (!inlineLessonOpen && latest && !attempt) {
-                        recordVisualSupport(latest.id, "open-book:lesson");
-                      }
-                      setInlineLessonOpen((v) => !v);
-                    }}
-                  >
-                    <BookOpen size={13} />
-                    {inlineLessonOpen
-                      ? "Hide explanation"
-                      : visualSupportFor(reviewCheck.id).length > 0
-                      ? "Show explanation alongside question"
-                      : "Peek at explanation (switches to supported practice)"}
                   </button>
                 )}
                 {availableVisual && (
@@ -1421,6 +1370,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
             key={`${trackId}:${activeMilestone?.id}`}
             draftKey={`learnforge:composer-draft:${trackId}:${activeMilestone?.id}`}
             compact
+            collapsible
             sideQuestion={btwMode}
             codeIncluded={isCodeWorkspaceOpen}
             onSendMessage={handleComposerSend}
@@ -1444,6 +1394,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
               disabled={busy}
               data-help-kind="hint"
               onClick={() => openHelp("hint")}
+              aria-label="Hint"
               title="Give me a hint"
             >
               <Lightbulb size={13} />
@@ -1454,6 +1405,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
               aria-pressed={shownHelp && helpKind === "visual"}
               data-help-kind="visual"
               onClick={() => openHelp("visual")}
+              aria-label="Visual"
               title="Open a visual alongside this activity"
             >
               <Eye size={13} />
@@ -1463,6 +1415,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
               disabled={busy}
               data-help-kind="walkthrough"
               onClick={() => openHelp("walkthrough")}
+              aria-label="Walkthrough"
               title="Open a walkthrough alongside this activity"
             >
               <ListTree size={13} />

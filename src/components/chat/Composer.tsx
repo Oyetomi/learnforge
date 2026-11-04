@@ -5,6 +5,8 @@ import {
   BookOpen,
   Square,
   ListTree,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { VoiceDictationButton } from "../learning/VoiceDictationButton";
 
@@ -15,6 +17,7 @@ interface ComposerProps {
   activeMilestoneTitle?: string;
   codeIncluded?: boolean;
   compact?: boolean;
+  collapsible?: boolean;
   sideQuestion?: boolean;
   draftKey?: string;
   onQuickAction?: (
@@ -29,6 +32,7 @@ export const Composer: React.FC<ComposerProps> = ({
   onQuickAction,
   codeIncluded = false,
   compact = false,
+  collapsible = false,
   sideQuestion = false,
   draftKey,
 }) => {
@@ -47,21 +51,25 @@ export const Composer: React.FC<ComposerProps> = ({
     }
   }, [input, draftKey]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [expanded, setExpanded] = useState(() => !collapsible || !!input.trim());
+  useEffect(() => { if (sideQuestion) setExpanded(true); }, [sideQuestion]);
   useEffect(() => {
     if (!textareaRef.current) return;
     textareaRef.current.style.height = "auto";
     textareaRef.current.style.height = `${Math.min(
       textareaRef.current.scrollHeight,
-      120
+      collapsible && !expanded ? 32 : 120
     )}px`;
-  }, [input]);
+  }, [input, expanded, collapsible]);
   const submit = () => {
     if (!input.trim() || isStreaming) return;
     onSendMessage(input.trim());
     setInput("");
+    if (collapsible) setExpanded(false);
   };
   return (
-    <div className="composer">
+    <div className="composer" data-expanded={collapsible ? String(expanded) : undefined} data-empty={!input.trim() ? "true" : undefined}
+      onBlur={e => { if (collapsible && !input.trim() && !e.currentTarget.contains(e.relatedTarget as Node | null)) setExpanded(false); }}>
       {!compact && (
         <div className="quick-actions" aria-label="Ask your coach">
           <button
@@ -92,8 +100,15 @@ export const Composer: React.FC<ComposerProps> = ({
           aria-label="Message your AI coach"
           ref={textareaRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onFocus={() => { if (collapsible) setExpanded(true); }}
+          onChange={(e) => { setInput(e.target.value); if (collapsible) setExpanded(true); }}
           onKeyDown={(e) => {
+            if (collapsible && e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
+              setExpanded(false);
+              return;
+            }
             if (
               e.key === "Enter" &&
               !e.shiftKey &&
@@ -106,21 +121,26 @@ export const Composer: React.FC<ComposerProps> = ({
           placeholder={
             sideQuestion
               ? "Ask a quick side question…"
-              : compact
+              : collapsible && !expanded ? "Ask about this…" : compact
               ? "Ask about this step…"
               : "Ask about this step, or tell me what’s confusing…"
           }
           rows={compact ? 1 : 2}
         />
+        {collapsible && <button type="button" className="composer-size-toggle" aria-expanded={expanded}
+          aria-label={expanded ? "Collapse message box" : "Expand message box"}
+          title={expanded ? "Collapse; your draft stays saved" : "Expand message box"}
+          onClick={() => setExpanded(value => !value)}>
+          {expanded ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+        </button>}
         {!isStreaming && (
           <VoiceDictationButton
             compact
             label="Dictate message to coach"
-            onTranscript={(chunk) =>
-              setInput((prev) =>
-                prev ? `${prev.trimEnd()} ${chunk}` : chunk
-              )
-            }
+            onTranscript={(chunk) => {
+              if (collapsible) setExpanded(true);
+              setInput(prev => prev ? `${prev.trimEnd()} ${chunk}` : chunk);
+            }}
           />
         )}
         {isStreaming ? (

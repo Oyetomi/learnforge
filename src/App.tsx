@@ -1,7 +1,7 @@
 import "./motion.css";
 import "./components/layout/component-materials.css";
 import React, { useState, useEffect, useRef, Suspense, lazy } from "react";
-import { Code2, BookOpen, Route, Loader2 } from "lucide-react";
+import { Code2, BookOpen, Loader2 } from "lucide-react";
 import { handleTabNavigation } from "./components/layout/keyboard";
 import { Header } from "./components/layout/Header";
 import {
@@ -1332,7 +1332,6 @@ export default function App() {
               onDiagnostic={milestone=>{handleSelectMilestone(milestone);setDiagnosticFor(milestone.id);}} />
           ) : (
             <>
-              {selectedTrack && <div className="curriculum-session-context"><button onClick={()=>{handleStopStreaming();setWorkspaceView("curriculum");setIsSidebarOpen(false);}}><Route size={14}/> {selectedTrack.curriculum?"Curriculum":"Learning plan"}</button><span>{selectedTrack.curriculum?.modules.find(module=>module.id===activeMilestone?.curriculum_module_id)?.title || selectedTrack.title}</span><small>{activeMilestone?.adaptive?"Repair step · return planned":"One unit at a time"}</small></div>}
               {currentSession.language && <div
                 className="mobile-workspace-tabs"
                 role="tablist"
@@ -1387,6 +1386,9 @@ export default function App() {
                     <button className="check-coach-button" onClick={()=>setWorkspaceView("curriculum")}>Back to curriculum</button>
                   </section> : <ChatPane
                     reviewQuestions
+                    planTitle={selectedTrack?.title}
+                    planLabel={selectedTrack?.curriculum ? "Curriculum" : "Learning plan"}
+                    onOpenPlan={() => { handleStopStreaming(); setWorkspaceView("curriculum"); setIsSidebarOpen(false); }}
                     trackId={currentTrackId}
                     language={currentSession?.language || undefined}
                     allowCoding={!!currentSession?.language}
