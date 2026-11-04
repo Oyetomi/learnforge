@@ -1,6 +1,7 @@
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 import '../../src/index.css';
+import '../../src/styles/foundation.css';
 import {nextTeachingStep} from '../../src/services/learning/teaching';
 import {learningEvidence} from '../../src/services/learning/checks';
 const sid='session-layout-qa-session',mid='session-layout-qa-milestone',tid='session-layout-qa-track';

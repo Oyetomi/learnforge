@@ -6,7 +6,7 @@
 .focused-session .telemetry-model-pill {
   max-width: min(72%, 440px);
   min-height: 30px;
-  border-radius: 5px;
+  border-radius: 6px;
   font-size: 11px;
 }
 .telemetry-model-pill strong {
@@ -35,10 +35,10 @@
   right: 0;
   bottom: calc(100% + 8px);
   width: min(340px, calc(100vw - 48px));
-  border: 1px solid var(--border, #34383f);
-  border-radius: 7px;
+  border: 1px solid var(--border, #343c45);
+  border-radius: 8px;
   padding: 16px;
-  background: var(--panel, #191b1e);
+  background: var(--panel, #15191e);
   color: var(--heading, #edf0f4);
   box-shadow: 0 8px 24px #0005;
 }
@@ -111,7 +111,7 @@
   }
   .focused-session .mastery-status {
     display: inline;
-    font-size: 10px;
+    font-size: 11px;
     white-space: normal;
     max-width: 130px;
   }
@@ -124,10 +124,10 @@
   gap: 8px;
   padding: 5px 20px;
   min-height: 30px;
-  border-bottom: 1px solid #22272f;
-  background: #121519;
+  border-bottom: 1px solid #282b30;
+  background: #101318;
   font-size: 11px;
-  color: #939fad;
+  color: #8fa0b5;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -149,33 +149,33 @@
   text-overflow: ellipsis;
 }
 .session-route-strip .route-node.is-foundation.is-done {
-  color: #8fb69c;
+  color: #91b89c;
 }
 .session-route-strip .route-node.is-current {
-  color: #ebeef3;
+  color: #edf0f4;
 }
 .session-route-strip .route-node.is-current strong {
   font-weight: 500;
 }
 .session-route-strip .route-node small {
   font-family: var(--font-code);
-  font-size: 10px;
-  color: #7f8b99;
+  font-size: 11px;
+  color: #7f8896;
 }
 .session-route-strip .route-node.is-repair-badge {
   padding: 2px 7px;
   border-radius: 4px;
-  background: #2b231b;
-  border: 1px solid #6b533b;
-  color: #e4c39f;
-  font-size: 10.5px;
+  background: #30251e;
+  border: 1px solid #70514b;
+  color: #e4c7ae;
+  font-size: 11px;
 }
 .session-route-strip .route-node.is-return {
-  color: #c8b094;
+  color: #c8b19a;
 }
 .session-route-strip .route-arrow {
   flex-shrink: 0;
-  color: #5f6a77;
+  color: #576a79;
 }
 
 /* Inline open-book explanation panel anchored above QuestionCard */
@@ -183,16 +183,16 @@
   margin: 8px auto 14px;
   max-width: 960px;
   border: 1px solid #594a3a;
-  border-radius: 11px;
-  background: #171a1f;
+  border-radius: 12px;
+  background: #15191e;
   overflow: hidden;
 }
 .session-inline-lesson .session-inline-visual-bar {
   padding: 8px 14px;
-  border-bottom: 1px solid #2b3038;
-  background: #1f1c19;
+  border-bottom: 1px solid #2b323b;
+  background: #1b1f24;
   color: #dfc3a4;
-  font-size: 11.5px;
+  font-size: 12px;
 }
 .session-inline-lesson-body {
   padding: 14px 18px;
@@ -201,7 +201,7 @@
   overscroll-behavior: contain;
 }
 .session-inline-lesson-body .prose {
-  font-size: 14.75px;
+  font-size: 15px;
   line-height: 1.66;
 }
 .slide-reference-button.is-lesson-peek {

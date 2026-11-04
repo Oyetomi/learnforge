@@ -6,12 +6,12 @@
 }
 .reference-shelf summary small {
   color: var(--muted, #a2aab6);
-  font-size: 10px;
+  font-size: 11px;
   margin-left: auto;
   white-space: nowrap;
 }
 .reference-shelf .reference-document {
-  border-top: 1px solid var(--border, #34383f);
+  border-top: 1px solid var(--border, #343c45);
   padding: 12px 0;
 }
 .reference-document > summary {
@@ -21,7 +21,7 @@
   gap: 12px;
 }
 .reference-shelf .reference-identifier {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted, #a2aab6);
   overflow-wrap: anywhere;
 }
@@ -40,7 +40,7 @@
 }
 .reference-plugin-badge {
   font-style: normal;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -48,13 +48,13 @@
   border-radius: 999px;
   background: rgba(212, 176, 140, 0.14);
   border: 1px solid rgba(212, 176, 140, 0.35);
-  color: #e6c6a2;
+  color: #e4c7ae;
 }
 .reference-external-link {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  color: #d4b08c;
+  color: #d2b497;
   text-decoration: none;
 }
 .reference-external-link:hover {

@@ -92,7 +92,7 @@
   font-weight: 500;
 }
 .editor-pane .test-results-heading > span {
-  font-size: 10px;
+  font-size: 11px;
 }
 .editor-pane .is-passing {
   color: rgb(var(--color-success));
@@ -117,7 +117,7 @@
   padding: 12px;
   border: 1px solid #41604b;
   border-radius: 6px;
-  background: #a4ceb108;
+  background: #a5ceb208;
 }
 .editor-pane .tests-passed-summary p {
   display: flex;
@@ -155,14 +155,14 @@
   overflow-wrap: anywhere;
 }
 .editor-pane .test-result-item h4 small {
-  font-size: 10px;
+  font-size: 11px;
 }
 .editor-pane .test-result-item dl {
   margin: 12px 0 0 22px;
 }
 .editor-pane .test-result-item dt {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   margin-top: 10px;
 }
 .editor-pane .test-result-item dd {

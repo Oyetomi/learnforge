@@ -10,17 +10,17 @@
 .learning-start-heading { margin-bottom: 28px; }
 .learning-start-eyebrow { display: flex; align-items: center; gap: 9px; color: #c8b19a; font-size: 11px; line-height: 1.6; margin-bottom: 18px; }
 .learning-start h1 { font-size: clamp(25px, 3vw, 34px); font-weight: 500; letter-spacing: -.045em; line-height: 1.3; margin: 0 0 14px; padding: 0; }
-.learning-start-heading p { color: #a6aeb9; font-size: 13px; line-height: 1.8; margin: 0; max-width: 65ch; }
+.learning-start-heading p { color: #a2aab6; font-size: 13px; line-height: 1.8; margin: 0; max-width: 65ch; }
 .learning-start-prompt {
   padding: 22px;
   border: 1px solid #ffffff20;
-  border-radius: 18px;
-  background: linear-gradient(150deg, #24272b, #1b1e22);
+  border-radius: 16px;
+  background: linear-gradient(150deg, #282b30, #1b1f24);
   box-shadow: 0 12px 40px #0002, inset 0 1px 0 #ffffff07;
   transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
 }
-.learning-start-prompt:focus-within { border-color: #d6b28b99; box-shadow: 0 12px 40px #0002, 0 0 0 3px #d6b28b0b; }
-.learning-start-prompt label { display: block; color: #b9c0c9; font-size: 11px; margin-bottom: 12px; }
+.learning-start-prompt:focus-within { border-color: #d2b49799; box-shadow: 0 12px 40px #0002, 0 0 0 3px #d2b4970b; }
+.learning-start-prompt label { display: block; color: #b8c0cc; font-size: 11px; margin-bottom: 12px; }
 .learning-start-prompt textarea {
   display: block;
   width: 100%;
@@ -31,31 +31,31 @@
   border-radius: 0;
   resize: vertical;
   background: transparent;
-  color: #f0f1f3;
-  font-size: 17px;
+  color: #edf0f4;
+  font-size: 18px;
   line-height: 1.7;
   box-shadow: none;
 }
 .learning-start-prompt textarea:focus-visible { outline: none; }
-.learning-start-prompt textarea::placeholder { color: #8e97a3; }
+.learning-start-prompt textarea::placeholder { color: #8f99a7; }
 .learning-start-prompt-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; }
 .learning-start-prompt-actions .dialog-primary-button { display: inline-flex; align-items: center; justify-content: center; gap: 18px; padding: 11px 17px; min-width: 136px; }
-.learning-start-material { display: inline-flex; align-items: center; gap: 8px; color: #b0bac7; background: transparent; border: 0; border-radius: 7px; padding: 9px 0; font-size: 11px; }
+.learning-start-material { display: inline-flex; align-items: center; gap: 8px; color: #aebbb0; background: transparent; border: 0; border-radius: 8px; padding: 9px 0; font-size: 11px; }
 .learning-start-material:hover { color: #edf0f4; }
-.learning-start-next { margin: 12px 2px 28px; color: #929ca9; font-size: 10px; line-height: 1.7; }
-.learning-start-examples > p { font-size: 11px; color: #a7b0bc; margin: 0 0 12px; }
+.learning-start-next { margin: 12px 2px 28px; color: #8fa0b5; font-size: 11px; line-height: 1.7; }
+.learning-start-examples > p { font-size: 11px; color: #9fb0c4; margin: 0 0 12px; }
 .learning-start-example-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.learning-start-example-list > button { text-align: left; display: flex; flex-direction: column; gap: 13px; padding: 16px; min-height: 112px; border: 1px solid #ffffff10; border-radius: 12px; color: #d9dde3; background: #ffffff03; }
+.learning-start-example-list > button { text-align: left; display: flex; flex-direction: column; gap: 13px; padding: 16px; min-height: 112px; border: 1px solid #ffffff10; border-radius: 12px; color: #d9dfe7; background: #ffffff03; }
 .learning-start-example-list > button:hover { background: #ffffff07; border-color: #ffffff25; }
 .learning-start-example-list > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.learning-start-example-label { display: flex; align-items: center; gap: 8px; color: #a4aebc; font-size: 10px; }
+.learning-start-example-label { display: flex; align-items: center; gap: 8px; color: #a2aab6; font-size: 11px; }
 .learning-start-example-prompt { display: flex; align-items: center; gap: 14px; justify-content: space-between; width: 100%; font-size: 12px; line-height: 1.7; }
-.learning-start-example-prompt > svg { flex-shrink: 0; color: #8e99a7; transition: translate var(--motion-fast); }
+.learning-start-example-prompt > svg { flex-shrink: 0; color: #8f99a7; transition: translate var(--motion-fast); }
 .learning-start-example-list > button:hover .learning-start-example-prompt > svg { translate: 3px 0; }
 .learning-start-process { list-style: none; display: flex; flex-wrap: wrap; gap: 12px 24px; border-top: 1px solid #ffffff0d; padding: 20px 0 0; margin: 30px 0 0; }
-.learning-start-process li { display: flex; align-items: baseline; gap: 9px; font-size: 10px; line-height: 1.7; color: #9ca6b3; }
-.learning-start-process li > span { color: #c8b19a; font-size: 9px; }
-.learning-start-cleanup { border: 0; background: transparent; padding: 16px 0 0; color: #9ca6b3; font-size: 10px; }
+.learning-start-process li { display: flex; align-items: baseline; gap: 9px; font-size: 11px; line-height: 1.7; color: #a2aab6; }
+.learning-start-process li > span { color: #c8b19a; font-size: 11px; }
+.learning-start-cleanup { border: 0; background: transparent; padding: 16px 0 0; color: #a2aab6; font-size: 11px; }
 @media (max-height: 800px) and (min-width: 651px) {
   .learning-start { padding-block: 18px; }
   .learning-start-heading { margin-bottom: 20px; }
@@ -70,15 +70,15 @@
 }
 @media (max-width: 650px) {
   .learning-start { padding: 30px 10px; }
-  .learning-start h1 { font-size: 26px; }
+  .learning-start h1 { font-size: 28px; }
   .learning-start-example-list { grid-template-columns: 1fr; }
   .learning-start-example-list > button { min-height: 0; gap: 6px; padding: 13px 15px; }
   .learning-start-prompt { padding: 18px; }
   .learning-start-prompt textarea { font-size: 15px; }
   .learning-start-prompt-actions { gap: 10px; }
   .learning-start-prompt-actions .dialog-primary-button { min-width: 0; gap: 10px; padding: 10px 12px; }
-  .learning-start-material { font-size: 10px; }
+  .learning-start-material { font-size: 11px; }
   .learning-start-process { gap: 10px; flex-direction: column; }
 }
 @media (prefers-reduced-motion: reduce) { .learning-start-example-list > button:hover .learning-start-example-prompt > svg { translate: none; } }
-@media (prefers-contrast: more) { .learning-start-prompt, .learning-start-example-list > button { border-color: #a5aebc; } }
+@media (prefers-contrast: more) { .learning-start-prompt, .learning-start-example-list > button { border-color: #a2aab6; } }

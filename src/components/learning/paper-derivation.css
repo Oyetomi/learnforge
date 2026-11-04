@@ -10,7 +10,7 @@
 }
 .paper-derivation .guided-header { padding: 18px 0; border-color: var(--figure-rule); }
 .paper-derivation :is(.guided-header h4, .guided-reason h5, h4, .ladder-annotation h5) { color: var(--figure-ink); font-family: var(--figure-serif) !important; font-weight: 400; }
-.paper-derivation .guided-header h4, .paper-derivation > h4 { font-size: 21px; line-height: 1.4; }
+.paper-derivation .guided-header h4, .paper-derivation > h4 { font-size: 22px; line-height: 1.4; }
 .paper-derivation .guided-header > span { color: var(--figure-muted); }
 .paper-derivation .guided-current { padding: 22px 0 16px; }
 .paper-derivation .guided-equations { padding: 6px 0 24px; gap: 24px; }
@@ -28,11 +28,11 @@
 .paper-derivation .guided-progress .is-seen { background: var(--figure-accent); }
 .paper-derivation .guided-overview { padding: 22px 0 0; }
 .paper-derivation .guided-overview li { border-color: var(--figure-rule); }
-.paper-derivation .guided-overview strong { color: var(--figure-ink); font-size: 17px; font-weight: 400; }
+.paper-derivation .guided-overview strong { color: var(--figure-ink); font-size: 18px; font-weight: 400; }
 .paper-derivation :is(.ladder-start > span, .ladder-result > span) { color: var(--figure-muted); font-style: italic; }
 .paper-derivation :is(.ladder-state, .ladder-evaluation) { color: var(--figure-code); font-size: 14px; line-height: 1.75; overflow-wrap: anywhere; white-space: pre-wrap; }
 .paper-derivation .ladder-steps { margin: 20px 0; }
-.paper-derivation .ladder-annotation h5 { font-size: 17px; }
+.paper-derivation .ladder-annotation h5 { font-size: 18px; }
 .paper-derivation .ladder-arrow { color: var(--figure-link) !important; }
 .paper-derivation .ladder-arrow svg :is(line, polyline) { stroke-width: 1; }
 .paper-derivation .ladder-state mark { color: var(--figure-accent) !important; background: transparent; border: 0; border-bottom: 1px solid var(--figure-underline); border-radius: 0; }
@@ -47,6 +47,6 @@
 @container (max-width: 500px) {
   .paper-derivation .guided-equations { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .paper-derivation .guided-equations > svg { transform: rotate(90deg); justify-self: center; }
-  .paper-derivation :is(.math-formula, .ladder-formula) { font-size: 21px; }
+  .paper-derivation :is(.math-formula, .ladder-formula) { font-size: 22px; }
 }
 @media (max-width: 600px) { .paper-derivation:is(.guided-derivation, .derivation-ladder) { padding: 16px 14px 0; } }

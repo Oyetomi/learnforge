@@ -1,0 +1,109 @@
+/*
+ * Design foundation: shared scales and the reading/interface type split.
+ *
+ * Interface chrome (labels, buttons, navigation, kickers) keeps the monospace
+ * identity. Long-form reading surfaces (lesson prose, questions, answer
+ * choices, feedback, and the learner's own writing) use a proportional face,
+ * which is substantially easier to read at length.
+ *
+ * Scales mirror the values the existing stylesheets were normalised to:
+ *   type   11 12 13 14 15 16 18 20 22 24 28
+ *   radius 2 4 6 8 12 16 999
+ */
+:root {
+  color-scheme: dark;
+  accent-color: rgb(var(--color-accent));
+
+  --font-reading: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
+
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 22px;
+  --text-3xl: 28px;
+
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-pill: 999px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --reading-measure: 70ch;
+
+}
+
+/* Reading surfaces. Code, math, and figure internals keep their own faces. */
+.app-shell :is(
+    .prose,
+    .check-question,
+    .check-option-label,
+    .check-feedback-title,
+    .check-feedback-explanation,
+    .answer-tutoring-step,
+    .knowledge-tutoring,
+    .schematic-inspector-prose,
+    .adaptive-context p,
+    .readiness-review p
+  ),
+.app-shell :is(
+    .prose,
+    .check-question,
+    .check-option-label,
+    .check-feedback-explanation,
+    .answer-tutoring-step,
+    .knowledge-tutoring,
+    .schematic-inspector-prose
+  )
+  :is(p, li, span, strong, em, b, i, a, h1, h2, h3, h4, h5, blockquote, td, th, div, small):not(pre *, code, code *, .katex, .katex *, .snippet *, svg *) {
+  font-family: var(--font-reading);
+  letter-spacing: -0.003em;
+}
+
+/* Proportional text sets tighter than monospace; keep generous but not airy leading. */
+.app-shell .prose :is(p, li) {
+  line-height: 1.65;
+}
+.app-shell .session-flow .prose {
+  max-width: var(--reading-measure);
+}
+
+/* The learner's own writing is reading-length too. */
+.app-shell textarea:not(.monaco-editor textarea):not(.inputarea) {
+  font-family: var(--font-reading);
+}
+
+/* Consistent keyboard focus for text inputs (buttons already have it). */
+.app-shell :is(input, textarea):focus-visible {
+  outline: 2px solid rgb(var(--color-accent) / 0.55);
+  outline-offset: 1px;
+}
+
+/* Native checkboxes/radios follow the theme instead of rendering bright white. */
+.app-shell input:is([type="checkbox"], [type="radio"]) {
+  width: 15px;
+  height: 15px;
+  accent-color: rgb(var(--color-accent));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell *,
+  .app-shell *::before,
+  .app-shell *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}

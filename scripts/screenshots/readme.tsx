@@ -5,6 +5,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import "../../src/index.css";
+import '../../src/styles/foundation.css';
 import type { ChatMessage, CheckAttempt, LearningCheck, Milestone } from "../../src/types";
 import type { CourseTrack } from "../../src/services/ai/types";
 import { tutoringAttemptKey } from "../../src/services/learning/tutoring";
