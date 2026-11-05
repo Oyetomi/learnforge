@@ -1,0 +1,26 @@
+.pdf-chapters { min-width: 0; padding: 16px; border: 1px solid var(--chrome-edge, #45464b); border-radius: 12px; background: #ffffff03; }
+.pdf-chapters-heading, .pdf-chapters-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.pdf-chapters-heading { justify-content: space-between; }
+.pdf-chapters-heading strong { font-size: 14px; font-weight: 550; color: #e3e4e7; }
+.pdf-chapters-heading span, .pdf-chapters-note, .pdf-chapters > p, .pdf-manual-contents small { color: #a6aab2; font-size: 12px; line-height: 1.7; }
+.pdf-chapters > p { margin: 10px 0; }
+.new-topic-form .pdf-chapters-toggle, .new-topic-form .pdf-chapter-choice { display: flex; align-items: flex-start; gap: 10px; margin: 0; min-width: 0; }
+.pdf-chapters input[type="checkbox"] { flex: 0 0 18px; width: 18px; height: 18px; margin: 3px 0 0; accent-color: #cfb292; }
+.pdf-chapters-toggle > span { font-size: 13px; line-height: 1.7; }
+.pdf-chapters-toolbar { margin-top: 14px; }
+.pdf-chapters-toolbar > span { margin-right: auto; font-size: 12px; }
+.pdf-chapters button { font-size: 12px; border: 1px solid #ffffff20; border-radius: 7px; padding: 6px 9px; }
+.pdf-chapter-list { max-height: 300px; overflow-y: auto; overscroll-behavior: contain; padding: 0; margin: 12px 0; list-style: none; }
+.pdf-chapter-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 0 12px calc(var(--chapter-depth) * 12px); border-top: 1px solid #ffffff0b; }
+.pdf-chapter-choice > span { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.pdf-chapter-choice small { display: block; font-size: 10px; color: #bdac98; }
+.pdf-chapter-pages { display: flex; align-items: center; gap: 7px; color: #969ca7; font-size: 10px; }
+.new-topic-form .pdf-chapter-pages label { display: flex; align-items: center; gap: 6px; font-size: 10px; margin: 0; }
+.new-topic-form .pdf-chapter-pages input { width: 56px; min-height: 32px; padding: 4px 6px; font-size: 12px; border-radius: 6px; }
+.pdf-manual-contents { margin-top: 14px; }
+.pdf-manual-contents summary { cursor: pointer; font-size: 12px; color: #cbb69b; }
+.pdf-manual-contents textarea { display: block; width: 100%; }
+.pdf-manual-contents small { display: block; margin-top: 8px; }
+.curriculum-source-note { margin: 12px 0; padding: 12px 14px; border-left: 2px solid #b7a388; background: #ffffff03; color: #b6b6be; font-size: 12px; line-height: 1.7; }
+.curriculum-source-chapters { display: block; margin: 5px 0; font-size: 11px; color: #b8aa97; }
+@media (max-width: 550px) { .pdf-chapter-list li { grid-template-columns: minmax(0, 1fr); gap: 7px; } .pdf-chapter-pages { padding-left: 28px; } }

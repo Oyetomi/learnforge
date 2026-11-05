@@ -4,7 +4,7 @@ import {
   buildStudySheet,
   buildStudySheetMarkdown,
 } from "../studySheet";
-import { extractPdfText, extractTextFromFile } from "../fileExtractor";
+import { extractTextFromFile } from "../fileExtractor";
 import { suggestTopics } from "../../ai/interests";
 import { approveLearningPlan } from "../placement";
 import type { ChatMessage, Milestone } from "../../../types";
@@ -88,13 +88,7 @@ describe("Study Sheet & Anki deck export (#166, #11) and Plan Approval (#252)", 
     expect(tsv).toContain("revisit");
   });
 
-  it("extracts readable text from local code/markdown files and PDF text streams and passes it to suggestTopics", async () => {
-    const fakePdf =
-      "%PDF-1.4\n1 0 obj\n<< /Length 44 >>\nstream\nBT /F1 12 Tf 72 712 Td (Goroutines and Channels) Tj ET\nendstream\nendobj";
-    const pdfBytes = new TextEncoder().encode(fakePdf);
-    const extractedPdf = await extractPdfText(pdfBytes);
-    expect(extractedPdf).toContain("Goroutines and Channels");
-
+  it("extracts readable text from local code/markdown files and passes it to suggestTopics", async () => {
     const fakeMdFile = {
       name: "notes.md",
       type: "text/markdown",

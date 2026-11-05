@@ -42,6 +42,9 @@ import {
 } from "../../services/learning/conceptLedger";
 import type { LearningScope } from "../../services/learning/curriculumPlan";
 import { extractTextFromFile } from "../../services/learning/fileExtractor";
+import { readPdfBook, readSelectedPdfChapters } from "../../services/learning/pdfReader";
+import { mainPdfSections, selectedPdfSource, type PdfBook } from "../../services/learning/pdfContents";
+import { PdfChapterPicker } from "./PdfChapterPicker";
 import type { CourseTrack } from "../../services/ai/types";
 import type { ConfidenceLevel } from "../../types";
 import { VoiceDictationButton } from "../learning/VoiceDictationButton";
@@ -82,6 +85,10 @@ export const NewTopicModal: React.FC<Props> = ({
   const diagnosticFirst = diagnosticChoice ?? requestsDiagnosticFirst(`${interest} ${destination}`);
   const [referenceName, setReferenceName] = useState(""),
     [referenceContent, setReferenceContent] = useState("");
+  const [pdfBook, setPdfBook] = useState<PdfBook | null>(null);
+  const [pdfSections, setPdfSections] = useState<string[]>([]);
+  const [usePdfContents, setUsePdfContents] = useState(false);
+  const pdfReadController = useRef<AbortController | null>(null);
   const [exaConfig, setExaConfig] = useState<ExaPluginConfig>(() =>
     getExaPluginConfig()
   );
@@ -176,6 +183,7 @@ export const NewTopicModal: React.FC<Props> = ({
       mounted.current = false;
       requestRef.current?.abort();
       exaControllerRef.current?.abort();
+      pdfReadController.current?.abort();
       readSequence.current += 1;
       readingFile.current = false;
       dialogRef.current?.close();
@@ -219,12 +227,23 @@ export const NewTopicModal: React.FC<Props> = ({
     });
     return () => cancelAnimationFrame(frame);
   }, [task, isReadingFile, isFetchingExa]);
+  useEffect(() => {
+    if (!pdfBook) return;
+    const frame = requestAnimationFrame(() => {
+      const picker = formRef.current?.querySelector<HTMLElement>(".pdf-chapters");
+      picker?.focus({ preventScroll: true });
+      picker?.scrollIntoView({ block: "start", behavior: "auto" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pdfBook?.name, pdfBook?.contentsFrom]);
   const close = () => {
+    pdfReadController.current?.abort();
     requestRef.current?.abort();
     exaControllerRef.current?.abort();
     onClose();
   };
   const cancel = () => {
+    pdfReadController.current?.abort();
     requestRef.current?.abort();
     exaControllerRef.current?.abort();
     readSequence.current += 1;
@@ -400,6 +419,9 @@ export const NewTopicModal: React.FC<Props> = ({
       !goal
     )
       return;
+    if (pdfBook && usePdfContents && scope === "curriculum" && (!pdfSections.length || pdfSections.length > 48)) {
+      setError("Choose between 1 and 48 PDF sections before preparing the curriculum."); return;
+    }
     if (proposal && diagnosticFirst) {
       if (!probeQuestions.length) { await startBoundaryProbe(); return; }
       if (probeQuestions.some(q => !probeResponses[q.id]?.dontKnow && !probeResponses[q.id]?.selectedOptionId)) {
@@ -434,7 +456,9 @@ export const NewTopicModal: React.FC<Props> = ({
     );
     try {
       if (!proposal) {
-        const proposed = await proposeLearningScope(goal, controller.signal);
+        const proposed = pdfBook && usePdfContents
+          ? { scope: "curriculum" as const, reason: "Choose chapters from your PDF, then review the curriculum before starting." }
+          : await proposeLearningScope(goal, controller.signal);
         if (!mounted.current || controller.signal.aborted) return;
         setScope(proposed.scope);
         setProposal(proposed);
@@ -471,15 +495,21 @@ export const NewTopicModal: React.FC<Props> = ({
           updateStatus("Preparing the scope and outcomes…");
         }
 
+        let preparedPdf = pdfBook;
+        if (pdfBook && usePdfContents && scope === "curriculum") {
+          updateStatus("Reading selected chapter excerpts…");
+          preparedPdf = await readSelectedPdfChapters(pdfBook, pdfSections, { signal: controller.signal,
+            onProgress: (page, total) => updateStatus(`Reading selected chapters · PDF page ${page} of ${total}…`) });
+          if (!mounted.current || controller.signal.aborted) return;
+          setPdfBook(preparedPdf);
+        }
+        const pdfSelection = preparedPdf && usePdfContents && scope === "curriculum" ? selectedPdfSource(preparedPdf, pdfSections) : null;
         const options = {
           topic: goal,
           interest: goal,
           signal: controller.signal,
-          references:
-            activeExaSources.length > 0
-              ? activeExaSources.map((s) => s.reference)
-              : undefined,
-          referenceMaterial: referenceContent.trim()
+          references: [...(pdfSelection?.references || []), ...activeExaSources.map(s => s.reference)],
+          referenceMaterial: !pdfSelection && referenceContent.trim()
             ? {
                 name: referenceName || "Reference notes",
                 content: referenceContent,
@@ -499,6 +529,7 @@ export const NewTopicModal: React.FC<Props> = ({
                   startingPoint,
                   priorConcepts: matchedPrior,
                   boundaryEvidence,
+                  sourceDocument: pdfSelection?.source,
                 },
                 updateStatus
               )
@@ -541,19 +572,30 @@ export const NewTopicModal: React.FC<Props> = ({
     const sequence = ++readSequence.current;
     readingFile.current = true;
     setIsReadingFile(true);
+    setStatus("Reading the PDF’s chapters and text…");
     setError("");
     setNotice("");
     try {
-      const content = await extractTextFromFile(file);
+      const controller = new AbortController();
+      pdfReadController.current = controller;
+      const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+      const book = isPdf ? await readPdfBook(file, file.name, { signal: controller.signal, onProgress: (page, total) => {
+        if (mounted.current && readSequence.current === sequence && (page % 5 === 0 || page === total)) setStatus(`Reading contents preview · ${page} of ${total} pages…`);
+      } }) : null;
+      const content = book ? book.pages.map((text, i) => `PDF page ${i + 1}\n${text}`).join("\n\n").slice(0, 64000) : await extractTextFromFile(file);
       if (!mounted.current || readSequence.current !== sequence) return;
+      setPdfBook(book);
+      setPdfSections(book ? mainPdfSections(book.sections).map(s => s.id) : []);
+      setUsePdfContents(!!book?.sections.length);
       setReferenceName(file.name);
       setReferenceContent(content);
       setInterest((prev) =>
         prev.trim() ? prev : `Teach me the key concepts in ${file.name}`
       );
-      setProposal(null);
+      setProposal(book?.sections.length ? { scope: "curriculum", reason: "Choose chapters from your PDF, then review the curriculum before starting." } : null);
+      if (book?.sections.length) setScope("curriculum");
       setProbeQuestions([]);
-      setNotice(`Added ${file.name}. Review your goal before continuing.`);
+      setNotice(book?.sections.length ? `Found ${book.sections.length} sections in ${file.name}. Review the chapters below.` : `Added ${file.name}. Review your goal before continuing.`);
     } catch (e) {
       if (mounted.current && readSequence.current === sequence)
         setError(e instanceof Error ? e.message : "Could not read that file.");
@@ -740,7 +782,7 @@ export const NewTopicModal: React.FC<Props> = ({
                       aria-label={value === "curriculum" ? "Full curriculum" : "Focused lesson"}
                       aria-pressed={scope === value}
                       disabled={busy}
-                      onClick={() => setScope(value)}
+                      onClick={() => { setScope(value); if (value === "focused") setUsePdfContents(false); }}
                     >
                       <strong>{value === "curriculum"
                         ? "Full curriculum"
@@ -1105,17 +1147,22 @@ export const NewTopicModal: React.FC<Props> = ({
                   </button>
                   {referenceName && <small>{referenceName}</small>}
                 </div>
-                <textarea
+                {pdfBook && <PdfChapterPicker book={pdfBook} selected={pdfSections} enabled={usePdfContents} busy={busy}
+                  onChange={setPdfBook} onSelected={setPdfSections} onEnabled={enabled => { setUsePdfContents(enabled); if (enabled) setScope("curriculum"); }} />}
+                {!pdfBook && <p className="pdf-chapters-note">Attach a PDF to build a curriculum from its table of contents, or use notes as reference material.</p>}
+                {!pdfBook && <textarea
                   rows={3}
                   aria-label="Reference notes"
                   value={referenceContent}
                   disabled={busy}
                   onChange={(e) => {
                     setReferenceContent(e.target.value);
+                    setPdfBook(null); setUsePdfContents(false); setPdfSections([]);
                     if (!referenceName) setReferenceName("Pasted notes");
                   }}
                   placeholder="Paste notes or selectable source text…"
-                />
+                />}
+                {pdfBook && <details className="pdf-manual-contents"><summary>Preview extracted text</summary><textarea rows={3} readOnly aria-label="Extracted PDF text preview" value={referenceContent} /></details>}
                 {referenceContent && (
                   <button
                     type="button"
@@ -1124,6 +1171,7 @@ export const NewTopicModal: React.FC<Props> = ({
                     onClick={() => {
                       setReferenceName("");
                       setReferenceContent("");
+                      setPdfBook(null); setUsePdfContents(false); setPdfSections([]);
                     }}
                   >
                     Remove reference
@@ -1154,7 +1202,7 @@ export const NewTopicModal: React.FC<Props> = ({
                   </strong>
                   <p>
                     {isReadingFile
-                      ? "Extracting the text before planning. Your material stays attached to this goal."
+                      ? status || "Extracting the text before planning. Your material stays attached to this goal."
                       : isFetchingExa
                       ? "Pulling clean documentation excerpts and citations to ground your learning plan."
                       : status}

@@ -53,7 +53,7 @@ export function resolveLearningReferences(
 export function referenceContext(references: LearningReference[] | undefined, query = "", budget = 6500): string {
   if (!references?.length) return "";
   const words = new Set(query.toLowerCase().match(/[\p{L}\p{N}_]{3,}/gu) || []);
-  const chunks = references.slice(0, 6).flatMap((source) => {
+  const chunks = references.slice(0, 96).flatMap((source) => {
     const lines = source.content.slice(0, SOURCE_LIMIT).split("\n");
     const parts: { id: string; name: string; start: number; end: number; text: string; score: number }[] = [];
     for (let index = 0; index < lines.length; index += 12) {
@@ -61,7 +61,7 @@ export function referenceContext(references: LearningReference[] | undefined, qu
       const tokens = new Set(text.toLowerCase().match(/[\p{L}\p{N}_]{3,}/gu) || []);
       parts.push({ id: source.id, name: source.name, start: index + 1,
         end: Math.min(index + 12, lines.length), text,
-        score: [...words].filter((word) => tokens.has(word)).length });
+        score: [...words].filter((word) => tokens.has(word)).length + [...words].filter(word => source.name.toLowerCase().includes(word)).length });
     }
     return parts;
   });

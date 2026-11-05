@@ -33,6 +33,10 @@ export interface LearningReference {
   truncated: boolean;
   url?: string;
   pluginId?: string;
+  sectionId?: string;
+  pdfPageStart?: number;
+  pdfPageEnd?: number;
+  outlineOnly?: boolean;
 }
 
 export interface LearningSession {

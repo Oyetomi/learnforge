@@ -324,6 +324,7 @@ export function CurriculumApproval({
         </section>
       ) : (
         <>
+          {plan.sourceDocument && <p className="curriculum-source-note">Based on {plan.sourceDocument.name} · {plan.sourceDocument.sections.length} selected sections. Chapters define the scope; your answers guide the teaching pace. You can go back to change the chapter selection.</p>}
           <div className="curriculum-review-grid">
             <section aria-label="Curriculum outline">
               <div className="curriculum-review-toolbar">
@@ -383,6 +384,7 @@ export function CurriculumApproval({
                     {module.units.map((unit) => (
                       <li key={unit.id}>
                         <strong>{unit.title}</strong>
+                        {unit.sourceSectionIds?.length && <small className="curriculum-source-chapters">Source: {plan.sourceDocument?.sections.filter(s => unit.sourceSectionIds?.includes(s.id)).map(s => `${s.title}${s.pageStart && s.pageEnd ? ` · PDF pp. ${s.pageStart}–${s.pageEnd}` : " · outline only"}`).join("; ")}</small>}
                         {editing ? (
                           <>
                             <label>

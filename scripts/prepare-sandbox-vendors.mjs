@@ -84,3 +84,17 @@ if (threeNeedsBuild) {
     outfile: threeDest,
   });
 }
+
+// PDF text extraction needs bundled CMaps and standard fonts, including offline
+// desktop imports. These assets never come from a third-party CDN.
+const pdfDir = path.join(rootDir, "node_modules", "pdfjs-dist");
+const pdfPublic = path.join(rootDir, "public", "vendor", "pdfjs");
+for (const dir of ["cmaps", "standard_fonts"]) {
+  const dest = path.join(pdfPublic, dir);
+  fs.mkdirSync(dest, { recursive: true });
+  for (const name of fs.readdirSync(path.join(pdfDir, dir))) {
+    const source = path.join(pdfDir, dir, name), target = path.join(dest, name);
+    if (fs.statSync(source).isFile() && (force || !fs.existsSync(target) || fs.statSync(target).size !== fs.statSync(source).size)) fs.copyFileSync(source, target);
+  }
+}
+fs.copyFileSync(path.join(pdfDir, "LICENSE"), path.join(pdfPublic, "LICENSE"));

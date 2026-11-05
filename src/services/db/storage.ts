@@ -446,7 +446,7 @@ export class LocalDatabase {
   }
 
   /** Fill an approved outline unit without changing its identity, graph or evidence. */
-  prepareMilestone(id: string, content: Pick<Milestone, "lesson" | "check" | "visual" | "starter_code" | "test_code">): Milestone | null {
+  prepareMilestone(id: string, content: Pick<Milestone, "lesson" | "check" | "visual" | "starter_code" | "test_code" | "references">): Milestone | null {
     for (const list of this.milestones.values()) {
       const unit = list.find(m => m.id === id);
       if (!unit || unit.content_status !== "outline") continue;

@@ -65,6 +65,8 @@ export const ReferenceShelf: React.FC<{
                 </a>
               </p>
             )}
+            {source.pdfPageStart && source.pdfPageEnd && <p>PDF pages {source.pdfPageStart}–{source.pdfPageEnd}</p>}
+            {source.outlineOnly && <p>Only a contents heading is available. Chapter details have not been extracted.</p>}
             {source.truncated && (
               <p>
                 Only an excerpt was saved. The rest of the original file isn’t

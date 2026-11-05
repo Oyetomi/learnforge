@@ -1204,7 +1204,7 @@ export default function App() {
     void prepareCurriculumUnit(selectedTrack, templateId, controller.signal).then(content => {
       if (controller.signal.aborted || !db.getSession(sessionId)) return;
       const prepared = db.prepareMilestone(runtimeId, {lesson:content.lesson,check:content.check,visual:content.visual,
-        starter_code:content.starter_code,test_code:content.test_code});
+        starter_code:content.starter_code,test_code:content.test_code,references:content.references});
       if (!prepared) return;
       setMilestones(db.getMilestones(sessionId));
       setActiveMilestone(current => current?.id===runtimeId?prepared:current);

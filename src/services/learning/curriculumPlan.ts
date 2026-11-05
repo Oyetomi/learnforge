@@ -10,6 +10,7 @@ export interface CurriculumUnit {
   outcome: string;
   assessment: string;
   prerequisiteIds: string[];
+  sourceSectionIds?: string[];
 }
 export interface CurriculumModule {
   id: string;
@@ -26,6 +27,7 @@ export interface CurriculumPlan {
   startingPoint: string;
   exclusions: string[];
   modules: CurriculumModule[];
+  sourceDocument?: import("./pdfContents").CurriculumSource;
   approvedAt?: number;
   /** Legacy tracks are wrapped without rewriting their lessons or evidence. */
   legacy?: boolean;
@@ -82,6 +84,17 @@ export function validCurriculumPlan(value: unknown): value is CurriculumPlan {
       units.length
   )
     return false;
+  if (p.sourceDocument) {
+    const source = p.sourceDocument;
+    if (!text(source.name) || !Array.isArray(source.sections) || !source.sections.length || source.sections.length > 48 ||
+      source.sections.some(s => !s || !text(s.id) || !text(s.title) || !Number.isInteger(s.level) || s.level < 0 || s.level > 8 ||
+        (s.pageStart !== undefined && (!Number.isInteger(s.pageStart) || s.pageStart < 1)) ||
+        (s.pageEnd !== undefined && (!s.pageStart || !Number.isInteger(s.pageEnd) || s.pageEnd < s.pageStart)))) return false;
+    const ids = new Set(source.sections.map(s => s.id));
+    if (ids.size !== source.sections.length || units.some(u => !Array.isArray(u.sourceSectionIds) || !u.sourceSectionIds.length ||
+      u.sourceSectionIds.some(id => !ids.has(id)))) return false;
+    if ([...ids].some(id => !units.some(u => u.sourceSectionIds?.includes(id)))) return false;
+  }
   const moduleEdges = p.modules.map((m) => ({
     id: m.id,
     prerequisite_ids: [

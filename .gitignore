@@ -34,3 +34,6 @@ scratch/
 src/services/learning/vendor/*.raw.js
 src/services/learning/vendor/*.raw.css
 
+
+# Generated local PDF.js font / character-map assets
+public/vendor/pdfjs/

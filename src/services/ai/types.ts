@@ -89,6 +89,7 @@ export interface StreamOptions {
  * Milestone template definition for curriculum tracks
  */
 export interface CourseMilestoneTemplate {
+  references?: LearningReference[];
   contentStatus?: "outline" | "ready";
   id: string;
   title: string;
