@@ -2,6 +2,12 @@ import React, { useState, useEffect } from "react";
 import { mainPdfSections, sectionsFromContents, withPageRanges, type PdfBook } from "../../services/learning/pdfContents";
 import "./pdf-chapters.css";
 
+const SOURCE_COPY: Record<string, string> = {
+  bookmarks: "Chapters come from the PDF’s bookmarks.",
+  "contents-page": "Chapters come from the printed contents page. Check the page ranges.",
+  pasted: "Using your pasted contents. Add page ranges so the chapter text can be read.",
+};
+
 export function PdfChapterPicker({ book, selected, enabled, busy, onChange, onSelected, onEnabled }: {
   book: PdfBook; selected: string[]; enabled: boolean; busy: boolean;
   onChange: (book: PdfBook) => void; onSelected: (ids: string[]) => void; onEnabled: (enabled: boolean) => void;
@@ -10,32 +16,53 @@ export function PdfChapterPicker({ book, selected, enabled, busy, onChange, onSe
   const roots = mainPdfSections(book.sections);
   const [manualError, setManualError] = useState("");
   const [showAll, setShowAll] = useState(false);
-  useEffect(() => { setManual(""); setManualError(""); setShowAll(false); }, [book.name]);
+  const [editPages, setEditPages] = useState(false);
+  useEffect(() => { setManual(""); setManualError(""); setShowAll(false); setEditPages(false); }, [book.name]);
   const visibleSections = showAll || !roots.length ? book.sections : roots;
+  const unresolved = book.sections.some(s => selected.includes(s.id) && (!s.pageStart || !s.pageEnd));
+  const pagesEditable = editPages || unresolved || book.contentsFrom === "pasted";
+  const sourceCopy = SOURCE_COPY[book.contentsFrom || ""] ?? "No contents were found. Paste the contents listing below, or use this PDF as reference notes.";
+
   return <section className="pdf-chapters" aria-label="PDF curriculum chapters" tabIndex={-1}>
-    <div className="pdf-chapters-heading"><strong>Build a curriculum from this PDF</strong><span>{book.pageCount} PDF pages</span></div>
-    <p>{book.contentsFrom === "bookmarks" ? "Found the document’s chapter bookmarks." : book.contentsFrom === "contents-page" ? "Found a printed table of contents. Check the page ranges below." : book.contentsFrom === "pasted" ? "Using your pasted table of contents. Assign PDF page ranges to include the chapter text." : "No table of contents was detected. Paste the contents listing below, or use this PDF as reference notes."}</p>
-    {book.previewOnly && <p className="pdf-chapters-note">The contents are ready. Selected chapter excerpts will be read when you prepare the curriculum.</p>}
+    <div className="pdf-chapters-heading">
+      <strong>Build a curriculum from this PDF</strong>
+      <span>{book.pageCount} pages</span>
+    </div>
+    <p>
+      {sourceCopy}
+      {book.previewOnly && " Text from the chapters you pick is read when you prepare the curriculum."}
+    </p>
     {book.contentsTruncated && <p role="status">This document has an unusually large contents list. Some entries are not shown; replace the listing to include other chapters.</p>}
     {book.sections.length > 0 && <>
       <label className="pdf-chapters-toggle"><input type="checkbox" checked={enabled} disabled={busy} onChange={e => onEnabled(e.target.checked)} /><span>Use selected chapters as the curriculum outline</span></label>
       {enabled && <>
-        <div className="pdf-chapters-toolbar"><span>{selected.length} sections selected</span><button type="button" disabled={busy} onClick={() => { onSelected(roots.map(s => s.id)); setShowAll(false); }}>Select main chapters</button><button type="button" disabled={busy} onClick={() => onSelected([])}>Clear</button></div>
-        <p className="pdf-chapters-note">Choose the sections you want to learn. Page numbers below refer to physical PDF pages, which may differ from printed numbers.</p>
-        {book.sections.length > roots.length && <button type="button" disabled={busy} aria-expanded={showAll} onClick={() => setShowAll(v => !v)}>{showAll ? "Show main chapters only" : `Show all ${book.sections.length} sections`}</button>}
-        <ol className="pdf-chapter-list">{visibleSections.map(section => <li key={section.id} style={{ "--chapter-depth": Math.min(section.level, 3) } as React.CSSProperties}>
-          <label className="pdf-chapter-choice"><input type="checkbox" disabled={busy} checked={selected.includes(section.id)} onChange={e => onSelected(e.target.checked ? [...selected, section.id] : selected.filter(id => id !== section.id))} /><span>{section.title}{(!section.pageStart || !section.pageEnd) && <small>Page range unresolved · outline only</small>}</span></label>
-          <div className="pdf-chapter-pages"><label>From<input type="number" min={1} max={book.pageCount} disabled={busy} value={section.pageStart || ""} aria-label={`PDF start page for ${section.title}`} placeholder="?" onChange={e => {
-            const value = e.target.valueAsNumber;
-            const pageStart = Number.isInteger(value) && value >= 1 && value <= book.pageCount ? value : undefined;
-            onChange({ ...book, sections: withPageRanges(book.sections.map(s => s.id === section.id ? { ...s, pageStart } : s), book.pageCount) });
-          }} /></label><label>To<input type="number" min={section.pageStart || 1} max={book.pageCount} disabled={busy || !section.pageStart} value={section.pageEnd || ""} aria-label={`PDF end page for ${section.title}`} placeholder="?" onChange={e => {
-            const value = e.target.valueAsNumber;
-            const pageEnd = Number.isInteger(value) && value >= (section.pageStart || 1) && value <= book.pageCount ? value : undefined;
-            onChange({ ...book, sections: book.sections.map(s => s.id === section.id ? { ...s, pageEnd } : s) });
-          }} /></label></div>
-        </li>)}</ol>
-        <p className="pdf-chapters-note">You’ll review the outcomes before saving. Lessons are prepared one unit at a time. Selected source excerpts are sent to your chosen AI provider when you generate the plan.</p>
+        <div className="pdf-chapters-toolbar">
+          <span aria-live="polite"><strong>{selected.length}</strong> of {book.sections.length} selected</span>
+          <button type="button" disabled={busy} onClick={() => { onSelected(roots.map(s => s.id)); setShowAll(false); }}>Main chapters</button>
+          <button type="button" disabled={busy || !selected.length} onClick={() => onSelected([])}>Clear</button>
+        </div>
+        <div className="pdf-chapters-view">
+          {book.sections.length > roots.length && <button type="button" className="pdf-chapters-link" disabled={busy} aria-expanded={showAll} onClick={() => setShowAll(v => !v)}>{showAll ? "Show main chapters only" : `Show all ${book.sections.length} sections`}</button>}
+          {!unresolved && book.contentsFrom !== "pasted" && <button type="button" className="pdf-chapters-link" disabled={busy} aria-pressed={editPages} onClick={() => setEditPages(v => !v)}>{editPages ? "Done editing pages" : "Edit page ranges"}</button>}
+        </div>
+        <ol className={`pdf-chapter-list ${pagesEditable ? "is-editing" : ""}`}>{visibleSections.map(section => {
+          const missing = !section.pageStart || !section.pageEnd;
+          return <li key={section.id} style={{ "--chapter-depth": Math.min(section.level, 3) } as React.CSSProperties}>
+            <label className="pdf-chapter-choice"><input type="checkbox" disabled={busy} checked={selected.includes(section.id)} onChange={e => onSelected(e.target.checked ? [...selected, section.id] : selected.filter(id => id !== section.id))} /><span>{section.title}{missing && <small>Page range needed to read this chapter</small>}</span></label>
+            {pagesEditable ? <div className="pdf-chapter-pages"><label>From<input type="number" min={1} max={book.pageCount} disabled={busy} value={section.pageStart || ""} aria-label={`PDF start page for ${section.title}`} placeholder="?" onChange={e => {
+              const value = e.target.valueAsNumber;
+              const pageStart = Number.isInteger(value) && value >= 1 && value <= book.pageCount ? value : undefined;
+              onChange({ ...book, sections: withPageRanges(book.sections.map(s => s.id === section.id ? { ...s, pageStart } : s), book.pageCount) });
+            }} /></label><label>To<input type="number" min={section.pageStart || 1} max={book.pageCount} disabled={busy || !section.pageStart} value={section.pageEnd || ""} aria-label={`PDF end page for ${section.title}`} placeholder="?" onChange={e => {
+              const value = e.target.valueAsNumber;
+              const pageEnd = Number.isInteger(value) && value >= (section.pageStart || 1) && value <= book.pageCount ? value : undefined;
+              onChange({ ...book, sections: book.sections.map(s => s.id === section.id ? { ...s, pageEnd } : s) });
+            }} /></label></div>
+            : <span className="pdf-chapter-range">{missing ? "—" : section.pageStart === section.pageEnd ? `p. ${section.pageStart}` : `pp. ${section.pageStart}–${section.pageEnd}`}</span>}
+          </li>;
+        })}</ol>
+        {pagesEditable && <p className="pdf-chapters-note">Page numbers are PDF pages, which can differ from the numbers printed in the book.</p>}
+        <p className="pdf-chapters-note">You’ll review the outcomes before anything is saved. Excerpts from the selected chapters are sent to your AI provider when the plan is prepared.</p>
         {book.truncated && <p role="status">Some page text was shortened. Saved chapter excerpts may not cover the whole chapter.</p>}
       </>}
     </>}

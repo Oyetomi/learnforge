@@ -142,10 +142,10 @@ export function CurriculumWorkspace({
         <span className="curriculum-version">
           {plan.legacy
             ? "Existing plan preserved"
-            : `Approved scope · v${plan.version}`}
+            : `Plan v${plan.version}`}
         </span>
       </header>
-      {plan.sourceDocument && onOpenReading && <section className="curriculum-reading-entry"><div><strong>Reading the book on your own?</strong><p>Save your place and check what you’ve read, one section at a time.</p></div><button className="dialog-secondary-button" onClick={onOpenReading}>Study alongside this PDF <ArrowRight size={14}/></button></section>}
+      {plan.sourceDocument && onOpenReading && <section className="curriculum-reading-entry"><div><strong>Reading the book on your own?</strong><p>Save your place and check what you’ve read, one section at a time.</p></div><button className="dialog-secondary-button" onClick={onOpenReading}>Read alongside this PDF <ArrowRight size={14}/></button></section>}
       <div
         className="curriculum-progress"
         aria-label="Evidence of understanding"
@@ -158,8 +158,7 @@ export function CurriculumWorkspace({
         </span>
         <span>{progress.practising} practising</span>
         <small>
-          Progress reflects text/code checks; practical performance needs
-          additional evidence.
+          Based on your answers to checks so far.
         </small>
       </div>
       {active && (

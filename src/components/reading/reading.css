@@ -75,7 +75,7 @@
   justify-content: center;
   gap: 7px;
   border: 1px solid var(--c-line);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--c-surface-1);
   color: var(--c-text-muted);
   padding: 7px 10px;
@@ -94,7 +94,7 @@
 .reading-range h2,
 .reading-ready h2,
 .reading-reconnect h2 {
-  font-size: 19px;
+  font-size: 20px;
   font-weight: 500;
   margin: 0 0 10px;
   line-height: 1.4;
@@ -127,7 +127,7 @@
   max-width: 100%;
   min-height: 44px;
   border: 1px solid var(--c-line);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 10px 12px;
   color: var(--c-text-bright);
   background: var(--c-surface-1);
@@ -228,7 +228,7 @@
   gap: 14px;
   padding: 16px;
   border: 1px solid var(--c-line);
-  border-radius: 9px;
+  border-radius: 8px;
   margin: 0 0 20px;
   font-size: 12px;
   line-height: 1.7;
@@ -281,7 +281,7 @@
 .reading-history button {
   padding: 10px 14px;
   border: 1px solid var(--c-line);
-  border-radius: 7px;
+  border-radius: 8px;
   color: var(--c-text-muted);
   background: var(--c-surface-1);
   font-size: 12px;
@@ -294,7 +294,7 @@
 .reading-history small {
   display: block;
   margin-top: 5px;
-  font-size: 10px;
+  font-size: 11px;
 }
 .reading-side-answer {
   margin: 16px 0;
@@ -420,3 +420,10 @@
     font-size: 16px;
   }
 }
+
+/* A label styled as a button owns the file picker; hide the native control but keep it focusable. */
+label.dialog-secondary-button:has(> input[type="file"]) { position: relative; display: inline-flex; align-items: center; gap: 8px; width: fit-content; cursor: pointer; }
+label.dialog-secondary-button > input[type="file"] { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+label.dialog-secondary-button:has(> input[type="file"]:focus-visible) { outline: 2px solid var(--accent); outline-offset: 3px; }
+label.dialog-secondary-button:has(> input[type="file"]:disabled) { opacity: .45; cursor: default; }
+.pdf-reading .reading-heading > .dialog-secondary-button { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0; }

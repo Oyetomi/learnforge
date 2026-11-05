@@ -33,7 +33,7 @@
   object-fit: contain;
 }
 .pdf-book-eyebrow {
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--c-text-subtle);
@@ -47,7 +47,7 @@
   overflow-wrap: anywhere;
 }
 .pdf-book-identity p {
-  font-size: 10px;
+  font-size: 11px;
   margin: 0;
 }
 .pdf-book-place {
@@ -66,7 +66,7 @@
   color: var(--c-text-bright);
 }
 .pdf-book-place p {
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.75;
   margin: 6px 0 0;
 }
@@ -79,11 +79,11 @@
   min-height: 38px;
   padding: 8px 10px;
   border: 1px solid var(--c-line);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--c-surface-1);
   color: var(--c-text-bright);
   font: inherit;
-  font-size: 10px;
+  font-size: 11px;
   cursor: pointer;
 }
 .pdf-book-index {
@@ -108,7 +108,7 @@
 }
 .pdf-book-index summary span {
   color: var(--c-text-subtle);
-  font-size: 10px;
+  font-size: 11px;
 }
 .pdf-book-index nav {
   display: grid;
@@ -171,7 +171,7 @@
 }
 .pdf-book-index nav small {
   display: block;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--c-text-subtle);
   margin-top: 4px;
 }
@@ -185,7 +185,7 @@
   outline-offset: 3px;
 }
 .pdf-book-storage-note {
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.7;
   margin-top: 18px;
 }
@@ -264,7 +264,7 @@
     display: none;
   }
   .pdf-book-resume {
-    font-size: 10px;
+    font-size: 11px;
   }
   .pdf-book-index {
     flex-basis: 100%;
@@ -273,3 +273,9 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Readability: the rail is a primary navigation surface, so its key lines sit one step up the scale. */
+.pdf-book-identity h2 { font-size: 14px; line-height: 1.35; text-transform: none; }
+.pdf-book-place strong { font-size: 12px; color: var(--c-text-bright); }
+.pdf-book-place p, .pdf-book-identity p { font-size: 12px; line-height: 1.5; }
+.pdf-book-resume, .pdf-book-index summary { font-size: 12px; }

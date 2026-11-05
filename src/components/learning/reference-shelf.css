@@ -60,3 +60,5 @@
 .reference-external-link:hover {
   text-decoration: underline;
 }
+/* Inside a lesson, align with the title and prose column instead of indenting. */
+.session-flow .reference-shelf { margin: 12px 0; }

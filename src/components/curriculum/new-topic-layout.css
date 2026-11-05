@@ -77,3 +77,24 @@
   .new-topic-dialog .new-topic-intro h3 { font-size: 18px; }
   .new-topic-dialog .boundary-probe-header { flex-wrap: wrap; }
 }
+
+/* Material panel: file first, then notes, then web links (2026-11-05). */
+.new-topic-dialog .new-topic-file-row { gap: 10px; }
+.new-topic-dialog .new-topic-file-row small { color: var(--c-text-faint); font-size: 12px; }
+.new-topic-dialog .new-topic-file-row .new-topic-file-name { color: var(--c-text-bright); font-family: var(--font-code); overflow-wrap: anywhere; }
+.new-topic-dialog .new-topic-remove-file { justify-self: start; display: inline-flex; align-items: center; gap: 6px; padding: 4px 0; border: 0; background: none; color: var(--c-text-muted); font-size: 12px; }
+.new-topic-dialog .new-topic-remove-file:hover:not(:disabled) { color: rgb(var(--color-danger)); }
+.new-topic-dialog .exa-importer-box { padding: 12px 0 0; border-bottom: 0; border-top: 1px solid var(--c-line-soft); }
+.new-topic-dialog .exa-importer-submit { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; min-height: 34px; padding: 0 12px; border: 1px solid var(--c-line-strong); border-radius: 6px; background: var(--c-surface-2); color: var(--c-text-bright); font-size: 12px; white-space: nowrap; }
+.new-topic-dialog .exa-importer-submit:hover:not(:disabled) { border-color: var(--c-line-hover); color: var(--c-text-heading); }
+.new-topic-dialog .exa-importer-row input { min-height: 34px; }
+.new-topic-dialog .exa-importer-hint { color: var(--c-text-faint); }
+/* Web sources is a setting, not a highlighted card: keep it quiet when on. */
+.new-topic-dialog .exa-grounding-bar.is-active { border-color: var(--c-surface-3); background: var(--c-bg-deep); color: var(--c-text-bright); }
+/* Secondary disclosures read as links with a caret, not as body text. */
+.new-topic-dialog .new-topic-reference .pdf-manual-contents > summary { display: inline-flex; align-items: center; gap: 6px; list-style: none; color: var(--c-accent-text); font-size: 12px; }
+.new-topic-dialog .new-topic-reference .pdf-manual-contents > summary::-webkit-details-marker { display: none; }
+.new-topic-dialog .new-topic-reference .pdf-manual-contents > summary::before { content: ""; width: 5px; height: 5px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform var(--motion-fast, 120ms) ease; }
+.new-topic-dialog .new-topic-reference .pdf-manual-contents[open] > summary::before { transform: rotate(45deg); }
+.new-topic-dialog .new-topic-reference .pdf-manual-contents > summary:hover { color: var(--c-accent-strong); }
+.new-topic-dialog .pdf-chapter-pages input { height: 32px; min-height: 32px; }

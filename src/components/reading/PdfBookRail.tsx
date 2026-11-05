@@ -105,7 +105,7 @@ export function PdfBookRail({
         </div>
         <div>
           <span className="pdf-book-eyebrow">Your book</span>
-          <h2>{source.name.replace(/\.pdf$/i, "").replace(/[-_]/g, " ")}</h2>
+          <h2>{source.name.replace(/\.pdf$/i, "").replace(/[-_]/g, " ").replace(/^./, (c) => c.toUpperCase())}</h2>
           {book && <p>{book.pageCount} PDF pages</p>}
         </div>
       </div>
@@ -114,19 +114,19 @@ export function PdfBookRail({
         <div>
           <strong>
             {lessonPage
-              ? `Lesson source · PDF ${lessonPage}`
+              ? `This lesson · page ${lessonPage}`
               : page
-              ? `PDF ${bookmark!.from}–${bookmark!.to}`
-              : "Choose your reading place"}
+              ? `Pages ${bookmark!.from}–${bookmark!.to}`
+              : "No reading place yet"}
           </strong>
           <p>
             {current?.title ||
-              "Reading position is separate from learning progress."}
+              "Your reading place is saved separately from lesson progress."}
           </p>
         </div>
       </div>
       <button className="pdf-book-resume" onClick={onRead}>
-        {page ? "Resume reading study" : "Study alongside"}
+        {page ? "Resume reading" : "Read alongside"}
         <ArrowRight size={14} />
       </button>
       <details

@@ -598,7 +598,7 @@ export const NewTopicModal: React.FC<Props> = ({
       setProposal(book?.sections.length ? { scope: "curriculum", reason: "Choose chapters from your PDF, then review the curriculum before starting." } : null);
       if (book?.sections.length) setScope("curriculum");
       setProbeQuestions([]);
-      setNotice(book?.sections.length ? `Found ${book.sections.length} sections in ${file.name}. Review the chapters below.` : `Added ${file.name}. Review your goal before continuing.`);
+      setNotice(book?.sections.length ? "" : `Added ${file.name}. Review your goal before continuing.`);
     } catch (e) {
       if (mounted.current && readSequence.current === sequence)
         setError(e instanceof Error ? e.message : "Could not read that file.");
@@ -1027,30 +1027,82 @@ export const NewTopicModal: React.FC<Props> = ({
               <summary>
                 <FileText size={14} />{" "}
                 {exaReady
-                  ? "Add notes, files, or web links"
-                  : "Add notes or a file"}{" "}
+                  ? "Add a file, notes, or web links"
+                  : "Add a file or notes"}{" "}
                 {(exaSources.length > 0 || referenceContent.trim()) && (
                   <em>
-                    {exaSources.length > 0 && referenceContent.trim()
-                      ? `${exaSources.length} Exa + 1 note`
-                      : exaSources.length > 0
-                      ? `${exaSources.length} Exa ${
-                          exaSources.length === 1 ? "source" : "sources"
-                        }`
-                      : "Attached"}
+                    {[
+                      referenceContent.trim() ? referenceName || "Notes" : "",
+                      exaSources.length > 0
+                        ? `${exaSources.length} web ${exaSources.length === 1 ? "source" : "sources"}`
+                        : "",
+                    ].filter(Boolean).join(" · ")}
                   </em>
                 )}
               </summary>
               <div className="new-topic-reference-body">
+                <input
+                  ref={fileRef}
+                  type="file"
+                  hidden
+                  aria-label="Upload reference file or code"
+                  accept=".md,.txt,.pdf,.go,.rs,.py,.ts,.tsx,.js,.jsx,.json,.csv,.html,.sql,.sh,.yaml,.yml,.toml,.c,.cpp,.h,.java"
+                  disabled={busy}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void processFile(file);
+                    e.target.value = "";
+                  }}
+                />
+                <div className="new-topic-file-row">
+                  <button
+                    type="button"
+                    className="check-coach-button"
+                    disabled={busy}
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    <Upload size={13} /> {referenceName ? "Replace file" : "Choose a file"}
+                  </button>
+                  {!referenceName && <small>PDF, notes, or code · or drop a file here</small>}
+                </div>
+                {pdfBook && <PdfChapterPicker book={pdfBook} selected={pdfSections} enabled={usePdfContents} busy={busy}
+                  onChange={setPdfBook} onSelected={setPdfSections} onEnabled={enabled => { setUsePdfContents(enabled); if (enabled) setScope("curriculum"); }} />}
+                                {!pdfBook && <textarea
+                  rows={3}
+                  aria-label="Reference notes"
+                  value={referenceContent}
+                  disabled={busy}
+                  onChange={(e) => {
+                    setReferenceContent(e.target.value);
+                    setPdfBook(null); setUsePdfContents(false); setPdfSections([]);
+                    if (!referenceName) setReferenceName("Pasted notes");
+                  }}
+                  placeholder="Or paste notes to learn from…"
+                />}
+                {pdfBook && <details className="pdf-manual-contents"><summary>Preview extracted text</summary><textarea rows={3} readOnly aria-label="Extracted PDF text preview" value={referenceContent} /></details>}
+                {referenceContent && (
+                  <button
+                    type="button"
+                    className="new-topic-remove-file"
+                    disabled={busy}
+                    onClick={() => {
+                      setReferenceName("");
+                      setReferenceContent("");
+                      setPdfBook(null); setUsePdfContents(false); setPdfSections([]);
+                    }}
+                  >
+                    <X size={13} aria-hidden="true" /> Remove {pdfBook ? "PDF" : "notes"}
+                  </button>
+                )}
                 {exaReady && (
                   <div className="exa-importer-box">
                     <div className="exa-importer-row">
                       <input
                         type="text"
-                        aria-label="Search docs or paste URLs for Exa"
+                        aria-label="Paste a link or search the web"
                         value={exaQuery}
                         disabled={busy}
-                        placeholder="Paste https:// URL(s) or search docs & papers with Exa…"
+                        placeholder="Paste a link, or search a topic…"
                         onChange={(e) => setExaQuery(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
@@ -1063,7 +1115,7 @@ export const NewTopicModal: React.FC<Props> = ({
                       />
                       <button
                         type="button"
-                        className="check-coach-button"
+                        className="exa-importer-submit"
                         disabled={busy || (!exaQuery.trim() && !interest.trim())}
                         onClick={() => void handleFetchExaSources()}
                       >
@@ -1073,14 +1125,13 @@ export const NewTopicModal: React.FC<Props> = ({
                           <Search size={13} />
                         )}
                         {parseDirectUrls(exaQuery).length > 0
-                          ? "Extract URL"
-                          : "Fetch with Exa"}
+                          ? "Add link"
+                          : "Search"}
                       </button>
                     </div>
                     <small className="exa-importer-hint">
-                      Paste 1–5 URLs to extract clean markdown via Exa{" "}
-                      <code>/contents</code>, or enter a topic to pull live
-                      documentation.
+                      Add up to five links, or search for articles and
+                      documentation about your goal.
                     </small>
                   </div>
                 )}
@@ -1089,7 +1140,7 @@ export const NewTopicModal: React.FC<Props> = ({
                   <div className="exa-source-list-wrap">
                     <div className="exa-source-list-header">
                       <span>
-                        Attached Exa sources ({exaSources.length})
+                        Web sources ({exaSources.length})
                       </span>
                       <button
                         type="button"
@@ -1102,14 +1153,13 @@ export const NewTopicModal: React.FC<Props> = ({
                     </div>
                     <ul
                       className="exa-source-list"
-                      aria-label="Attached Exa sources"
+                      aria-label="Attached web sources"
                     >
                       {exaSources.map((src) => (
                         <li key={src.id} className="exa-source-card">
                           <div className="exa-source-card-main">
                             <div className="exa-source-card-title">
-                              <span className="exa-source-badge">Exa</span>
-                              <strong>{src.title}</strong>
+                                                            <strong>{src.title}</strong>
                               <span className="exa-source-domain">
                                 {src.domain}
                               </span>
@@ -1152,60 +1202,6 @@ export const NewTopicModal: React.FC<Props> = ({
                   </div>
                 )}
 
-                <input
-                  ref={fileRef}
-                  type="file"
-                  hidden
-                  aria-label="Upload reference file or code"
-                  accept=".md,.txt,.pdf,.go,.rs,.py,.ts,.tsx,.js,.jsx,.json,.csv,.html,.sql,.sh,.yaml,.yml,.toml,.c,.cpp,.h,.java"
-                  disabled={busy}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void processFile(file);
-                    e.target.value = "";
-                  }}
-                />
-                <div className="new-topic-file-row">
-                  <button
-                    type="button"
-                    className="check-coach-button"
-                    disabled={busy}
-                    onClick={() => fileRef.current?.click()}
-                  >
-                    <Upload size={13} /> Choose local file
-                  </button>
-                  {referenceName && <small>{referenceName}</small>}
-                </div>
-                {pdfBook && <PdfChapterPicker book={pdfBook} selected={pdfSections} enabled={usePdfContents} busy={busy}
-                  onChange={setPdfBook} onSelected={setPdfSections} onEnabled={enabled => { setUsePdfContents(enabled); if (enabled) setScope("curriculum"); }} />}
-                {!pdfBook && <p className="pdf-chapters-note">Attach a PDF to build a curriculum from its table of contents, or use notes as reference material.</p>}
-                {!pdfBook && <textarea
-                  rows={3}
-                  aria-label="Reference notes"
-                  value={referenceContent}
-                  disabled={busy}
-                  onChange={(e) => {
-                    setReferenceContent(e.target.value);
-                    setPdfBook(null); setUsePdfContents(false); setPdfSections([]);
-                    if (!referenceName) setReferenceName("Pasted notes");
-                  }}
-                  placeholder="Paste notes or selectable source text…"
-                />}
-                {pdfBook && <details className="pdf-manual-contents"><summary>Preview extracted text</summary><textarea rows={3} readOnly aria-label="Extracted PDF text preview" value={referenceContent} /></details>}
-                {referenceContent && (
-                  <button
-                    type="button"
-                    className="check-coach-button"
-                    disabled={busy}
-                    onClick={() => {
-                      setReferenceName("");
-                      setReferenceContent("");
-                      setPdfBook(null); setUsePdfContents(false); setPdfSections([]);
-                    }}
-                  >
-                    Remove reference
-                  </button>
-                )}
               </div>
             </details>
             {busy && (
@@ -1220,7 +1216,7 @@ export const NewTopicModal: React.FC<Props> = ({
                     {isReadingFile
                       ? "Reading your material"
                       : isFetchingExa
-                      ? "Fetching live sources with Exa"
+                      ? "Finding web sources"
                       : task === "scoping"
                       ? "Finding the right scope"
                       : task === "probing"
@@ -1233,7 +1229,7 @@ export const NewTopicModal: React.FC<Props> = ({
                     {isReadingFile
                       ? status || "Extracting the text before planning. Your material stays attached to this goal."
                       : isFetchingExa
-                      ? "Pulling clean documentation excerpts and citations to ground your learning plan."
+                      ? "Collecting excerpts and citations for your plan."
                       : status}
                   </p>
                   <small>You can cancel. Your goal stays saved.</small>

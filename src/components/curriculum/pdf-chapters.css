@@ -1,26 +1,39 @@
-.pdf-chapters { min-width: 0; padding: 16px; border: 1px solid var(--chrome-edge, #45464b); border-radius: 12px; background: #ffffff03; }
-.pdf-chapters-heading, .pdf-chapters-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+/* PDF chapter picker. Sits inside the material panel, so it uses a divider rather than another card. */
+.pdf-chapters { min-width: 0; margin-top: 4px; padding-top: 14px; border-top: 1px solid var(--c-line-soft); }
+.pdf-chapters-heading, .pdf-chapters-toolbar, .pdf-chapters-view { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .pdf-chapters-heading { justify-content: space-between; }
-.pdf-chapters-heading strong { font-size: 14px; font-weight: 550; color: #e3e4e7; }
-.pdf-chapters-heading span, .pdf-chapters-note, .pdf-chapters > p, .pdf-manual-contents small { color: #a6aab2; font-size: 12px; line-height: 1.7; }
-.pdf-chapters > p { margin: 10px 0; }
+.pdf-chapters-heading strong { font-size: 14px; font-weight: 600; color: var(--c-text-heading); }
+.pdf-chapters-heading span, .pdf-chapters-note, .pdf-chapters > p, .pdf-manual-contents small { color: var(--c-text-muted); font-size: 12px; line-height: 1.65; }
+.pdf-chapters > p { margin: 8px 0 12px; }
 .new-topic-form .pdf-chapters-toggle, .new-topic-form .pdf-chapter-choice { display: flex; align-items: flex-start; gap: 10px; margin: 0; min-width: 0; }
-.pdf-chapters input[type="checkbox"] { flex: 0 0 18px; width: 18px; height: 18px; margin: 3px 0 0; accent-color: #cfb292; }
-.pdf-chapters-toggle > span { font-size: 13px; line-height: 1.7; }
+.pdf-chapters input[type="checkbox"] { flex: 0 0 16px; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--c-accent-text); }
+.pdf-chapters-toggle > span { font-size: 13px; line-height: 1.6; color: var(--c-text-bright); }
+
 .pdf-chapters-toolbar { margin-top: 14px; }
-.pdf-chapters-toolbar > span { margin-right: auto; font-size: 12px; }
-.pdf-chapters button { font-size: 12px; border: 1px solid #ffffff20; border-radius: 7px; padding: 6px 9px; }
-.pdf-chapter-list { max-height: 300px; overflow-y: auto; overscroll-behavior: contain; padding: 0; margin: 12px 0; list-style: none; }
-.pdf-chapter-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 0 12px calc(var(--chapter-depth) * 12px); border-top: 1px solid #ffffff0b; }
-.pdf-chapter-choice > span { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
-.pdf-chapter-choice small { display: block; font-size: 10px; color: #bdac98; }
-.pdf-chapter-pages { display: flex; align-items: center; gap: 7px; color: #969ca7; font-size: 10px; }
-.new-topic-form .pdf-chapter-pages label { display: flex; align-items: center; gap: 6px; font-size: 10px; margin: 0; }
-.new-topic-form .pdf-chapter-pages input { width: 56px; min-height: 32px; padding: 4px 6px; font-size: 12px; border-radius: 6px; }
-.pdf-manual-contents { margin-top: 14px; }
-.pdf-manual-contents summary { cursor: pointer; font-size: 12px; color: #cbb69b; }
+.pdf-chapters-toolbar > span { margin-right: auto; font-size: 12px; color: var(--c-text-muted); }
+.pdf-chapters-toolbar > span strong { color: var(--c-text-heading); font-weight: 600; }
+.pdf-chapters button { font-size: 12px; border: 1px solid var(--c-line); border-radius: 6px; padding: 5px 10px; background: transparent; color: var(--c-text-body); }
+.pdf-chapters button:hover:not(:disabled) { border-color: var(--c-line-hover); background: #ffffff06; color: var(--c-text-heading); }
+.pdf-chapters-view { margin-top: 10px; gap: 16px; }
+.pdf-chapters .pdf-chapters-link { padding: 2px 0; border: 0; background: none; color: var(--c-accent-text); text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
+.pdf-chapters .pdf-chapters-link:hover:not(:disabled) { background: none; color: var(--c-accent-strong); text-decoration-color: currentColor; }
+
+.pdf-chapter-list { max-height: min(340px, 42vh); overflow-y: auto; overscroll-behavior: contain; padding: 0 4px 0 0; margin: 10px 0 12px; list-style: none; border-top: 1px solid var(--c-line-soft); border-bottom: 1px solid var(--c-line-soft); }
+.pdf-chapter-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 40px; padding: 7px 0 7px calc(var(--chapter-depth) * 14px); }
+.pdf-chapter-list li + li { border-top: 1px solid #ffffff08; }
+.pdf-chapter-list.is-editing li { padding-block: 9px; }
+.pdf-chapter-choice > span { font-size: 13px; line-height: 1.5; color: var(--c-text-bright); overflow-wrap: anywhere; }
+.pdf-chapter-choice small { display: block; margin-top: 2px; font-size: 11px; color: var(--c-accent-soft); }
+.pdf-chapter-range { color: var(--c-text-faint); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pdf-chapter-pages { display: flex; align-items: center; gap: 8px; color: var(--c-text-faint); font-size: 11px; }
+.new-topic-form .pdf-chapter-pages label { display: flex; align-items: center; gap: 6px; font-size: 11px; margin: 0; }
+.new-topic-form .pdf-chapter-pages input { width: 60px; min-height: 30px; padding: 4px 6px; font-size: 12px; border-radius: 6px; font-variant-numeric: tabular-nums; }
+
+.pdf-manual-contents { margin-top: 12px; }
+.pdf-manual-contents summary { cursor: pointer; font-size: 12px; color: var(--c-accent-text); }
+.pdf-manual-contents summary:hover { color: var(--c-accent-strong); }
 .pdf-manual-contents textarea { display: block; width: 100%; }
 .pdf-manual-contents small { display: block; margin-top: 8px; }
 .curriculum-source-note { margin: 12px 0; padding: 12px 14px; border-left: 2px solid #b7a388; background: #ffffff03; color: #b6b6be; font-size: 12px; line-height: 1.7; }
 .curriculum-source-chapters { display: block; margin: 5px 0; font-size: 11px; color: #b8aa97; }
-@media (max-width: 550px) { .pdf-chapter-list li { grid-template-columns: minmax(0, 1fr); gap: 7px; } .pdf-chapter-pages { padding-left: 28px; } }
+@media (max-width: 550px) { .pdf-chapter-list li { grid-template-columns: minmax(0, 1fr); gap: 6px; } .pdf-chapter-pages, .pdf-chapter-range { padding-left: 26px; } }
