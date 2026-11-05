@@ -18,7 +18,7 @@
 @keyframes lf-panel { from { opacity:0; translate:8px 0; } to { opacity:1; translate:0 0; } }
 @keyframes lf-dialog { from { opacity:0; scale:.985; translate:0 7px; } to { opacity:1; scale:1; translate:0 0; } }
 @keyframes lf-fade { from { opacity:0; } to { opacity:1; } }
-@keyframes lf-select { from { box-shadow:inset 0 0 0 1px #d2b49770; } to { box-shadow:inset 0 0 0 1px #d2b49700; } }
+@keyframes lf-select { from { box-shadow:inset 0 0 0 1px #d4b08c70; } to { box-shadow:inset 0 0 0 1px #d4b08c00; } }
 @keyframes lf-confirm { from { scale:.85; opacity:.4; } to { scale:1; opacity:1; } }
 @keyframes lf-progress { from { translate:-110% 0; } to { translate:340% 0; } }
 .app-shell .activity-slide,

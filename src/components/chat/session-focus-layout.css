@@ -12,7 +12,7 @@
 .session-focus-header > .session-focus-heading { display: grid; flex: 1; min-width: 0; gap: 3px; }
 .session-focus-heading > strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--c-text-bright); font-weight: 500; font-size: 12px; line-height: 1.5; }
 .session-focus-stage { display: flex; align-items: center; gap: 10px; color: var(--c-text-quiet-cool); font-size: 11px; line-height: 1.5; }
-.session-focus-stage small { color: #bfaa94; font-size: 11px; }
+.session-focus-stage small { color: #b9a58f; font-size: 11px; }
 .session-focus-header > .session-focus-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .session-focus-actions > button { min-height: 32px; font-size: 11px; }
 .session-details { position: relative; }

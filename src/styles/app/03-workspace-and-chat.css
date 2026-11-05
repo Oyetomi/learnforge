@@ -1,3 +1,12 @@
+.main-workspace {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 25px 26px 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-bg-deep);
+}
 h1 {
   font-size: 24px;
   line-height: 1.3;
@@ -47,7 +56,7 @@ h1 {
   border: 0;
   border-bottom: 2px solid transparent;
   padding: 2px 0 0;
-  color: var(--c-text-quiet);
+  color: #9ca3ad;
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
@@ -111,7 +120,7 @@ h1 {
   background: #91b89c0a;
   border: 1px solid #91b89c38;
   border-radius: 8px;
-  color: var(--c-success-soft);
+  color: #adceb8;
   margin-top: 20px;
 }
 .completion-callout > svg {
@@ -140,7 +149,7 @@ h1 {
   padding: 14px 16px 11px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
-  background: var(--c-surface-sunken);
+  background: var(--c-surface-1);
 }
 .quick-actions {
   display: flex;
@@ -169,8 +178,8 @@ h1 {
   background: #ffffff04;
 }
 .composer-input {
-  border: 1px solid var(--c-line);
-  background: var(--c-bg-deep);
+  border: 1px solid #3a3d43;
+  background: #151719;
   border-radius: 8px;
   display: flex;
   align-items: flex-end;
@@ -178,7 +187,7 @@ h1 {
   transition: border-color 0.15s;
 }
 .composer-input:focus-within {
-  border-color: #b18c69;
+  border-color: #b68b65;
   box-shadow: 0 0 0 2px #e5aa7208;
 }
 .composer-input textarea {
@@ -187,7 +196,7 @@ h1 {
   resize: none;
   background: transparent;
   border: 0;
-  color: var(--c-text-strong);
+  color: #e4e6e9;
   padding: 5px 5px 4px;
   font-size: 12px;
   line-height: 20px;
@@ -214,7 +223,7 @@ h1 {
   background: #f0b781;
 }
 .send-button:disabled {
-  background: var(--c-line-soft);
+  background: #303237;
   color: var(--c-text-muted);
   opacity: 0.8;
 }
@@ -228,7 +237,7 @@ h1 {
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  color: #979da7;
+  color: #9ca3ad;
   margin: 8px 1px 0;
 }
 .composer-footnote > span:last-child {
@@ -257,11 +266,11 @@ h1 {
   height: 21px;
   display: grid;
   place-items: center;
-  border: 1px solid #50403c;
-  background: #37323f;
+  border: 1px solid #4b443c;
+  background: #34332f;
   border-radius: 6px;
   font-size: 11px;
-  color: #dfc3a4;
+  color: #d9c3ac;
 }
 .message-avatar.coach {
   border-color: #b9a8d632;
@@ -275,7 +284,7 @@ h1 {
 }
 .from-user {
   background: var(--c-surface-raised);
-  border: 1px solid var(--c-line-soft);
+  border: 1px solid #34373e;
   border-radius: 8px;
   padding: 13px;
 }
@@ -328,7 +337,7 @@ h1 {
   white-space: nowrap;
 }
 .editor-heading > svg {
-  color: #a4b2a8;
+  color: var(--c-text-subtle);
 }
 .editor-actions {
   display: flex;
@@ -367,7 +376,7 @@ h1 {
 .run-button kbd {
   font-family: inherit;
   font-size: 11px;
-  color: #70514b;
+  color: #765238;
   margin-left: 3px;
 }
 .reset-confirm {
@@ -375,7 +384,7 @@ h1 {
   align-items: center;
   gap: 5px;
   font-size: 11px;
-  color: var(--c-accent-text);
+  color: #d4b08c;
 }
 .reset-confirm button {
   display: grid;
@@ -384,15 +393,5 @@ h1 {
   background: #ffffff06;
   border: 1px solid #46413c;
   border-radius: 4px;
-  color: var(--c-accent-text);
-}
-.editor-filebar {
-  height: 39px;
-  display: flex;
-  justify-content: space-between;
-  align-items: stretch;
-  border-bottom: 1px solid var(--c-surface-raised);
-  background: var(--c-bg-deep);
-  padding-right: 14px;
-  flex-shrink: 0;
+  color: #d4b08c;
 }

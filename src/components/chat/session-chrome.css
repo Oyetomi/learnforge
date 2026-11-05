@@ -35,7 +35,7 @@
   right: 0;
   bottom: calc(100% + 8px);
   width: min(340px, calc(100vw - 48px));
-  border: 1px solid var(--border, var(--c-line));
+  border: 1px solid var(--border, #3a3d43);
   border-radius: 8px;
   padding: 16px;
   background: var(--panel, var(--c-surface-sunken));
@@ -124,10 +124,10 @@
   gap: 8px;
   padding: 5px 20px;
   min-height: 30px;
-  border-bottom: 1px solid var(--c-surface-raised);
+  border-bottom: 1px solid var(--c-surface-2);
   background: var(--c-bg-deep);
   font-size: 11px;
-  color: var(--c-text-faint-cool);
+  color: var(--c-text-quiet);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -166,16 +166,16 @@
   padding: 2px 7px;
   border-radius: 4px;
   background: var(--c-accent-wash);
-  border: 1px solid #70514b;
-  color: var(--c-accent-strong);
+  border: 1px solid #6b533b;
+  color: #e4c39f;
   font-size: 11px;
 }
 .session-route-strip .route-node.is-return {
-  color: #c8b19a;
+  color: #c8ad92;
 }
 .session-route-strip .route-arrow {
   flex-shrink: 0;
-  color: #576a79;
+  color: #5f6a77;
 }
 
 /* Inline open-book explanation panel anchored above QuestionCard */
@@ -190,7 +190,7 @@
 .session-inline-lesson .session-inline-visual-bar {
   padding: 8px 14px;
   border-bottom: 1px solid var(--c-surface-3);
-  background: var(--c-surface-1);
+  background: #1f1c19;
   color: #dfc3a4;
   font-size: 12px;
 }

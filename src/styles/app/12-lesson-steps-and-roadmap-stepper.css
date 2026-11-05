@@ -33,7 +33,7 @@
   font-size: 11px;
   text-decoration: underline;
   text-underline-offset: 3px;
-  text-decoration-color: var(--c-line-hover);
+  text-decoration-color: #474d56;
 }
 .lesson-step-showall:hover {
   color: var(--heading);
@@ -117,7 +117,7 @@
 }
 .roadmap-step.is-current > button {
   background: #ffffff04;
-  border-color: var(--c-line-hover);
+  border-color: #42464d;
 }
 .roadmap-step-marker {
   flex-shrink: 0;
@@ -128,7 +128,7 @@
   height: 22px;
   margin-top: 1px;
   border-radius: 4px;
-  border: 1px solid var(--c-line-hover);
+  border: 1px solid #474d56;
   background: var(--c-surface-sunken);
   color: var(--c-text-faint);
   font-size: 11px;
@@ -138,8 +138,8 @@
 }
 .roadmap-step.is-current .roadmap-step-marker {
   border-color: #8a7560;
-  background: var(--c-accent-wash);
-  color: var(--c-accent-strong);
+  background: #282522;
+  color: #dfc3a4;
 }
 .roadmap-step.is-complete:not(.is-current) .roadmap-step-marker {
   border-color: #6d9b87;
@@ -156,14 +156,14 @@
 .roadmap-step-title {
   font-size: 13px;
   line-height: 1.55;
-  color: var(--c-text-body);
+  color: var(--c-text);
   overflow-wrap: break-word;
 }
 .roadmap-step.is-current .roadmap-step-title {
   color: var(--heading);
 }
 .roadmap-step.is-locked .roadmap-step-title {
-  color: #8493a6;
+  color: #8a929e;
 }
 .roadmap-step-status {
   font-size: 11px;

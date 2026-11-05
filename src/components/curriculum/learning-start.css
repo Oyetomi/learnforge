@@ -19,7 +19,7 @@
   box-shadow: 0 12px 40px #0002, inset 0 1px 0 #ffffff07;
   transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
 }
-.learning-start-prompt:focus-within { border-color: #d2b49799; box-shadow: 0 12px 40px #0002, 0 0 0 3px #d2b4970b; }
+.learning-start-prompt:focus-within { border-color: #d4b08c99; box-shadow: 0 12px 40px #0002, 0 0 0 3px #d4b08c0b; }
 .learning-start-prompt label { display: block; color: var(--c-text-secondary); font-size: 11px; margin-bottom: 12px; }
 .learning-start-prompt textarea {
   display: block;
@@ -40,10 +40,10 @@
 .learning-start-prompt textarea::placeholder { color: var(--c-text-faint); }
 .learning-start-prompt-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; }
 .learning-start-prompt-actions .dialog-primary-button { display: inline-flex; align-items: center; justify-content: center; gap: 18px; padding: 11px 17px; min-width: 136px; }
-.learning-start-material { display: inline-flex; align-items: center; gap: 8px; color: #aebbb0; background: transparent; border: 0; border-radius: 8px; padding: 9px 0; font-size: 11px; }
+.learning-start-material { display: inline-flex; align-items: center; gap: 8px; color: var(--c-text-secondary); background: transparent; border: 0; border-radius: 8px; padding: 9px 0; font-size: 11px; }
 .learning-start-material:hover { color: var(--c-text-heading); }
-.learning-start-next { margin: 12px 2px 28px; color: var(--c-text-faint-cool); font-size: 11px; line-height: 1.7; }
-.learning-start-examples > p { font-size: 11px; color: var(--c-text-quiet-cool); margin: 0 0 12px; }
+.learning-start-next { margin: 12px 2px 28px; color: var(--c-text-faint); font-size: 11px; line-height: 1.7; }
+.learning-start-examples > p { font-size: 11px; color: var(--c-text-subtle); margin: 0 0 12px; }
 .learning-start-example-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .learning-start-example-list > button { text-align: left; display: flex; flex-direction: column; gap: 13px; padding: 16px; min-height: 112px; border: 1px solid #ffffff10; border-radius: 12px; color: var(--c-text-bright); background: #ffffff03; }
 .learning-start-example-list > button:hover { background: #ffffff07; border-color: #ffffff25; }

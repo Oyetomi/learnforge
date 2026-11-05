@@ -57,7 +57,7 @@
   border-color: #ffffff0b;
 }
 .track-picker-popover .track-picker-option[aria-selected="true"] {
-  background: #d2b49712;
+  background: #d4b08c12;
   color: var(--c-accent-bright);
 }
 .track-picker-popover .track-option-title { font-size: 13px; line-height: 1.55; }
@@ -92,20 +92,20 @@
 .app-shell :is(.dialog-secondary-button, .header-secondary-button, .help-layout-toggle, .help-close):hover:not(:disabled) {
   border-color: #ffffff24;
   background: var(--chrome-hover);
-  color: #f8fafc;
+  color: var(--c-text-heading);
 }
 .app-shell .dialog-primary-button {
   min-height: 38px;
   border: 1px solid #e9cca945;
   border-radius: 12px;
-  background: linear-gradient(180deg, #e5c18a, #e3b27e);
+  background: linear-gradient(180deg, #e9bf95, #ddb084);
   color: var(--c-accent-wash);
   box-shadow: 0 2px 5px #0002, inset 0 1px 0 #ffffff3b;
   font-size: 12px;
   font-weight: 500;
 }
 .app-shell .dialog-primary-button:hover:not(:disabled) {
-  background: linear-gradient(180deg, #e9cca9, #e4b881);
+  background: linear-gradient(180deg, #f0cba4, #e9bf95);
 }
 .app-shell .dialog-primary-button.topic-delete-confirm { background: #d8a294; color: #291a16; }
 .app-shell .app-header .icon-button { border-radius: 12px; }
@@ -148,7 +148,7 @@
 .app-shell .settings-dialog .settings-sections button[aria-pressed="true"] {
   background: var(--c-line);
   border-color: #ffffff12;
-  color: #f0dfcb;
+  color: #f1e3d5;
   box-shadow: 0 2px 6px #0002, inset 0 1px 0 #ffffff08;
 }
 .app-shell .settings-dialog .settings-content { gap: 20px; padding-top: 12px; }
@@ -160,7 +160,7 @@
   border: 1px solid #ffffff15;
   border-radius: 12px;
   background-color: var(--chrome-field);
-  color: #e8ebef;
+  color: var(--c-text-heading);
   box-shadow: inset 0 1px 2px #0002;
   font-size: 13px;
 }
@@ -194,7 +194,7 @@
   transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
 }
 .app-shell .focused-session .session-composer-row:focus-within {
-  border-color: #bfaa9480;
+  border-color: #c6a78980;
   box-shadow: 0 3px 12px #0002, 0 0 0 3px #dcb9960a, inset 0 1px 0 #ffffff08;
 }
 .app-shell .focused-session .session-composer-row .composer {
@@ -222,7 +222,7 @@
   padding: 6px 0;
   font-size: 13px;
   line-height: 22px;
-  color: var(--c-text-strong);
+  color: var(--c-text-heading);
 }
 .app-shell .focused-session .session-composer-row textarea::placeholder { color: var(--c-text-muted); }
 .app-shell .focused-session .session-composer-row .composer-footnote { display: none; }
@@ -250,7 +250,7 @@
 .app-shell .focused-session .session-help-actions button[aria-pressed="true"] {
   background: #dcb99614;
   border-color: #dcb99626;
-  color: #e6d1bc;
+  color: #f0d2b5;
 }
 .app-shell .focused-session .composer-input .send-button {
   width: 34px;
@@ -262,7 +262,7 @@
   box-shadow: inset 0 1px 0 #ffffff25;
 }
 .app-shell .focused-session .composer-input .send-button:disabled { background: #ffffff0e; color: var(--c-text-faint); opacity: 1; box-shadow: none; }
-.app-shell .focused-session .composer-input .stop-button { background: #70514b; color: #ffe7e1; }
+.app-shell .focused-session .composer-input .stop-button { background: #795150; color: #ffe7e1; }
 .app-shell .focused-session .composer-input .voice-dictation-button.is-compact:not(.is-listening) {
   width: 34px;
   min-width: 34px;
@@ -290,7 +290,7 @@
   border-radius: 8px;
   background: transparent;
 }
-.app-shell .focused-session .telemetry-model-pill strong { font-weight: 400; color: var(--c-text-subtle); font-size: 11px; }
+.app-shell .focused-session .telemetry-model-pill strong { font-weight: 400; color: #a9b6c8; font-size: 11px; }
 .app-shell .focused-session .telemetry-model-pill:hover { background: #ffffff06; }
 .app-shell .focused-session .session-usage-details > summary { min-height: 26px; display: flex; align-items: center; font-size: 11px; }
 

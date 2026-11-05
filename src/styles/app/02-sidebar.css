@@ -1,3 +1,12 @@
+.sidebar-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 7px;
+  color: #e4e6e9;
+  font-size: 13px;
+  font-weight: 600;
+}
 .sidebar-heading > span {
   display: flex;
   align-items: center;
@@ -22,7 +31,7 @@
 }
 .progress-track {
   height: 4px;
-  background: var(--c-surface-3);
+  background: #303237;
   border-radius: 4px;
   overflow: hidden;
   margin-top: 10px;
@@ -45,7 +54,7 @@
   align-items: center;
   font-size: 11px;
   font-weight: 600;
-  color: #979da7;
+  color: #9ca3ad;
   letter-spacing: 1.3px;
   padding: 0 8px 13px;
 }
@@ -86,7 +95,7 @@
   width: 23px;
   height: 23px;
   flex-shrink: 0;
-  border: 1px solid var(--c-line);
+  border: 1px solid #3a3d43;
   border-radius: 50%;
   font-size: 11px;
   color: var(--c-text-muted);
@@ -94,7 +103,7 @@
 }
 .is-active .milestone-number {
   background: var(--accent);
-  color: var(--c-accent-wash);
+  color: #28221c;
   border-color: var(--accent);
   font-weight: 700;
 }
@@ -116,7 +125,7 @@
   color: var(--c-text-subtle);
 }
 .is-active .milestone-copy > span {
-  color: var(--c-accent-bright);
+  color: #ead6c3;
 }
 .milestone-copy small {
   display: block;
@@ -142,13 +151,4 @@
 .sidebar-bottom {
   margin-top: auto;
   padding-top: 26px;
-}
-.main-workspace {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  padding: 25px 26px 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--c-bg-deep);
 }

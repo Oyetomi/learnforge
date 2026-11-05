@@ -11,11 +11,11 @@
 }
 .challenge-help {
   margin-top: 30px;
-  border-top: 1px solid var(--c-line-soft);
+  border-top: 1px solid #303237;
   padding-top: 20px;
 }
 .challenge-help summary {
-  color: var(--c-text-quiet-cool);
+  color: var(--c-text-subtle);
   cursor: pointer;
   font-size: 12px;
 }
@@ -29,7 +29,7 @@
   margin: 14px 0 0;
 }
 .challenge-help strong {
-  color: var(--c-text-body);
+  color: var(--c-text);
   font-weight: 500;
 }
 .challenge-coach-link {
@@ -38,13 +38,13 @@
   gap: 9px;
   margin-top: 30px;
   font-size: 12px;
-  color: var(--c-text-faint-cool);
+  color: var(--c-text-quiet);
 }
 .challenge-coach-link button {
   display: inline-flex;
   gap: 4px;
   align-items: center;
-  color: var(--c-accent-soft);
+  color: #ddbd9e;
   border: 0;
   background: transparent;
   padding: 5px 0;
@@ -56,7 +56,7 @@
   margin: 0;
   padding: 0 7px;
   font-size: 11px;
-  color: var(--c-text-quiet);
+  color: #9ca3ad;
 }
 @media (max-width: 700px) {
   .challenge-content > h1 {
@@ -122,7 +122,7 @@ button:active:not(:disabled) {
   animation: reveal-feedback var(--motion-fast) var(--motion-easing);
 }
 .undo-reset {
-  color: var(--c-accent-strong);
+  color: #dfc3a4;
   white-space: nowrap;
 }
 .challenge-content,
@@ -171,7 +171,7 @@ button:active:not(:disabled) {
 .review-surface {
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--c-surface-sunken);
+  background: var(--c-surface-1);
   overflow: hidden;
 }
 .review-header {
@@ -190,7 +190,7 @@ button:active:not(:disabled) {
 .review-header h2 {
   font-size: 15px;
   font-weight: 600;
-  color: #e8ebef;
+  color: var(--c-text-heading);
   margin: 0;
 }
 .review-header .icon-button {
@@ -214,12 +214,12 @@ button:active:not(:disabled) {
 .review-meta > span:last-child {
   white-space: nowrap;
   font-size: 11px;
-  color: var(--c-text-faint-cool);
+  color: var(--c-text-faint);
 }
 .review-question .prose {
   font-size: 16px;
   line-height: 1.85;
-  color: var(--c-text-strong);
+  color: var(--c-text-bright);
 }
 .review-question code {
   font-size: 13px;
@@ -241,13 +241,13 @@ button:active:not(:disabled) {
   margin: 0 0 12px;
 }
 .review-answer pre {
-  background: var(--c-bg-deep);
-  border: 1px solid var(--c-line-soft);
+  background: #151719;
+  border: 1px solid #303237;
   border-radius: 6px;
   padding: 15px;
   margin: 0;
   font: 12px/1.9 "SFMono-Regular", Consolas, monospace;
-  color: var(--c-text);
+  color: #c1cad6;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -265,14 +265,14 @@ button:active:not(:disabled) {
 .review-rating-options button {
   padding: 12px 7px;
   background: var(--c-surface-2);
-  border: 1px solid var(--c-line-strong);
+  border: 1px solid var(--c-line);
   border-radius: 6px;
   color: #d0d7e1;
   text-align: center;
 }
 .review-rating-options button:hover {
-  border-color: #a28d72;
-  background: var(--c-surface-raised);
+  border-color: #a58970;
+  background: #2b2b2b;
 }
 .review-rating-options strong {
   display: block;
@@ -289,7 +289,7 @@ button:active:not(:disabled) {
   margin-top: 30px;
 }
 .review-reveal > p {
-  color: var(--c-text-faint-cool);
+  color: var(--c-text-faint);
   font-size: 12px;
   margin-bottom: 16px;
 }
@@ -318,14 +318,14 @@ button:active:not(:disabled) {
   place-items: center;
   width: 45px;
   height: 45px;
-  color: var(--c-success-soft);
-  border: 1px solid #a5ceb22b;
-  background: #a5ceb209;
+  color: #adceb8;
+  border: 1px solid #adceb82b;
+  background: #adceb809;
   border-radius: 50%;
   margin-bottom: 20px;
 }
 .review-finished h3 {
-  color: #e8ebef;
+  color: var(--c-text-heading);
   font-size: 20px;
   letter-spacing: -0.4px;
   margin: 0 0 12px;
@@ -427,7 +427,7 @@ button:active:not(:disabled) {
   justify-content: center;
   align-items: center;
   gap: 7px;
-  color: var(--c-text-body);
+  color: var(--c-text);
   background: transparent;
   border: 1px solid var(--c-line);
   border-radius: 6px;
@@ -454,7 +454,7 @@ button:active:not(:disabled) {
   color: var(--c-text-body);
 }
 .learning-sidebar {
-  background: var(--c-bg-deep);
+  background: #151719;
 }
 .sidebar-heading {
   font-weight: 500;
@@ -505,11 +505,11 @@ button:active:not(:disabled) {
 }
 .challenge-prompt .prose {
   line-height: 1.9;
-  color: var(--c-text-secondary-cool);
+  color: var(--c-text);
   font-size: 14px;
 }
 .challenge-howto {
-  border-top: 1px solid var(--c-line-soft);
+  border-top: 1px solid var(--c-surface-3);
   margin-top: 30px;
   padding-top: 23px;
 }
@@ -527,7 +527,7 @@ button:active:not(:disabled) {
 }
 .challenge-howto strong {
   font-weight: 500;
-  color: var(--c-text-body);
+  color: var(--c-text);
 }
 .challenge-support {
   display: flex;
@@ -552,7 +552,7 @@ button:active:not(:disabled) {
   color: #c8b19a;
 }
 .challenge-support button:hover {
-  color: var(--c-accent-bright);
+  color: #f0d2b5;
 }
 .challenge-support button > svg:last-child {
   color: var(--c-text-faint);
@@ -580,7 +580,7 @@ button:active:not(:disabled) {
   border: 0;
   padding: 3px 0;
   background: transparent;
-  color: var(--c-text-secondary-cool);
+  color: var(--c-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -588,7 +588,7 @@ button:active:not(:disabled) {
 }
 .coach-task-context svg {
   flex-shrink: 0;
-  color: var(--c-text-muted);
+  color: var(--c-text-quiet);
 }
 .chat-message .message-sender {
   font-size: 11px;
@@ -596,7 +596,7 @@ button:active:not(:disabled) {
   gap: 7px;
 }
 .from-coach .message-sender {
-  color: #b9b0d6;
+  color: #b8adc7;
 }
 .from-user {
   padding: 14px;

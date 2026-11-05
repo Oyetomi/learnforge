@@ -58,7 +58,7 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-.settings-field input::placeholder { color: #8493a6; opacity: 1; }
+.settings-field input::placeholder { color: var(--c-text-faint); opacity: 1; }
 .settings-field :is(input, select):disabled { cursor: not-allowed; opacity: .55; }
 @media (forced-colors: active) {
   .settings-field select { appearance: auto; -webkit-appearance: auto; background-image: none; padding-right: 14px; }

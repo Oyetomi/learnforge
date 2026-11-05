@@ -26,7 +26,7 @@
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--c-text-quiet-cool);
+  color: var(--c-text-subtle);
   font-size: 11px;
 }
 .pane-code-toggle:hover,
@@ -76,7 +76,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  color: var(--c-text-muted);
+  color: var(--c-text-quiet);
   font-size: 11px;
   margin-bottom: 11px;
 }
@@ -120,7 +120,7 @@
   transition: border-color 120ms ease, background-color 120ms ease;
 }
 .check-option:hover {
-  border-color: #6e7d90;
+  border-color: #737c88;
   background: #ffffff04;
 }
 .check-option input {
@@ -142,7 +142,7 @@
   flex-shrink: 0;
   border: 1px solid #4e5866;
   border-radius: 6px;
-  color: var(--c-text-subtle);
+  color: #a9b6c8;
   font-size: 11px;
   line-height: 1;
 }
@@ -166,7 +166,7 @@
   background: #d2b49709;
 }
 .check-option.is-selected .check-option-letter {
-  border-color: #bc9870;
+  border-color: #b99a7d;
   color: var(--c-accent-strong);
   background: #d2b49712;
 }
@@ -178,7 +178,7 @@
   background: #7ba68f0a;
 }
 .check-option.is-right .check-option-letter {
-  color: var(--c-success-soft);
+  color: #a5cfb8;
   border-color: #6d9b87;
 }
 .check-option.is-wrong {
@@ -207,7 +207,7 @@
 .check-reasoning summary,
 .check-feedback summary {
   cursor: pointer;
-  color: var(--c-text-subtle);
+  color: #a9b6c8;
   font-size: 12px;
   width: fit-content;
 }
@@ -241,7 +241,7 @@
 }
 .check-confidence span {
   font-size: 11px;
-  color: var(--c-text-subtle);
+  color: #a9b6c8;
   margin-right: 5px;
 }
 .check-confidence button {
@@ -249,12 +249,12 @@
   padding: 6px 9px;
   border: 1px solid var(--c-line-hover);
   border-radius: 6px;
-  color: var(--c-text-secondary);
+  color: #b4c1d1;
   background: transparent;
 }
 .check-confidence button[aria-pressed="true"] {
   color: var(--c-accent-strong);
-  border-color: #b39478;
+  border-color: #b99a7d;
   background: #d2b4970a;
 }
 .check-submit-row,
@@ -306,11 +306,11 @@
   margin: 0 0 10px;
 }
 .check-feedback.is-correct h3 {
-  color: #b2d2b7;
+  color: #adceb8;
 }
 .check-feedback .prose {
   font-size: 13px;
-  color: var(--c-text);
+  color: #c1cad6;
   line-height: 1.8;
 }
 .check-feedback details {
@@ -319,7 +319,7 @@
 .check-feedback details p {
   font-size: 12px;
   line-height: 1.7;
-  color: var(--c-text-subtle);
+  color: #a9b6c8;
 }
 .lesson-tools {
   margin-top: 25px;
@@ -333,10 +333,10 @@
   background: transparent;
   padding: 0;
   font-size: 11px;
-  color: var(--c-text-quiet);
+  color: #9eabbc;
 }
 .lesson-tools button:hover {
-  color: var(--c-accent-soft);
+  color: var(--c-accent-text);
 }
 .lesson-code-practice {
   border-top: 1px solid var(--border);
@@ -361,7 +361,7 @@
   margin-bottom: 18px;
   background: #ffffff04;
   border-radius: 6px;
-  color: var(--c-text-secondary-cool);
+  color: #b4c1d1;
   font-size: 12px;
 }
 .lesson-preparing button {
@@ -437,7 +437,7 @@
   border: 0;
   border-top: 1px solid var(--border);
   background: #ffffff03;
-  color: var(--c-text);
+  color: #c1cad6;
   font-size: 12px;
 }
 .track-picker-manage:hover {
@@ -452,7 +452,7 @@
   overflow: auto;
 }
 .manage-topics-content > p {
-  color: var(--c-text-subtle);
+  color: #a9b6c8;
   font-size: 13px;
   line-height: 1.8;
   margin: 0 0 25px;
@@ -500,7 +500,7 @@
   display: block;
   margin-top: 4px;
   font-size: 11px;
-  color: var(--c-text-muted);
+  color: #9eabbc;
 }
 .manage-topics-content li button {
   display: flex;
@@ -509,17 +509,17 @@
   flex-shrink: 0;
   border: 1px solid #4e5866;
   background: transparent;
-  color: var(--c-text-secondary-cool);
+  color: #c1cad6;
   border-radius: 6px;
   font-size: 11px;
   padding: 8px 9px;
 }
 .manage-topics-content li button:hover {
   color: var(--c-accent-strong);
-  border-color: #a28d72;
+  border-color: #a58970;
 }
 .topic-list-empty {
-  color: var(--c-text-muted);
+  color: var(--c-text-quiet-cool);
   font-size: 12px;
   line-height: 1.8;
   margin: 0;
@@ -540,14 +540,14 @@
   padding: 40px 10px;
 }
 .empty-workspace > svg {
-  color: #bc9870;
+  color: #b99a7d;
   margin-bottom: 22px;
 }
 .empty-workspace h1 {
   font-size: 24px;
 }
 .empty-workspace p {
-  color: var(--c-text-subtle);
+  color: #a9b6c8;
   font-size: 14px;
   line-height: 1.85;
   margin: 10px 0 24px;

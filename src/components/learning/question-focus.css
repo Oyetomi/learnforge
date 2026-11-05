@@ -7,7 +7,7 @@
   margin: 8px auto 16px;
   max-width: 960px;
   padding: clamp(18px, 3vw, 30px);
-  border: 1px solid #4e5866;
+  border: 1px solid #50565f;
   border-radius: 12px;
   background: var(--c-surface-1);
   box-shadow: 0 10px 30px #00000030, inset 0 1px 0 #ffffff04;
@@ -18,13 +18,13 @@
 .focused-session[data-question-active="true"] .check-option {
   min-height: 52px;
   padding: 13px 16px;
-  border-color: var(--c-line-hover);
+  border-color: #474d56;
   border-radius: 8px;
   background: var(--c-surface-1);
   transition: background-color 120ms, border-color 120ms;
 }
 .focused-session[data-question-active="true"] .check-option .prose { font-size: 15px; line-height: 1.58; color: var(--c-text-strong); }
-.focused-session[data-question-active="true"] .check-option:hover { background: var(--c-surface-raised); border-color: #7f8896; }
+.focused-session[data-question-active="true"] .check-option:hover { background: var(--c-surface-2); border-color: #7f8896; }
 .focused-session[data-question-active="true"] .check-option.is-selected { border-color: var(--c-accent-text); background: #d2b4970e; }
 .focused-session[data-question-active="true"] .check-option:focus-within { outline: 2px solid var(--c-accent-text); outline-offset: 3px; }
 .focused-session[data-question-active="true"] .session-composer { background: var(--c-bg-deep); border-top-color: var(--c-surface-raised); }

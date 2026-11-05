@@ -11,7 +11,7 @@
   white-space: nowrap;
 }
 .reference-shelf .reference-document {
-  border-top: 1px solid var(--border, var(--c-line));
+  border-top: 1px solid var(--border, #3a3d43);
   padding: 12px 0;
 }
 .reference-document > summary {
@@ -48,13 +48,13 @@
   border-radius: 999px;
   background: rgba(212, 176, 140, 0.14);
   border: 1px solid rgba(212, 176, 140, 0.35);
-  color: var(--c-accent-strong);
+  color: #e4c39f;
 }
 .reference-external-link {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  color: var(--c-accent-text);
+  color: #d4b08c;
   text-decoration: none;
 }
 .reference-external-link:hover {

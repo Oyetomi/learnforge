@@ -27,7 +27,7 @@
   border: 0;
   background: transparent;
   padding: 7px 0;
-  color: var(--c-text-subtle);
+  color: #a9b6c8;
   font-size: 11px;
 }
 .session-toolbar button:hover,
@@ -61,7 +61,7 @@
   margin-bottom: 10px;
 }
 .session-turn .prose {
-  color: var(--c-text);
+  color: var(--c-text-body);
   font-size: 14px;
   line-height: 1.85;
 }
@@ -87,7 +87,7 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: var(--c-text-subtle);
+  color: #a9b6c8;
   min-height: 30px;
 }
 .past-activity {
@@ -99,11 +99,11 @@
 .past-activity > summary {
   cursor: pointer;
   font-size: 12px;
-  color: var(--c-text-secondary);
+  color: #b4c1d1;
   line-height: 1.7;
 }
 .past-activity > summary span {
-  color: var(--c-accent-soft);
+  color: var(--c-accent-text);
   margin-right: 10px;
   font-size: 11px;
 }
@@ -120,18 +120,18 @@
   border-top: 1px solid var(--c-line);
 }
 .session-evidence span {
-  color: #acc8b3;
+  color: #b1c5b8;
   font-size: 11px;
 }
 .session-evidence small {
-  color: var(--c-text-muted);
+  color: var(--c-text-quiet-cool);
   font-size: 11px;
 }
 .session-next {
   margin-top: 18px;
 }
 .session-next p {
-  color: var(--c-text-secondary-cool);
+  color: #b4c1d1;
   font-size: 13px;
   line-height: 1.8;
 }
@@ -146,7 +146,7 @@
   align-items: center;
   gap: 7px;
   border: 1px solid #637083;
-  color: var(--c-text);
+  color: #c1cad6;
   background: transparent;
   border-radius: 6px;
   padding: 9px 12px;
@@ -182,7 +182,7 @@
   gap: 6px;
   border: 0;
   background: transparent;
-  color: var(--c-text-subtle);
+  color: #a9b6c8;
   padding: 3px 0;
   font-size: 11px;
 }
@@ -267,19 +267,19 @@
 }
 .snippet-toolbar {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  min-height: 40px; padding: 0 14px; border-bottom: 1px solid var(--c-line-soft);
-  background: var(--c-surface-1); color: var(--c-text-secondary); font-size: 11px; line-height: 1.5;
+  min-height: 40px; padding: 0 14px; border-bottom: 1px solid #2e3642;
+  background: var(--c-surface-2); color: var(--c-text-secondary); font-size: 11px; line-height: 1.5;
 }
 .snippet-tab { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 400; }
 .snippet-tab > svg { color: #88b5d5; flex-shrink: 0; }
 .snippet-tab small { color: var(--c-text-faint-cool); margin-left: 6px; font-size: 11px; }
 .snippet-toolbar > div { display: flex; align-items: center; gap: 16px; }
-.snippet-toolbar button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 3px 0; border: 0; background: transparent; color: var(--c-text-subtle); font-size: 11px; }
-.snippet-toolbar button:hover { color: #e0d5c9; }
+.snippet-toolbar button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 3px 0; border: 0; background: transparent; color: #a9b6c8; font-size: 11px; }
+.snippet-toolbar button:hover { color: #ead6c3; }
 .snippet-editor { display: flex; min-width: 0; align-items: stretch; }
 .snippet-gutter {
   flex: 0 0 auto; display: flex; flex-direction: column; padding: 16px 12px 16px 14px;
-  border-right: 1px solid #ffffff06; background: var(--c-surface-sunken); color: #7f8896;
+  border-right: 1px solid #ffffff06; background: var(--c-surface-sunken); color: #77869a;
   font-size: 14px; font-weight: 400; line-height: 1.8; text-align: right;
   user-select: none; font-variant-numeric: tabular-nums;
 }
@@ -300,7 +300,7 @@
 :is(.snippet, .inline-code) .hljs-type, :is(.snippet, .inline-code) .hljs-built_in, :is(.snippet, .inline-code) .hljs-attr { color: #e5c18a; }
 :is(.snippet, .inline-code) .hljs-number, :is(.snippet, .inline-code) .hljs-symbol { color: #edae8b; }
 :is(.snippet, .inline-code) .hljs-comment, :is(.snippet, .inline-code) .hljs-quote { color: var(--c-text-faint-cool); font-style: italic; }
-:is(.snippet, .inline-code) .hljs-meta, :is(.snippet, .inline-code) .hljs-variable { color: var(--c-text-secondary); }
+:is(.snippet, .inline-code) .hljs-meta, :is(.snippet, .inline-code) .hljs-variable { color: #b9bfdc; }
 .prose code.inline-code { padding: 1px 4px; border: 0; border-radius: 4px; background: #ffffff05; color: #cbb9a7; font: 400 .92em/1.5 var(--font-code); white-space: break-spaces; overflow-wrap: anywhere; }
 @media (max-width: 600px) {
   .snippet-toolbar { padding: 0 10px; }

@@ -1,3 +1,13 @@
+.editor-filebar {
+  height: 39px;
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  border-bottom: 1px solid var(--c-surface-raised);
+  background: var(--c-bg-deep);
+  padding-right: 14px;
+  flex-shrink: 0;
+}
 .editor-file {
   display: flex;
   align-items: center;
@@ -21,14 +31,14 @@
 .file-saved-dot {
   width: 5px;
   height: 5px;
-  border: 1px solid #6e7d90;
+  border: 1px solid #737c88;
   border-radius: 50%;
   margin-left: 8px;
 }
 .file-language-label {
   align-self: center;
   font-size: 11px;
-  color: var(--c-text-faint-cool);
+  color: var(--c-text-quiet);
 }
 .monaco-container {
   flex: 1;
@@ -43,7 +53,7 @@
   height: 100%;
   justify-content: center;
   font-size: 13px;
-  color: #aebbb0;
+  color: var(--c-text-secondary);
 }
 .editor-statusbar {
   display: flex;
@@ -55,7 +65,7 @@
   height: 26px;
   padding: 0 14px;
   border-top: 1px solid #ffffff03;
-  color: var(--c-text-faint-cool);
+  color: var(--c-text-faint);
 }
 .editor-runtime-note {
   margin: 0;
@@ -80,7 +90,7 @@
   background: var(--accent);
 }
 .statusbar-divider {
-  color: var(--c-line-hover);
+  color: #474d56;
   margin: 0 6px;
 }
 .output-section {
@@ -176,12 +186,12 @@
 .output-empty strong {
   font-size: 12px;
   font-weight: 400;
-  color: var(--c-text-secondary-cool);
+  color: var(--c-text-secondary);
 }
 .output-empty p {
   margin: 0;
   font-size: 11px;
-  color: var(--c-text-faint-cool);
+  color: var(--c-text-quiet);
 }
 .output-shortcut {
   display: flex;
@@ -206,7 +216,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 3px 10px 3px 15px;
-  color: #acc8b3;
+  color: #b2ccba;
   border-bottom: 1px solid var(--c-surface-raised);
 }
 .execution-summary > span {
@@ -216,12 +226,12 @@
   font-size: 11px;
 }
 .execution-summary small {
-  color: var(--c-text-faint-cool);
+  color: var(--c-text-quiet);
   font-size: 11px;
   margin-left: 5px;
 }
 .execution-summary.has-error {
-  color: #e4a199;
+  color: #e1a49c;
 }
 .console-stream {
   flex: 1;
@@ -238,7 +248,7 @@
   color: var(--c-text);
 }
 .console-stream .console-error {
-  color: #e7b2a4;
+  color: #e6ada5;
 }
 .quiet-output {
   color: var(--c-text-quiet);
@@ -249,7 +259,7 @@
   gap: 8px;
   padding: 10px 14px;
   background: #e5aa7208;
-  color: #c8b19a;
+  color: #c1af9c;
   font-size: 11px;
   line-height: 1.7;
   flex-shrink: 0;

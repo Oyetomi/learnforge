@@ -6,7 +6,7 @@
 .narration-reading-action { margin: 0 0 14px; }
 .narration-settings { display: grid; gap: 12px; padding-top: 16px; border-top: 1px solid var(--c-line); }
 .narration-settings h3 { font-size: 12px; color: var(--c-text-bright); margin: 0; }
-.narration-settings p { font-size: 11px; line-height: 1.7; color: var(--c-text-muted); margin: 0; }
+.narration-settings p { font-size: 11px; line-height: 1.7; color: #9eabbc; margin: 0; }
 .narration-settings .narration-error { color: #e5b8a6; }
 .narration-settings .narration-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media(max-width:600px) { .narration-settings .narration-fields { grid-template-columns: 1fr; } }

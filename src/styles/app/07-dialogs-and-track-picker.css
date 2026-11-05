@@ -16,7 +16,7 @@
   margin: 0 0 10px;
 }
 .new-topic-intro p {
-  color: var(--c-text-quiet-cool);
+  color: var(--c-text-muted);
   font-size: 13px;
   line-height: 1.85;
   margin: 0 0 26px;
@@ -32,7 +32,7 @@
 .new-topic-form input:not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
   width: 100%;
   background: var(--c-bg-deep);
-  border: 1px solid #3d4742;
+  border: 1px solid #42464d;
   border-radius: 6px;
   color: var(--c-text-strong);
   font-size: 14px;
@@ -53,7 +53,7 @@
   opacity: 0.7;
 }
 .topic-field-help {
-  color: var(--c-text-faint-cool);
+  color: var(--c-text-quiet);
   font-size: 11px;
   margin: 9px 0 0;
 }
@@ -93,7 +93,7 @@
   gap: 10px;
   margin-top: 28px;
   padding-top: 22px;
-  border-top: 1px solid var(--c-line-soft);
+  border-top: 1px solid var(--c-surface-3);
 }
 .dialog-secondary-button {
   border: 1px solid transparent;
@@ -146,7 +146,7 @@
 .topic-error p {
   margin: 7px 0 0;
   font-size: 12px;
-  color: var(--c-text-subtle);
+  color: #a9b6c8;
   line-height: 1.8;
   overflow-wrap: anywhere;
 }
@@ -169,12 +169,12 @@
   background: #d59a9105;
 }
 .topic-error > svg {
-  color: #d8a294;
+  color: #d9a59d;
   flex-shrink: 0;
   margin-top: 1px;
 }
 .topic-error strong {
-  color: #e5b8a6;
+  color: #e1b9b2;
 }
 @media (max-width: 1199px) {
   .header-brand-group {
@@ -317,7 +317,7 @@
   color: #b7cbdc;
   background: #ffffff04;
   padding: 1px 3px;
-  border-bottom: 1px solid #aebccb3d;
+  border-bottom: 1px solid #a9b6c83d;
   border-radius: 2px;
 }
 .ladder-steps {
@@ -339,7 +339,7 @@
   top: 24px;
   bottom: 1px;
   width: 1px;
-  background: #3d4742;
+  background: var(--c-line-hover);
 }
 .ladder-step-number {
   width: 22px;
@@ -350,7 +350,7 @@
   border: 1px solid #4e5866;
   border-radius: 50%;
   font-size: 11px;
-  color: var(--c-text-subtle);
+  color: #a9b6c8;
   margin-top: 1px;
 }
 .ladder-steps > li > div {
@@ -378,7 +378,7 @@
   color: #b2ccba;
 }
 .console-stream .console-diagnostic {
-  color: var(--c-text-subtle);
+  color: #a9b6c8;
 }
 
 /* Track selection is rendered in-app rather than by the platform select menu. */
@@ -399,7 +399,7 @@
   padding: 1px 0;
   background: transparent;
   text-align: left;
-  color: var(--c-text-strong);
+  color: var(--c-text-bright);
   font-size: 13px;
   line-height: 21px;
 }
@@ -418,7 +418,7 @@
 }
 .picker-chevron {
   flex-shrink: 0;
-  color: var(--c-text-muted);
+  color: #9eabbc;
   margin-left: auto;
   transition: transform 150ms ease;
 }
@@ -513,7 +513,7 @@
 .track-option-check {
   flex-shrink: 0;
   width: 18px;
-  color: #d2ad87;
+  color: #d4b08c;
 }
 .track-picker-empty {
   padding: 25px 15px;
@@ -525,7 +525,7 @@
   font-weight: 500;
 }
 .track-picker-empty p {
-  color: #99a8bc;
+  color: #9eabbc;
   font-size: 12px;
   margin: 8px 0 0;
 }
@@ -536,7 +536,7 @@
   gap: 12px;
   padding: 10px 15px;
   border-top: 1px solid var(--c-line);
-  color: var(--c-text-quiet);
+  color: #9eabbc;
   font-size: 11px;
   flex-shrink: 0;
 }
@@ -547,7 +547,7 @@
 }
 .track-picker-footer kbd {
   font-family: inherit;
-  color: var(--c-text-secondary);
+  color: #b4c1d1;
 }
 .track-picker-footer > span > span {
   color: #637083;

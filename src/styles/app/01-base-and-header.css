@@ -61,7 +61,7 @@ a:focus-visible {
   height: 5px;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--c-line-strong);
+  background: #42464d;
   border-radius: 6px;
 }
 ::-webkit-scrollbar-track {
@@ -154,7 +154,7 @@ a:focus-visible {
   appearance: none;
   border: 0;
   background: transparent;
-  color: var(--c-text-strong);
+  color: #e4e6e9;
   font-weight: 500;
   font-size: 13px;
   width: 100%;
@@ -183,9 +183,9 @@ select option {
   display: flex;
   gap: 8px;
   align-items: center;
-  color: #d0d7e1;
+  color: #d1d4da;
   background: transparent;
-  border: 1px solid var(--c-line);
+  border: 1px solid #3a3d43;
   padding: 8px 10px;
   border-radius: 8px;
   font-size: 13px;
@@ -223,13 +223,4 @@ select option {
   flex-direction: column;
   min-height: 0;
   padding: 27px 17px 16px;
-}
-.sidebar-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 7px;
-  color: var(--c-text-strong);
-  font-size: 13px;
-  font-weight: 600;
 }

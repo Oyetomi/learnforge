@@ -60,7 +60,7 @@
 .canvas-sandbox-tools[open] > summary { color: var(--c-text-strong); background: #ffffff07; }
 .canvas-sandbox-tools > summary:focus-visible,
 .canvas-sandbox-tools-menu button:focus-visible {
-  outline: 2px solid var(--c-accent-text);
+  outline: 2px solid #d4b08c;
   outline-offset: 2px;
 }
 .canvas-sandbox-tools-menu {
