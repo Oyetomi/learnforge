@@ -10,6 +10,7 @@ export interface PdfSection {
   printedPage?: string;
 }
 export interface PdfBook {
+  fingerprint?: string;
   name: string;
   pageCount: number;
   pages: string[];
@@ -26,6 +27,8 @@ export interface PdfBook {
 export interface CurriculumSource {
   name: string;
   sections: PdfSection[];
+  pageCount?: number;
+  fingerprint?: string;
 }
 const normal = (s: string) => s.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
@@ -84,7 +87,7 @@ export function selectedPdfSource(book: PdfBook, ids: string[]): { source: Curri
       ...(s.pageStart ? { pdfPageStart: s.pageStart, pdfPageEnd: s.pageEnd } : {}),
       ...(hasText ? {} : { outlineOnly: true }) };
   });
-  return { source: { name: book.name, sections }, references };
+  return { source: { name: book.name, sections, pageCount: book.pageCount, fingerprint: book.fingerprint }, references };
 }
 
 export function mainPdfSections(sections: PdfSection[]): PdfSection[] {

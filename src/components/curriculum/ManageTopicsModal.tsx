@@ -6,7 +6,7 @@ interface Props {
   tracks: CourseTrack[];
   visibleIds: string[];
   removedIds: string[];
-  onDelete: (ids: string[]) => void;
+  onDelete: (ids: string[]) => void | Promise<void>;
   onClose: () => void;
 }
 export function ManageTopicsModal({
@@ -24,6 +24,7 @@ export function ManageTopicsModal({
   const [pending, setPending] = useState<string[] | null>(null),
     [deleted, setDeleted] = useState(""),
     [error, setError] = useState("");
+  const [deleting, setDeleting] = useState(false);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     dialog.current?.showModal();
@@ -49,10 +50,11 @@ export function ManageTopicsModal({
     setError("");
     setPending(ids);
   };
-  const confirm = () => {
-    if (!pending) return;
+  const confirm = async () => {
+    if (!pending || deleting) return;
+    setDeleting(true);
     try {
-      onDelete(pending);
+      await onDelete(pending);
       returnFocus.current = null;
       setDeleted(
         pending.length === 1
@@ -62,6 +64,8 @@ export function ManageTopicsModal({
       setPending(null);
     } catch {
       setError("The topics could not be completely deleted. Please try again.");
+    } finally {
+      setDeleting(false);
     }
   };
   return (
@@ -75,6 +79,7 @@ export function ManageTopicsModal({
       }
       onCancel={(e) => {
         e.preventDefault();
+        if (deleting) return;
         if (pending) setPending(null);
         else onClose();
       }}
@@ -92,6 +97,7 @@ export function ManageTopicsModal({
             className="icon-button"
             aria-label="Close manage topics"
             onClick={onClose}
+            disabled={deleting}
           >
             <X size={18} />
           </button>
@@ -160,7 +166,8 @@ export function ManageTopicsModal({
                           className="topic-delete-button"
                           aria-label={`Delete topic: ${t.title}`}
                           ref={(node) => {
-                            if (node) deleteTriggers.current.set(`topic:${t.id}`, node);
+                            if (node)
+                              deleteTriggers.current.set(`topic:${t.id}`, node);
                             else deleteTriggers.current.delete(`topic:${t.id}`);
                           }}
                           onClick={() => startDelete([t.id], `topic:${t.id}`)}
@@ -205,6 +212,7 @@ export function ManageTopicsModal({
               <button
                 className="header-secondary-button"
                 ref={cancel}
+                disabled={deleting}
                 onClick={() => {
                   setPending(null);
                   setError("");
@@ -214,6 +222,7 @@ export function ManageTopicsModal({
               </button>
               <button
                 className="dialog-primary-button topic-delete-confirm"
+                disabled={deleting}
                 onClick={confirm}
               >
                 Delete permanently

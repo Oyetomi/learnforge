@@ -26,6 +26,7 @@ interface Props {
   onSelect: (milestone: Milestone) => void;
   onResume: () => void;
   onDiagnostic: (milestone: Milestone) => void;
+  onOpenReading?: () => void;
 }
 export function CurriculumWorkspace({
   track,
@@ -35,6 +36,7 @@ export function CurriculumWorkspace({
   onSelect,
   onResume,
   onDiagnostic,
+  onOpenReading,
 }: Props) {
   const plan = curriculumForTrack(track),
     approved = approvedLessonIds(messages),
@@ -143,6 +145,7 @@ export function CurriculumWorkspace({
             : `Approved scope · v${plan.version}`}
         </span>
       </header>
+      {plan.sourceDocument && onOpenReading && <section className="curriculum-reading-entry"><div><strong>Reading the book on your own?</strong><p>Save your place and check what you’ve read, one section at a time.</p></div><button className="dialog-secondary-button" onClick={onOpenReading}>Study alongside this PDF <ArrowRight size={14}/></button></section>}
       <div
         className="curriculum-progress"
         aria-label="Evidence of understanding"

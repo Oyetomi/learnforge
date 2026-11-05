@@ -7,6 +7,7 @@ import { hideCustomCanvasBlocks, validateVisualExample, visualForScientificPrese
 
 import { SCIENTIFIC_HELP_INSTRUCTIONS, VisualHelpError, decodeVisualHelp } from "./scientificVisualHelp";
 import { readChatText, StructuredResponseError } from "../ai/structuredResponse";
+import { READING_BOUNDARY } from "./readingBoundary";
 
 export type HelpKind = "hint" | "walkthrough" | "visual";
 export interface HelpResult { content: string; visual?: VisualExample }
@@ -17,8 +18,10 @@ export function helpRequest(kind: HelpKind, milestone: Milestone | null, check: 
     { role: "system", content: `You are providing optional ${kind} help alongside a learning activity. Preserve the exact subject and learner level. This is supported practice, never assessment or progress. Never emit forge-check, forge-assessment or forge-repair. Never start a new lesson, replace a question, or declare readiness. ${answered ? "Explain the submitted work when relevant." : "Do not reveal the answer to the pending question. Use a smaller analogous example."}
 ${kind === "hint" ? "Give one short nudge in 1–3 plain-language sentences, without solving the problem." : kind === "walkthrough" ? "Explain ONE concrete mechanism with a short introduction and ONE ladder/steps fenced block (title, initial, then --- with rule, why, state, optional eval, and result). Define unfamiliar terms. Use math only for actual mathematics and code only when the learner's goal requires it. Keep the example small; do not wrap each paragraph in a new section." : 'Return one supported paper figure following the FIGURE RESPONSE CONTRACT below. Author meaningful visible state changes.'}
 ${kind === "visual" ? SCIENTIFIC_HELP_INSTRUCTIONS : MATH_INSTRUCTIONS + "\n" + TABLE_INSTRUCTIONS + "\n" + ILLUSTRATION_INSTRUCTIONS}
-${GROUNDING_INSTRUCTIONS}` },
+${GROUNDING_INSTRUCTIONS}
+${milestone?.reading_context ? READING_BOUNDARY : ""}` },
     { role: "user", content: JSON.stringify({ lesson: milestone ? { title: milestone.title, goal: milestone.prompt, intent: milestone.learning_intent } : null,
+      coveredPdfPages: milestone?.reading_context,
       currentActivity: hideLearningCheckBlocks(context).slice(0, 18000), question: check ? { question: check.question, context: check.context } : null,
       references: referenceContext(milestone?.references, context.slice(0, 1000)) }) },
   ];

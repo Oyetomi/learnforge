@@ -80,6 +80,8 @@ export interface ChatMessage {
 }
 
 export interface Milestone {
+  /** Exact covered-page boundary for optional PDF reading help. */
+  reading_context?: { from: number; to: number };
   curriculum_unit_id?: string;
   curriculum_module_id?: string;
   content_status?: "outline" | "ready";

@@ -86,7 +86,9 @@ export function validCurriculumPlan(value: unknown): value is CurriculumPlan {
     return false;
   if (p.sourceDocument) {
     const source = p.sourceDocument;
-    if (!text(source.name) || !Array.isArray(source.sections) || !source.sections.length || source.sections.length > 48 ||
+    if (!text(source.name) || (source.pageCount !== undefined && (!Number.isInteger(source.pageCount) || source.pageCount < 1)) ||
+      (source.fingerprint !== undefined && (typeof source.fingerprint !== "string" || !source.fingerprint || source.fingerprint.length > 500)) ||
+      !Array.isArray(source.sections) || !source.sections.length || source.sections.length > 48 ||
       source.sections.some(s => !s || !text(s.id) || !text(s.title) || !Number.isInteger(s.level) || s.level < 0 || s.level > 8 ||
         (s.pageStart !== undefined && (!Number.isInteger(s.pageStart) || s.pageStart < 1)) ||
         (s.pageEnd !== undefined && (!s.pageStart || !Number.isInteger(s.pageEnd) || s.pageEnd < s.pageStart)))) return false;

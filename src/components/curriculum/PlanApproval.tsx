@@ -12,7 +12,7 @@ import { stripInternalSourceCitations } from "../../services/learning/grounding"
 
 interface Props {
   track: CourseTrack;
-  onApprove: (track: CourseTrack) => void;
+  onApprove: (track: CourseTrack) => void | Promise<void>;
   onRevise: () => void;
   startingPointChecked?: boolean;
 }
@@ -334,11 +334,11 @@ export const PlanApproval: React.FC<Props> = ({
             <button
               className="dialog-primary-button"
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 if (submitting.current) return;
                 submitting.current = true;
                 try {
-                  onApprove(proposed);
+                  await onApprove(proposed);
                 } catch (error) {
                   submitting.current = false;
                   setSaveError(

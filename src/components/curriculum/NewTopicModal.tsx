@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { saveReadingDocument, discardUnapprovedReadingDocument } from "../../services/learning/readingStore";
 import {
   X,
   ArrowRight,
@@ -86,6 +87,7 @@ export const NewTopicModal: React.FC<Props> = ({
   const [referenceName, setReferenceName] = useState(""),
     [referenceContent, setReferenceContent] = useState("");
   const [pdfBook, setPdfBook] = useState<PdfBook | null>(null);
+  const [savingPdf, setSavingPdf] = useState(false);
   const [pdfSections, setPdfSections] = useState<string[]>([]);
   const [usePdfContents, setUsePdfContents] = useState(false);
   const pdfReadController = useRef<AbortController | null>(null);
@@ -237,6 +239,7 @@ export const NewTopicModal: React.FC<Props> = ({
     return () => cancelAnimationFrame(frame);
   }, [pdfBook?.name, pdfBook?.contentsFrom]);
   const close = () => {
+    if (savingPdf) return;
     pdfReadController.current?.abort();
     requestRef.current?.abort();
     exaControllerRef.current?.abort();
@@ -606,8 +609,33 @@ export const NewTopicModal: React.FC<Props> = ({
       }
     }
   };
-  const approve = (track: CourseTrack) => {
-    onTrackCreated(track);
+  const approve = async (track: CourseTrack) => {
+    let storedPdf = false;
+    setSavingPdf(true);
+    try {
+      if (track.curriculum?.sourceDocument && pdfBook) {
+        await saveReadingDocument(track.id, pdfBook);
+        storedPdf = true;
+        track = {
+          ...track,
+          curriculum: {
+            ...track.curriculum,
+            sourceDocument: {
+              ...track.curriculum.sourceDocument,
+              pageCount: pdfBook.pageCount,
+              fingerprint: pdfBook.fingerprint,
+            },
+          },
+        };
+      }
+      onTrackCreated(track);
+    } catch (error) {
+      if (storedPdf)
+        await discardUnapprovedReadingDocument(track.id).catch(() => {});
+      throw error;
+    } finally {
+      if (mounted.current) setSavingPdf(false);
+    }
     try {
       localStorage.removeItem(draftKey);
     } catch {}
@@ -641,6 +669,7 @@ export const NewTopicModal: React.FC<Props> = ({
           <button
             className="icon-button"
             onClick={close}
+            disabled={savingPdf}
             aria-label="Close new topic"
           >
             <X size={18} />

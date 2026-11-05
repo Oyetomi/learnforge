@@ -117,7 +117,7 @@ async function practiceRequest(messages: {
     recordUsage((envelope as { usage?: Parameters<typeof recordUsage>[0] })?.usage);
     return parseChatJson(envelope, allowedFences);
 }
-const PRACTICE_QUESTION_CONTRACT = `QUESTION JSON CONTRACT:
+export const PRACTICE_QUESTION_CONTRACT = `QUESTION JSON CONTRACT:
 Return one JSON object, with no surrounding prose or outer code fence. Choose either:
 - Written response: {"kind":"free-response","question":"one clear application","expectedAnswer":"a defensible answer","explanation":"why it fits","rubric":[{"id":"meaning","criterion":"one concrete distinction that accepts equivalent correct reasoning"}]}. Commit 1–5 independently checkable criteria; omit options and correctOptionIds. Never assess spoken pronunciation from typed text.
 - Choice: {"kind":"choice","question":"one clear application","options":[{"id":"a","label":"an answer"},{"id":"b","label":"another answer"}],"correctOptionIds":["exact correct id"],"multiple":false,"explanation":"why the committed key fits"}. Supply 2–6 balanced options, unique ids, and all defensible correct ids. Set multiple true only for a multi-select question.

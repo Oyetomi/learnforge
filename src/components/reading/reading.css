@@ -1,0 +1,422 @@
+.pdf-reading {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  overflow: auto;
+  padding: 28px clamp(18px, 3vw, 48px) 40px;
+  color: var(--c-text-bright);
+}
+.reading-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+  margin-bottom: 26px;
+}
+.reading-eyebrow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--c-accent);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.reading-heading h1 {
+  margin: 10px 0 8px;
+  font-size: clamp(22px, 2.2vw, 30px);
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.035em;
+}
+.reading-heading p {
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.pdf-reading button {
+  font: inherit;
+  cursor: pointer;
+}
+.pdf-reading button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.pdf-reading button:focus-visible,
+.pdf-reading input:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 3px;
+}
+.reading-bookmark {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+  border-block: 1px solid var(--c-line);
+  font-size: 12px;
+}
+.reading-bookmark > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.reading-bookmark small {
+  color: var(--c-text-muted);
+  font-size: 11px;
+}
+.reading-bookmark button,
+.reading-round-nav button,
+.reading-support-actions button,
+.reading-processing button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--c-line);
+  border-radius: 7px;
+  background: var(--c-surface-1);
+  color: var(--c-text-muted);
+  padding: 7px 10px;
+  min-height: 34px;
+  font-size: 11px;
+}
+.reading-bookmark button:hover,
+.reading-support-actions button:hover {
+  color: var(--c-text-bright);
+  background: var(--c-surface-2);
+}
+.reading-range {
+  max-width: 950px;
+  padding: 26px 0;
+}
+.reading-range h2,
+.reading-ready h2,
+.reading-reconnect h2 {
+  font-size: 19px;
+  font-weight: 500;
+  margin: 0 0 10px;
+  line-height: 1.4;
+}
+.reading-range p,
+.reading-ready p,
+.reading-reconnect p {
+  font-size: 13px;
+  line-height: 1.75;
+  max-width: 64ch;
+  color: var(--c-text-muted);
+  margin: 0 0 20px;
+}
+.reading-range-fields {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin: 18px 0 12px;
+}
+.reading-range-fields label {
+  display: grid;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--c-text-muted);
+}
+.reading-range input {
+  box-sizing: border-box;
+  width: 150px;
+  max-width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--c-line);
+  border-radius: 7px;
+  padding: 10px 12px;
+  color: var(--c-text-bright);
+  background: var(--c-surface-1);
+  font: inherit;
+  font-size: 14px;
+}
+.reading-range small,
+.reading-footnote {
+  color: var(--c-text-subtle);
+  font-size: 11px;
+  line-height: 1.65;
+}
+.reading-pacing-note {
+  color: var(--c-text-muted);
+  font-size: 12px;
+  line-height: 1.75;
+  max-width: 76ch;
+  margin: 0 0 22px;
+}
+.reading-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  margin-top: 24px;
+  gap: 26px;
+}
+.reading-body.has-help {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.reading-activity {
+  min-width: 0;
+  outline: none;
+  scroll-margin-top: 16px;
+}
+.reading-activity > .reviewed-question-slot {
+  max-width: 1000px;
+  margin: auto;
+}
+.reading-ready {
+  max-width: 720px;
+  padding: 24px 0 36px;
+}
+.reading-ready .reading-eyebrow {
+  margin-bottom: 12px;
+}
+.reading-ready > div {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.reading-support-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 22px 0;
+}
+.reading-support-actions > button:last-child {
+  margin-left: auto;
+}
+.reading-body .learning-help-panel {
+  border: 1px solid var(--c-line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.reading-body .learning-help-body {
+  overflow: visible;
+  max-height: none;
+}
+.reading-body .learning-help-panel > header {
+  flex-wrap: wrap;
+}
+.reading-round-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 16px;
+  font-size: 11px;
+  color: var(--c-text-muted);
+}
+.reading-round-nav > div {
+  display: flex;
+  gap: 8px;
+}
+.pdf-reading .check-question {
+  font-size: 18px;
+  line-height: 1.6;
+}
+.pdf-reading .check-feedback:has(.answer-tutoring) {
+  padding: 20px;
+}
+.reading-notice,
+.reading-processing,
+.reading-reconnect {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--c-line);
+  border-radius: 9px;
+  margin: 0 0 20px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.reading-notice {
+  border-color: var(--c-accent);
+}
+.reading-notice p {
+  flex: 1;
+  margin: 0;
+}
+.reading-notice button {
+  flex-shrink: 0;
+  background: transparent;
+  color: inherit;
+  border: 1px solid var(--c-line);
+  border-radius: 6px;
+  padding: 7px 10px;
+}
+.reading-processing {
+  margin-top: 16px;
+}
+.reading-processing button {
+  margin-left: auto;
+}
+.reading-reconnect {
+  align-items: flex-start;
+}
+.reading-reconnect input[type="file"] {
+  display: block;
+  max-width: 100%;
+  margin-top: 10px;
+}
+.reading-reconnect label {
+  display: block;
+  width: fit-content;
+}
+.reading-range-note {
+  color: var(--c-text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+  max-width: 80ch;
+}
+.reading-history {
+  display: flex;
+  gap: 10px;
+  padding-top: 16px;
+  flex-wrap: wrap;
+}
+.reading-history button {
+  padding: 10px 14px;
+  border: 1px solid var(--c-line);
+  border-radius: 7px;
+  color: var(--c-text-muted);
+  background: var(--c-surface-1);
+  font-size: 12px;
+  text-align: left;
+}
+.reading-history button[aria-current] {
+  border-color: var(--c-accent);
+  color: var(--c-text-bright);
+}
+.reading-history small {
+  display: block;
+  margin-top: 5px;
+  font-size: 10px;
+}
+.reading-side-answer {
+  margin: 16px 0;
+  padding: 15px 0;
+  border-block: 1px solid var(--c-line);
+  font-size: 13px;
+}
+.reading-side-answer summary {
+  cursor: pointer;
+}
+.reading-book-closed {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--c-text-muted);
+  font-size: 12px;
+  margin: 0 0 22px;
+}
+.reading-book-closed input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--c-accent);
+  flex-shrink: 0;
+}
+.reading-book-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--c-text-muted);
+  margin-bottom: 16px;
+}
+.reading-book-status button,
+.reading-pending-question button {
+  border: 1px solid var(--c-line);
+  background: transparent;
+  color: var(--c-text-bright);
+  padding: 7px 10px;
+  border-radius: 6px;
+}
+.reading-covered-text {
+  margin-top: 20px;
+  color: var(--c-text-muted);
+  font-size: 11px;
+  line-height: 1.75;
+}
+.reading-covered-text summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+.reading-covered-text h3 {
+  font-size: 12px;
+  margin-top: 20px;
+}
+.reading-covered-text pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  color: var(--c-text-bright);
+}
+.reading-pending-question {
+  border: 1px solid var(--c-line);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.curriculum-reading-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 0 24px;
+  border-bottom: 1px solid var(--c-line);
+  margin-bottom: 24px;
+  font-size: 13px;
+}
+.curriculum-reading-entry p {
+  color: var(--c-text-muted);
+  font-size: 12px;
+  margin: 7px 0 0;
+  line-height: 1.7;
+}
+@media (max-width: 1050px) {
+  .reading-body.has-help {
+    grid-template-columns: 1fr;
+  }
+  .reading-body.has-help .reading-activity {
+    display: none;
+  }
+}
+@media (max-width: 600px) {
+  .reading-heading {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .reading-range-fields {
+    gap: 12px;
+  }
+  .reading-range-fields label {
+    flex: 1;
+    min-width: 110px;
+  }
+  .reading-range input {
+    width: 100%;
+  }
+  .reading-range-fields > button {
+    width: 100%;
+  }
+  .reading-support-actions > button:last-child {
+    margin-left: 0;
+  }
+  .reading-bookmark {
+    gap: 16px;
+  }
+  .curriculum-reading-entry {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .pdf-reading .check-question {
+    font-size: 16px;
+  }
+}

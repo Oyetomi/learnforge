@@ -32,6 +32,9 @@ import { RetentionFlow } from "./components/learning/RetentionFlow";
 import { deleteTopicData } from "./services/learning/topicDeletion";
 import { topicsInWorkspace, savedTopicIds } from "./services/learning/topics";
 import { CurriculumWorkspace } from "./components/curriculum/CurriculumWorkspace";
+import { PdfReadingCompanion } from "./components/reading/PdfReadingCompanion";
+import { PdfBookRail } from "./components/reading/PdfBookRail";
+import { deleteReadingData } from "./services/learning/readingStore";
 import { curriculumForTrack, curriculumUnits } from "./services/learning/curriculumPlan";
 import { prepareCurriculumUnit } from "./services/ai/curriculumOutline";
 import { NewTopicModal } from "./components/curriculum/NewTopicModal";
@@ -112,7 +115,8 @@ export default function App() {
     } catch {}
     return visibleTracks[0]?.id || "";
   });
-  const [workspaceView, setWorkspaceView] = useState<"session" | "curriculum" | "knowledge">("session");
+  const [workspaceView, setWorkspaceView] = useState<"session" | "curriculum" | "knowledge" | "reading">("session");
+  const [readingPageRequest, setReadingPageRequest] = useState<{ page: number; at: number }>();
   const [unitPreparation, setUnitPreparation] = useState<{ id: string; state: "loading" | "error" | "cancelled"; error?: string } | null>(null);
   const [preparationRetry, setPreparationRetry] = useState(0);
   const [diagnosticFor, setDiagnosticFor] = useState<string | null>(null);
@@ -428,6 +432,7 @@ export default function App() {
     setIsRunningCode(false);
     setCurrentTrackId(trackId);
     setWorkspaceView("session");
+    setReadingPageRequest(undefined);
     setDiagnosticFor(null);
     setUnitPreparation(null);
     setMobilePane("lesson");
@@ -447,10 +452,12 @@ export default function App() {
       );
     } catch {}
   };
-  const handleDeleteTopics = (ids: string[]) => {
+  const handleDeleteTopics = async (ids: string[]) => {
     const deleting = new Set(ids);
-    if (deleting.has(currentTrackId)) handleStopStreaming();
+    if (deleting.has(currentTrackId)) { handleStopStreaming(); setWorkspaceView("curriculum"); }
     if (saveTimer.current) clearTimeout(saveTimer.current);
+    // Await removal of original PDFs and bookmarks before reporting permanent deletion.
+    for (const id of ids) if (tracks.find(t=>t.id===id)?.curriculum?.sourceDocument) await deleteReadingData(id);
     const erased = ids.flatMap((id) =>
       deleteTopicData(db, tracks.find((t) => t.id === id) || { id, title: "" })
     );
@@ -1300,6 +1307,7 @@ export default function App() {
         }}
       />
       <div className="app-body">
+        {selectedTrack?.curriculum?.sourceDocument && workspaceView !== "knowledge" && !(workspaceView === "session" && isCodeWorkspaceOpen) && <PdfBookRail key={selectedTrack.id} trackId={selectedTrack.id} source={selectedTrack.curriculum.sourceDocument} lessonPage={workspaceView==="session"?activeMilestone?.references?.find(r=>r.pdfPageStart)?.pdfPageStart:undefined} onRead={()=>{setReadingPageRequest(undefined);setWorkspaceView("reading");}} onChoosePage={page=>{setReadingPageRequest({page,at:Date.now()});setWorkspaceView("reading");}}/>}
         {isSidebarOpen && currentSession && workspaceView === "session" && !selectedTrack?.curriculum && (
           <>
             <button
@@ -1326,9 +1334,12 @@ export default function App() {
               }}
               onManageRemoved={removedTopicIds.length ? () => setIsManageTopicsOpen(true) : undefined}
             />
+          ) : workspaceView === "reading" && selectedTrack?.curriculum?.sourceDocument ? (
+            <PdfReadingCompanion key={selectedTrack.id} track={selectedTrack} pageRequest={readingPageRequest} onReturn={()=>setWorkspaceView("curriculum")} />
           ) : workspaceView === "curriculum" && selectedTrack ? (
             <CurriculumWorkspace key={selectedTrack.id} track={selectedTrack} milestones={milestones} messages={messages} active={activeMilestone}
               onSelect={handleSelectMilestone} onResume={()=>setWorkspaceView("session")}
+              onOpenReading={()=>{setReadingPageRequest(undefined);setWorkspaceView("reading");}}
               onDiagnostic={milestone=>{handleSelectMilestone(milestone);setDiagnosticFor(milestone.id);}} />
           ) : (
             <>

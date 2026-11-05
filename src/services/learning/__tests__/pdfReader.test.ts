@@ -3,7 +3,7 @@ const sdk = vi.hoisted(() => ({ PDFDataRangeTransport: class {
   length: number; onDataRange = vi.fn(); constructor(length: number) { this.length = length; }
 }, getDocument: vi.fn(), GlobalWorkerOptions: { workerSrc: "" } }));
 vi.mock("pdfjs-dist", () => sdk);
-import { readPdfBook, readSelectedPdfChapters } from "../pdfReader";
+import { readPdfBook, readSelectedPdfChapters, readPdfStudyRange } from "../pdfReader";
 const items = (lines: string[]) => lines.map((str, i) => ({str,transform:[1,0,0,1,40,750-i*24],width:200,hasEOL:true}));
 function documentFixture(pages: string[][]) {
   return { numPages: pages.length, getOutline: vi.fn(async()=>null), getPageLabels:vi.fn(async()=>null),
@@ -12,6 +12,25 @@ function documentFixture(pages: string[][]) {
 }
 afterEach(()=>vi.clearAllMocks());
 describe("local PDF reader lifecycle",()=>{
+ it("reads only the covered physical pages, keeps printed labels separate, and never reads the next page",async()=>{
+  const pdf=documentFixture([["Front matter"],["Covered prose"],["Covered code"],["UNREAD FUTURE ANSWER"]]);
+  pdf.getPageLabels.mockResolvedValue(["i","1","2","3"] as never);
+  const destroy=vi.fn(async()=>{});sdk.getDocument.mockReturnValue({promise:Promise.resolve(pdf),destroy});
+  const range=await readPdfStudyRange(new Uint8Array([1]),2,3);
+  expect(range.pages.map(p=>[p.number,p.label])).toEqual([[2,"1"],[3,"2"]]);
+  expect(pdf.getPage.mock.calls.map(c=>c[0])).toEqual([2,3]);
+  expect(JSON.stringify(range)).not.toContain("UNREAD FUTURE");expect(destroy).toHaveBeenCalledOnce();
+ });
+ it("splits a long selection at a page boundary and reports image-only or invalid ranges",async()=>{
+  const pdf=documentFixture([["x".repeat(9000)],["y".repeat(9000)],["z"]]);
+  sdk.getDocument.mockImplementation(()=>({promise:Promise.resolve(pdf),destroy:vi.fn(async()=>{})}));
+  const range=await readPdfStudyRange(new Uint8Array([1]),1,3);
+  expect(range).toMatchObject({from:1,to:1,requestedTo:3}); expect(range.pages[0].text.length).toBe(9000);
+  await expect(readPdfStudyRange(new Uint8Array([1]),0,3)).rejects.toThrow("between 1 and 3");
+  await expect(readPdfStudyRange(new Uint8Array([1]),1,4)).rejects.toThrow("between 1 and 3");
+  sdk.getDocument.mockReturnValue({promise:Promise.resolve(documentFixture([[]])),destroy:vi.fn(async()=>{})});
+  await expect(readPdfStudyRange(new Uint8Array([1]),1,1)).rejects.toThrow("no selectable text");
+ });
  it("resolves bookmark destinations to physical pages, extracts text, and releases the worker",async()=>{
   const pdf=documentFixture([["Cover"],["A chapter","Its actual text"]]);
   pdf.getOutline.mockResolvedValue([{title:"A chapter",dest:"named",items:[]}] as never);

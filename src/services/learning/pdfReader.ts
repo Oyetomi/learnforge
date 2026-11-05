@@ -100,9 +100,54 @@ export async function readPdfBook(input: Uint8Array | Blob, name: string, option
     }
     const detected = sections.length ? withPageRanges(sections, pdf.numPages) : sectionsFromContents(pages, await pdf.getPageLabels().catch(() => null));
     if (!pages.some(p => p.trim()) && !detected.length) throw new Error("This looks like a scanned PDF. Selectable text is needed: use a text-searchable PDF or paste its table of contents. OCR is not available yet.");
-    return { name, pageCount: pdf.numPages, pages, sections: detected, readPages, shortenedPages,
+    return { name, fingerprint: pdf.fingerprints?.[1] || pdf.fingerprints?.[0] || undefined, pageCount: pdf.numPages, pages, sections: detected, readPages, shortenedPages,
       ...(input instanceof Uint8Array ? { bytes: input } : { file: input }), previewOnly: previewCount < pdf.numPages, contentsTruncated,
       contentsFrom: sections.length ? "bookmarks" : detected.length ? "contents-page" : "none", truncated: shortenedPages.length > 0 };
+  });
+}
+
+export interface PdfReadingRange {
+  from: number;
+  to: number;
+  requestedTo: number;
+  pages: { number: number; label?: string; text: string }[];
+}
+
+/** A local thumbnail of the actual first page, never an invented book cover. */
+export async function renderPdfCover(input: Blob | Uint8Array): Promise<Blob | undefined> {
+  if (typeof document === "undefined") return undefined;
+  return withPdf(input, {}, async pdf => {
+    const page = await pdf.getPage(1);
+    try {
+      const original = page.getViewport({ scale: 1 });
+      const viewport = page.getViewport({ scale: Math.min(320 / original.width, 440 / original.height) });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
+      await page.render({ canvas, viewport, background: "#ffffff" }).promise;
+      return await new Promise<Blob | undefined>(resolve => canvas.toBlob(blob => resolve(blob || undefined), "image/jpeg", .88));
+    } finally { page.cleanup(); }
+  });
+}
+
+/** A study-sized excerpt, stopping on page boundaries rather than clipping unseen text. */
+export async function readPdfStudyRange(input: Blob | Uint8Array, from: number, to: number, options: ReadOptions = {}): Promise<PdfReadingRange> {
+  return withPdf(input, options, async (pdf, activity) => {
+    if (!Number.isInteger(from) || !Number.isInteger(to) || from < 1 || to < from || to > pdf.numPages)
+      throw new Error(`Choose PDF pages between 1 and ${pdf.numPages}, with the end after the start.`);
+    const labels = await pdf.getPageLabels().catch(() => null);
+    const pages: PdfReadingRange["pages"] = [];
+    let characters = 0;
+    for (let n = from; n <= to; n++) {
+      options.signal?.throwIfAborted();
+      const text = await pageText(pdf, n);
+      // Every included page remains intact. Long selections become several reading stops.
+      if (characters + text.length > 14000 && pages.length) break;
+      if (text.length > 14000) throw new Error(`PDF page ${n} contains too much text for one check. Paste the passage you want to study into a focused lesson.`);
+      pages.push({ number: n, label: labels?.[n - 1] || undefined, text });
+      characters += text.length; activity(); options.onProgress?.(n, to);
+    }
+    if (!pages.some(p => p.text.trim())) throw new Error("These pages have no selectable text. Choose a text-searchable copy or paste the passage into a focused lesson. OCR is not available yet.");
+    return { from, to: pages[pages.length - 1].number, requestedTo: to, pages };
   });
 }
 

@@ -14,7 +14,15 @@ Actual capacity still depends on the device, PDF encoding, and available resourc
 
 The approved plan stores the selected section names and physical page ranges. Each generated unit must map to selected section IDs, and every selected section must be covered. A structurally invalid or incomplete mapping receives one repair attempt, then fails rather than saving a misleading plan. A unit is prepared using its own saved chapter references, including chapters beyond the first six sources.
 
-Only bounded extracted text is saved with the topic; the raw File/Blob is held in memory during import and is not included in the saved curriculum or provider payload. Excerpts are capped and explicitly marked when incomplete. Bookmarks can define scope even when chapter text is unreadable, but this remains **outline-only** material. Generated examples and background must be distinguished from source-specific claims. Source text and headings are untrusted data, never instructions to the tutor.
+Only bounded extracted text is included in the topic JSON and provider payload. On approval, the original PDF is saved separately in local IndexedDB storage for later page-range reading; its first page supplies the book thumbnail. The original file and thumbnail are not sent to the tutor. Excerpts are capped and explicitly marked when incomplete. Bookmarks can define scope even when chapter text is unreadable, but this remains **outline-only** material. Generated examples and background must be distinguished from source-specific claims. Source text and headings are untrusted data, never instructions to the tutor.
+
+## Read the book separately
+
+Use **Study alongside this PDF** from the curriculum. Set the physical PDF page or recently read range and save your place. **Check what I read** asks before explaining; your submitted answer stays visible while tutoring is prepared. Page-linked hints, walkthroughs and figures preserve the same activity. An open book or a hint counts as supported practice; you can put the book aside for an independent check.
+
+The left book rail shows the actual first-page thumbnail, saved position, and a searchable chapter index for long books. Its highlight locates you in the document, without marking the chapter as learned. Printed labels remain separate from PDF page indexes. Your external reader is not monitored: change the range explicitly when you read ahead. Existing PDF curricula need the original file reconnected once because older imports retained only excerpts.
+
+Your bookmark, reading stops, submitted work and feedback resume across app restarts. The original PDF and reading data are removed when the topic is deleted. Available device storage and browser data clearing still apply. See the [reading companion design and limits](pdf-reading-companion-design.md).
 
 One curriculum remains bounded to 48 selected sections / 48 observable outcome units, grouped into at most 10 modules. This is an approval/teaching scope constraint, separate from accepting large PDF files. For larger scopes, select a part of the book for the current plan. Chapter ordering and inclusion are scope choices, not evidence that the learner has mastered those chapters. Existing independent-practice and tutor-review progression still applies.
 

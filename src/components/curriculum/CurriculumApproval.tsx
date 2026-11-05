@@ -21,7 +21,7 @@ export function CurriculumApproval({
   onRevise,
 }: {
   track: CourseTrack;
-  onApprove: (track: CourseTrack) => void;
+  onApprove: (track: CourseTrack) => void | Promise<void>;
   onRevise: () => void;
 }) {
   const [draft, setDraft] = useState(track);
@@ -31,6 +31,7 @@ export function CurriculumApproval({
   const [probeIds, setProbeIds] = useState<string[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [preparing, setPreparing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const controller = useRef<AbortController | null>(null),
@@ -169,7 +170,7 @@ export function CurriculumApproval({
       }
     }
   };
-  const approve = () => {
+  const approve = async () => {
     if (submitting.current) return;
     if (!validCurriculumPlan(plan)) {
       setError(
@@ -178,8 +179,9 @@ export function CurriculumApproval({
       return;
     }
     submitting.current = true;
+    setSaving(true);
     try {
-      onApprove({
+      await onApprove({
         ...proposed,
         curriculum: { ...plan, approvedAt: Date.now() },
       });
@@ -190,7 +192,7 @@ export function CurriculumApproval({
           ? e.message
           : "The plan could not be saved. Try again."
       );
-    }
+    } finally { if (mounted.current) setSaving(false); }
   };
   return (
     <div ref={surface} className="new-topic-form curriculum-approval">
@@ -554,17 +556,17 @@ export function CurriculumApproval({
           <footer className="new-topic-footer">
             <button
               className="dialog-secondary-button"
-              disabled={preparing}
+              disabled={preparing || saving}
               onClick={onRevise}
             >
               Adjust goal
             </button>
             <button
               className="dialog-primary-button"
-              disabled={preparing}
+              disabled={preparing || saving}
               onClick={approve}
             >
-              Approve curriculum
+              {saving ? "Saving curriculum and PDF…" : "Approve curriculum"}
               <ArrowRight size={14} />
             </button>
           </footer>

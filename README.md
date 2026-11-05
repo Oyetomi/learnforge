@@ -54,7 +54,7 @@ LearnForge is a local-first learning app for technical and nontechnical subjects
 | Help without losing your place | Ask a side question with `/btw`, or open a hint, walkthrough, or visual alongside the current activity. Resize or expand help while keeping your answer in place. |
 | Interface and feedback | Frosted floating menus, shared controls, a unified composer, and subtle dialog, panel and learning-step transitions. System reduced-motion support and solid material fallbacks. |
 | Math and visual explanations | KaTeX equations, paper-style derivations, comparison tables, SVG illustrations, and supported interactive models. Embedded calculations stay together; standalone figures can retain step controls. |
-| Your own material | Use notes and files as source context. For PDFs, review detected chapters and page ranges, select the sections you want, then approve a curriculum tied to those chapters. [PDF curriculum guide](docs/pdf-curriculum.md). |
+| Your own material | Build a curriculum from selected PDF chapters, or study alongside your external reader with saved page ranges, a real cover thumbnail, and a chapter index. Check what you read and keep your answer in view through tutoring. [PDF curriculum guide](docs/pdf-curriculum.md). |
 | Knowledge and practice | Build a topic map from saved material, inspect exact source passages and joint reasoning premises, then start a resumable practice run. Results distinguish unaided, supported, and disputed work without awarding curriculum progress. |
 | Study notes | Export study material as Markdown or Anki-compatible data. |
 | Optional revisits | Offer an earlier idea within the same topic. Off by default, integrated into learning rather than a daily-review modal. |
