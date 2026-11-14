@@ -54,7 +54,7 @@ LearnForge is a local-first learning app for technical and nontechnical subjects
 | Help without losing your place | Ask a side question (or type `/btw`), or open a hint, walkthrough, visual, or clarification from the Help menu alongside the current activity. Resize or expand help while keeping your answer in place. |
 | Interface and feedback | Frosted floating menus, shared controls, a unified composer, and subtle dialog, panel and learning-step transitions. System reduced-motion support and solid material fallbacks. |
 | Math and visual explanations | KaTeX equations, paper-style derivations, comparison tables, SVG illustrations, and supported interactive models. Embedded calculations stay together; standalone figures can retain step controls. |
-| Your own material | Build a curriculum from selected PDF chapters, or read selected pages inside the app with saved page ranges, a real cover thumbnail, and a chapter index. Check what you read and keep your answer in view through tutoring. [PDF curriculum guide](docs/pdf-curriculum.md). |
+| Your own material | Build a curriculum from selected PDF chapters (books divided into parts default to their chapters), then read the pages inside the app with a saved place, a real cover thumbnail, and a chapter index. Check what you read and keep your answer in view through tutoring. [PDF curriculum guide](docs/pdf-curriculum.md). |
 | Knowledge and practice | Build a topic map from saved material, inspect exact source passages and joint reasoning premises, then start a resumable practice run. Results distinguish unaided, supported, and disputed work without awarding curriculum progress. |
 | Study notes | Export study material as Markdown or Anki-compatible data. |
 | Optional revisits | Offer an earlier idea within the same topic. Off by default, integrated into learning rather than a daily-review modal. |
@@ -63,6 +63,10 @@ LearnForge is a local-first learning app for technical and nontechnical subjects
 ![Worked percentage tutoring with a comparison table](docs/images/question-review.jpg)
 
 *The worked explanation compares the amount each percentage uses. The question and tutoring screenshots use authored demo data, with no live provider calls or learner-outcome claims. Readiness is an estimate, not a guarantee of mastery.*
+
+![Reading the pages of a saved PDF inside LearnForge, with the chapter contents beside them](docs/images/pdf-reading.jpg)
+
+*Reading chapter pages inside the app. The book sidebar shows the contents and your place; **Check what I read** stays at the bottom. The book is an authored test PDF.*
 
 ![Paper-style mathematical reasoning in LearnForge](docs/images/paper-math.jpg)
 
@@ -100,7 +104,7 @@ Remote execution sends code and tests to its provider. Runtime, package, network
 
 ## Data and privacy
 
-Learning records and settings use local browser/WebView storage. AI connection keys and Exa settings are stored locally; ElevenLabs uses macOS Keychain. Do not assume all credentials have OS-backed encryption or that local-first means offline.
+Topics, lessons, answers and review cards are stored in a local database (IndexedDB) on this device; records from earlier versions move there automatically the first time the app opens. Saved PDFs and reading places use a separate local database. Smaller preferences use local storage. AI connection keys and Exa settings are stored locally; ElevenLabs uses macOS Keychain. Do not assume all credentials have OS-backed encryption or that local-first means offline.
 
 Requests to a configured AI service send the context needed for the activity, which can include your answers and supplied source excerpts. Exa grounding, cloud code execution, and cloud narration contact their respective services when used. No user API key is included with the app.
 
