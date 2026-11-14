@@ -59,7 +59,7 @@ export const DerivationPane: React.FC<DerivationPaneProps> = ({
     >
       <div className="derivation-view-heading">
         <h1>Derivation Ladder</h1>
-        <p>Saved step-by-step explanations from this track.</p>
+        <p>Saved step-by-step explanations from this topic.</p>
       </div>
       {selected ? (
         <>

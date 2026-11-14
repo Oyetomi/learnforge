@@ -237,7 +237,7 @@
   margin: 0;
   font-size: 12px;
   line-height: 1.65;
-  color: #a9b6c8;
+  color: var(--c-text-secondary);
 }
 .settings-plugin-caps {
   display: flex;
@@ -293,7 +293,7 @@
 
 /* Disabled integrations stay quiet while keeping configuration discoverable. */
 .settings-plugin-details { min-width: 0; border-top: 1px solid var(--c-line); margin-top: 10px; }
-.settings-plugin-details > summary { cursor: pointer; padding: 12px 0; min-height: 40px; font-size: 12px; color: #c1cad6; }
+.settings-plugin-details > summary { cursor: pointer; padding: 12px 0; min-height: 40px; font-size: 12px; color: var(--c-text-body); }
 .settings-plugin-details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .settings-plugin-details[open] { display: block; }
 .settings-plugin-details[open] > :not(summary) { margin-top: 12px; }

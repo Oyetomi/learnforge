@@ -16,7 +16,7 @@
 .answer-tutoring > header span { display: flex; align-items: center; gap: 8px; }
 .answer-tutoring > header small { white-space: nowrap; font-size: 11px; }
 .answer-reading-options { display: flex; align-items: center; gap: 3px; width: fit-content; padding: 3px; margin-bottom: 18px; border: 1px solid var(--c-line); border-radius: 6px; }
-.answer-reading-options button { min-height: 28px; padding: 4px 9px; border: 0; border-radius: 4px; background: transparent; color: #9eabbc; font: inherit; font-size: 11px; }
+.answer-reading-options button { min-height: 28px; padding: 4px 9px; border: 0; border-radius: 4px; background: transparent; color: var(--c-text-quiet); font: inherit; font-size: 11px; }
 .answer-reading-options button[aria-pressed="true"] { color: #ead6c3; background: #34332f; }
 .answer-reading-options button:focus-visible { outline: 2px solid var(--c-accent-deep); outline-offset: 2px; }
 .answer-tutoring-step { outline: none; font-size: 14px; line-height: 1.75; }

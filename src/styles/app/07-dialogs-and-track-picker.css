@@ -24,7 +24,7 @@
 }
 .new-topic-form > label {
   display: block;
-  color: #d0d7e1;
+  color: var(--c-text-body);
   font-size: 12px;
   font-weight: 500;
   margin-bottom: 9px;
@@ -146,7 +146,7 @@
 .topic-error p {
   margin: 7px 0 0;
   font-size: 12px;
-  color: #a9b6c8;
+  color: var(--c-text-secondary);
   line-height: 1.8;
   overflow-wrap: anywhere;
 }
@@ -314,7 +314,7 @@
   border: 0;
 }
 .derivation-ladder mark {
-  color: #b7cbdc;
+  color: var(--c-text-body);
   background: #ffffff04;
   padding: 1px 3px;
   border-bottom: 1px solid #a9b6c83d;
@@ -350,7 +350,7 @@
   border: 1px solid #4e5866;
   border-radius: 50%;
   font-size: 11px;
-  color: #a9b6c8;
+  color: var(--c-text-secondary);
   margin-top: 1px;
 }
 .ladder-steps > li > div {
@@ -378,7 +378,7 @@
   color: #b2ccba;
 }
 .console-stream .console-diagnostic {
-  color: #a9b6c8;
+  color: var(--c-text-secondary);
 }
 
 /* Track selection is rendered in-app rather than by the platform select menu. */
@@ -418,7 +418,7 @@
 }
 .picker-chevron {
   flex-shrink: 0;
-  color: #9eabbc;
+  color: var(--c-text-quiet);
   margin-left: auto;
   transition: transform 150ms ease;
 }
@@ -525,7 +525,7 @@
   font-weight: 500;
 }
 .track-picker-empty p {
-  color: #9eabbc;
+  color: var(--c-text-quiet);
   font-size: 12px;
   margin: 8px 0 0;
 }
@@ -536,7 +536,7 @@
   gap: 12px;
   padding: 10px 15px;
   border-top: 1px solid var(--c-line);
-  color: #9eabbc;
+  color: var(--c-text-quiet);
   font-size: 11px;
   flex-shrink: 0;
 }
@@ -547,7 +547,7 @@
 }
 .track-picker-footer kbd {
   font-family: inherit;
-  color: #b4c1d1;
+  color: var(--c-text-secondary);
 }
 .track-picker-footer > span > span {
   color: #637083;

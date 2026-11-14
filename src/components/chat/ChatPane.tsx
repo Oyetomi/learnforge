@@ -1277,7 +1277,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
             <p>
               {onNextMilestone
                 ? "You’ve applied this idea in more than one situation."
-                : "You’ve reached the end of this track. Revisit a lesson or explore further."}
+                : "You’ve reached the end of this topic. Revisit a lesson, practise in Practice, or start a new topic."}
             </p>
             <div className="session-next-actions">
               {onNextMilestone && (

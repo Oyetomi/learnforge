@@ -271,9 +271,9 @@ dialog.review-dialog { overflow: hidden; max-height: calc(100dvh - 40px); }
 /* Answer feedback is a reading stage; progression is an explicit learner action. */
 .check-feedback { scroll-margin-top: 20px; }
 .check-submitted-answer { margin: 14px 0; padding: 12px 14px; background: #ffffff04; border: 1px solid #474d56; border-radius: 6px; }
-.check-submitted-answer > span { display: block; font-size: 11px; color: #a9b6c8; margin-bottom: 6px; }
+.check-submitted-answer > span { display: block; font-size: 11px; color: var(--c-text-secondary); margin-bottom: 6px; }
 .check-submitted-answer p { margin: 0; font-size: 13px; line-height: 1.7; }
-.check-feedback .check-feedback-pause { color: #a9b6c8; font-size: 11px; line-height: 1.8; margin: 18px 0 10px; }
+.check-feedback .check-feedback-pause { color: var(--c-text-secondary); font-size: 11px; line-height: 1.8; margin: 18px 0 10px; }
 .check-feedback-actions { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
 .roadmap-node-title { font-size: 13px; }
 .roadmap-node-status { font-size: 11px; }
@@ -318,20 +318,20 @@ dialog.review-dialog { overflow: hidden; max-height: calc(100dvh - 40px); }
 @keyframes activity-enters { from { opacity:.35; transform:translateX(28px); } to { opacity:1; transform:translateX(0); } }
 .activity-slide { animation:activity-enters 180ms ease-out; }
 .slide-reference-intro { color:var(--c-text-quiet-cool); font-size:12px; margin:0 0 16px; }
-.slide-reference-button { border:1px solid #4a586a; border-radius:6px; background:transparent; color:#b7cbdc; font:inherit; font-size:11px; min-height:34px; padding:6px 10px; margin-bottom:14px; }
+.slide-reference-button { border:1px solid #4a586a; border-radius:6px; background:transparent; color:var(--c-text-body); font:inherit; font-size:11px; min-height:34px; padding:6px 10px; margin-bottom:14px; }
 @media(prefers-reduced-motion:reduce){.activity-slide{animation:none;}}
 .slide-progress { display:flex; gap:5px; align-items:center; margin-left:auto; }
 .slide-progress i { width:5px; height:5px; border-radius:50%; background:#4e5866; }
 .slide-progress i.is-current { background:#dbb78c; }.slide-progress i.is-seen { background:#7b927f; }
-.slide-progress small { font-size:11px; color:#8a99ad; margin-left:7px; }
+.slide-progress small { font-size:11px; color:var(--c-text-quiet); margin-left:7px; }
 .focused-session .knowledge-check { border:0; padding:0; border-radius:0; background:transparent; box-shadow:none; }
 .focused-session .check-feedback { margin-top:8px; }
 .focused-session .check-kicker { margin-bottom:8px; font-size:11px; }
 .manage-topics-content .topic-delete-button { color:#e0b8ab; border-color:#70514b; }
 .legacy-topic-cleanup { display:flex; gap:18px; justify-content:space-between; align-items:center; padding:18px 0; border-top:1px solid var(--c-line-strong); }
-.legacy-topic-cleanup p { margin:0; font-size:12px; line-height:1.7; color:#a9b6c8; }
+.legacy-topic-cleanup p { margin:0; font-size:12px; line-height:1.7; color:var(--c-text-secondary); }
 .legacy-topic-cleanup button { flex-shrink:0; padding:9px 12px; background:transparent; border:1px solid #70514b; border-radius:6px; font:inherit; font-size:11px; }
-.topic-deletion-list { margin:20px 0; color:#d0d7e1; font-size:13px; line-height:1.8; }
+.topic-deletion-list { margin:20px 0; color:var(--c-text-body); font-size:13px; line-height:1.8; }
 .manage-topics-content .topic-deletion-list > li { display:list-item; padding:6px 0; border:0; }
 .dialog-primary-button.topic-delete-confirm { background:#d8a294; color:#291a16; }
 .topic-delete-error { color:#edb9aa; font-size:12px; }

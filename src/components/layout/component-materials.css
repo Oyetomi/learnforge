@@ -67,7 +67,7 @@
   margin: 3px 0;
   border: 0;
   border-radius: 12px;
-  color: #d0d7e1;
+  color: var(--c-text-body);
   background: transparent;
 }
 .track-picker-popover .track-picker-manage:hover { background: var(--chrome-hover); }
@@ -290,7 +290,7 @@
   border-radius: 8px;
   background: transparent;
 }
-.app-shell .focused-session .telemetry-model-pill strong { font-weight: 400; color: #a9b6c8; font-size: 11px; }
+.app-shell .focused-session .telemetry-model-pill strong { font-weight: 400; color: var(--c-text-secondary); font-size: 11px; }
 .app-shell .focused-session .telemetry-model-pill:hover { background: #ffffff06; }
 .app-shell .focused-session .session-usage-details > summary { min-height: 26px; display: flex; align-items: center; font-size: 11px; }
 

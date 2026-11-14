@@ -49,24 +49,28 @@
   --c-surface-2: #21262d;
   --c-surface-raised: #282b30;
   --c-surface-3: #2b323b;
-  --c-line-soft: #343c45;
   --c-line: #343c45;
+  --c-line-soft: var(--c-line);
   --c-line-strong: #3c424c;
   --c-line-hover: #444e5c;
+  /* Text: six steps, darkest to lightest. Every step meets WCAG AA (4.5:1)
+   * on every surface above except disabled, which is exempt. A light theme
+   * only needs to redefine these six values. */
   --c-text-disabled: #7f8ea2;
-  --c-text-faint: #8f99a7;
-  --c-text-faint-cool: #8fa0b5;
-  --c-text-quiet: #98a3b1;
-  --c-text-quiet-cool: #9fb0c4;
-  --c-text-muted: #a2aab6;
-  --c-text-subtle: #aab5bf;
+  --c-text-quiet: #9ca7b5;
   --c-text-secondary: #b8c0cc;
-  --c-text-secondary-cool: #b8c0cc;
-  --c-text: #c7cbd2;
   --c-text-body: #c7d2df;
-  --c-text-bright: #d9dfe7;
   --c-text-strong: #dfe7f0;
   --c-text-heading: #edf0f4;
+  /* Older names kept as aliases so existing stylesheets keep working. */
+  --c-text-faint: var(--c-text-quiet);
+  --c-text-faint-cool: var(--c-text-quiet);
+  --c-text-quiet-cool: var(--c-text-quiet);
+  --c-text-muted: var(--c-text-quiet);
+  --c-text-subtle: var(--c-text-secondary);
+  --c-text-secondary-cool: var(--c-text-secondary);
+  --c-text: var(--c-text-body);
+  --c-text-bright: var(--c-text-strong);
   --c-accent-wash: #30251e;
   --c-accent-deep: #c6a381;
   --c-accent-text: #d2b497;

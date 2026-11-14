@@ -34,6 +34,6 @@
 .pdf-manual-contents summary:hover { color: var(--c-accent-strong); }
 .pdf-manual-contents textarea { display: block; width: 100%; }
 .pdf-manual-contents small { display: block; margin-top: 8px; }
-.curriculum-source-note { margin: 12px 0; padding: 12px 14px; border-left: 2px solid #b7a388; background: #ffffff03; color: #b6b6be; font-size: 12px; line-height: 1.7; }
+.curriculum-source-note { margin: 12px 0; padding: 12px 14px; border-left: 2px solid #b7a388; background: #ffffff03; color: var(--c-text-secondary); font-size: 12px; line-height: 1.7; }
 .curriculum-source-chapters { display: block; margin: 5px 0; font-size: 11px; color: #b8aa97; }
 @media (max-width: 550px) { .pdf-chapter-list li { grid-template-columns: minmax(0, 1fr); gap: 6px; } .pdf-chapter-pages, .pdf-chapter-range { padding-left: 26px; } }

@@ -56,7 +56,7 @@ h1 {
   border: 0;
   border-bottom: 2px solid transparent;
   padding: 2px 0 0;
-  color: #9ca3ad;
+  color: var(--c-text-quiet);
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
@@ -196,7 +196,7 @@ h1 {
   resize: none;
   background: transparent;
   border: 0;
-  color: #e4e6e9;
+  color: var(--c-text-strong);
   padding: 5px 5px 4px;
   font-size: 12px;
   line-height: 20px;
@@ -237,7 +237,7 @@ h1 {
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  color: #9ca3ad;
+  color: var(--c-text-quiet);
   margin: 8px 1px 0;
 }
 .composer-footnote > span:last-child {
@@ -333,7 +333,7 @@ h1 {
   align-items: center;
   font-size: 12px;
   font-weight: 500;
-  color: #d0d7e1;
+  color: var(--c-text-body);
   white-space: nowrap;
 }
 .editor-heading > svg {

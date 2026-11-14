@@ -26,7 +26,7 @@
   align-items: center;
   gap: 12px;
   margin-top: 22px;
-  color: #a9b6c8;
+  color: var(--c-text-secondary);
   font-size: 11px;
 }
 .derivation-history > div {
@@ -50,7 +50,7 @@
   border: 1px solid #3f4856;
   background: #ffffff02;
   border-radius: 12px;
-  color: #b4c1d1;
+  color: var(--c-text-secondary);
   margin-bottom: 22px;
 }
 .derivation-empty h2 {
@@ -89,7 +89,7 @@
   border: 1px solid var(--c-line-hover);
   background: #ffffff02;
   border-radius: 6px;
-  color: #aebed2;
+  color: var(--c-text-secondary);
   font-size: 11px;
 }
 .derivation-generation > svg {
@@ -218,7 +218,7 @@
 }
 .visual-ladder .ladder-steps h5 {
   font: italic 15px/1.75 Georgia, "Times New Roman", serif;
-  color: #b8bdc5;
+  color: var(--c-text-secondary);
   margin: 0 0 9px;
 }
 .visual-ladder .ladder-evaluation code {
@@ -249,7 +249,7 @@
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  color: #e4e6e9;
+  color: var(--c-text-strong);
   font-size: 20px;
   padding: 7px 1px;
 }

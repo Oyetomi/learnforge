@@ -154,7 +154,7 @@ a:focus-visible {
   appearance: none;
   border: 0;
   background: transparent;
-  color: #e4e6e9;
+  color: var(--c-text-strong);
   font-weight: 500;
   font-size: 13px;
   width: 100%;
@@ -183,7 +183,7 @@ select option {
   display: flex;
   gap: 8px;
   align-items: center;
-  color: #d1d4da;
+  color: var(--c-text-body);
   background: transparent;
   border: 1px solid #3a3d43;
   padding: 8px 10px;

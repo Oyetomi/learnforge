@@ -1,11 +1,11 @@
 /* State walkthrough - HTML grid-based layout */
 .visual-state-model { container-type: inline-size; }
-.state-walkthrough { color: #d0d7e1; }
+.state-walkthrough { color: var(--c-text-body); }
 .walkthrough-disclaimer { font-size: 11px; line-height: 1.7; color: var(--c-text-quiet-cool); margin: 0 0 12px; }
 .walkthrough-workbench { display: grid; gap: 16px; margin-top: 12px; align-items: start; }
 .walkthrough-workbench.has-source { grid-template-columns: minmax(0, 1fr) minmax(0, .95fr); }
 .walkthrough-scene, .walkthrough-source { min-width: 0; }
-.walkthrough-scene-label { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: #b4c1d1; margin-bottom: 16px; }
+.walkthrough-scene-label { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--c-text-secondary); margin-bottom: 16px; }
 .walkthrough-scene-label > span { font-size: 11px; color: var(--c-text-disabled); }
 
 /* ---- Lane grid ---- */
@@ -120,7 +120,7 @@
 
 /* ---- Actions ---- */
 .walkthrough-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.walkthrough-actions button, .walkthrough-navigation button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid #4a586a; background: transparent; color: #d5e0ec; padding: 7px 10px; border-radius: 6px; font-size: 11px; min-height: 34px; cursor: pointer; }
+.walkthrough-actions button, .walkthrough-navigation button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid #4a586a; background: transparent; color: var(--c-text-strong); padding: 7px 10px; border-radius: 6px; font-size: 11px; min-height: 34px; cursor: pointer; }
 .walkthrough-actions button:hover { background: #26303c; }
 .walkthrough-actions p { color: var(--c-text-quiet-cool); font-size: 11px; line-height: 1.7; margin: 0; }
 

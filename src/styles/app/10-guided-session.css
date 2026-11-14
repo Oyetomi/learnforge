@@ -27,7 +27,7 @@
   border: 0;
   background: transparent;
   padding: 7px 0;
-  color: #a9b6c8;
+  color: var(--c-text-secondary);
   font-size: 11px;
 }
 .session-toolbar button:hover,
@@ -87,7 +87,7 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #a9b6c8;
+  color: var(--c-text-secondary);
   min-height: 30px;
 }
 .past-activity {
@@ -99,7 +99,7 @@
 .past-activity > summary {
   cursor: pointer;
   font-size: 12px;
-  color: #b4c1d1;
+  color: var(--c-text-secondary);
   line-height: 1.7;
 }
 .past-activity > summary span {
@@ -131,7 +131,7 @@
   margin-top: 18px;
 }
 .session-next p {
-  color: #b4c1d1;
+  color: var(--c-text-secondary);
   font-size: 13px;
   line-height: 1.8;
 }
@@ -146,7 +146,7 @@
   align-items: center;
   gap: 7px;
   border: 1px solid #637083;
-  color: #c1cad6;
+  color: var(--c-text-body);
   background: transparent;
   border-radius: 6px;
   padding: 9px 12px;
@@ -182,7 +182,7 @@
   gap: 6px;
   border: 0;
   background: transparent;
-  color: #a9b6c8;
+  color: var(--c-text-secondary);
   padding: 3px 0;
   font-size: 11px;
 }
@@ -274,7 +274,7 @@
 .snippet-tab > svg { color: #88b5d5; flex-shrink: 0; }
 .snippet-tab small { color: var(--c-text-faint-cool); margin-left: 6px; font-size: 11px; }
 .snippet-toolbar > div { display: flex; align-items: center; gap: 16px; }
-.snippet-toolbar button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 3px 0; border: 0; background: transparent; color: #a9b6c8; font-size: 11px; }
+.snippet-toolbar button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 3px 0; border: 0; background: transparent; color: var(--c-text-secondary); font-size: 11px; }
 .snippet-toolbar button:hover { color: #ead6c3; }
 .snippet-editor { display: flex; min-width: 0; align-items: stretch; }
 .snippet-gutter {

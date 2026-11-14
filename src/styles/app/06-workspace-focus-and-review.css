@@ -56,7 +56,7 @@
   margin: 0;
   padding: 0 7px;
   font-size: 11px;
-  color: #9ca3ad;
+  color: var(--c-text-quiet);
 }
 @media (max-width: 700px) {
   .challenge-content > h1 {
@@ -247,7 +247,7 @@ button:active:not(:disabled) {
   padding: 15px;
   margin: 0;
   font: 12px/1.9 "SFMono-Regular", Consolas, monospace;
-  color: #c1cad6;
+  color: var(--c-text-body);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -267,7 +267,7 @@ button:active:not(:disabled) {
   background: var(--c-surface-2);
   border: 1px solid var(--c-line);
   border-radius: 6px;
-  color: #d0d7e1;
+  color: var(--c-text-body);
   text-align: center;
 }
 .review-rating-options button:hover {
@@ -516,7 +516,7 @@ button:active:not(:disabled) {
 .challenge-howto h2 {
   font-size: 12px;
   font-weight: 600;
-  color: #d0d7e1;
+  color: var(--c-text-body);
   margin: 0 0 9px;
 }
 .challenge-howto p {
