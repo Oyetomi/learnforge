@@ -19,7 +19,9 @@ Every step except disabled meets WCAG AA (4.5:1) on all six surface colours, fro
 
 `src/styles/__tests__/textColorScale.test.ts` fails when a `color:` declaration hard-codes a neutral grey that a scale step already covers. Tinted text, such as success green, warm accents and purple, is allowed.
 
-## Toward a light theme
+## Light theme
+
+Not planned: LearnForge is dark-only by decision (November 2026). If that changes, the path is below.
 
 The text scale is ready: a light theme redefines six values. The remaining work is surfaces, lines and accents. About 780 hard-coded hex colours and 185 `rgba()` values are still spread across the stylesheets. Most are backgrounds, borders and translucent white washes (`#ffffff06`), which have no meaning on a light background. Convert them to surface and line tokens, then add the light values under `:root[data-theme="light"]` and `prefers-color-scheme: light`. Doing this partially leaves dark patches on light screens, so ship the theme only after the conversion is complete.
 
