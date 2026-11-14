@@ -27,7 +27,7 @@ describe("native dictation completion", () => {
     await session.start("en-US"); await session.finish();
     api.poll.mockResolvedValue(status({phase:"listening",transcript:"Earlier partial"}));
     await vi.advanceTimersByTimeAsync(150);
-    expect(events.status.mock.calls.at(-1)?.[0].phase).toBe("finishing");
+    expect(events.status.mock.calls[events.status.mock.calls.length - 1]?.[0].phase).toBe("finishing");
     expect(events.transcript).not.toHaveBeenCalled();
   });
   it("retains partial words if finalization times out", async () => {

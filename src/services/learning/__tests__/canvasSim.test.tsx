@@ -325,7 +325,7 @@ describe("sandboxed interactive canvas simulation contract", () => {
       html: '<canvas id="stage" width="580" height="240"></canvas>',
       js: 'const viewport = window.setupForgeCanvas("stage", 240); window.initializations = (window.initializations || 0) + 1; window.measuredWidth = viewport.width;',
     };
-    const lastScript = (html: string) => [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)![1];
+    const lastScript = (html: string) => { const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)]; return scripts[scripts.length - 1][1]; };
     const sandboxWindow: Record<string, any> = { dispatchEvent() {}, setupForgeCanvas: () => ({ width: layoutWidth }) };
     const environment = {
       window: sandboxWindow,
@@ -349,7 +349,7 @@ describe("sandboxed interactive canvas simulation contract", () => {
   });
 
   it("keeps saved load and DOM-ready handlers registered before their event fires", () => {
-    const lastScript = (html: string) => [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)![1];
+    const lastScript = (html: string) => { const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)]; return scripts[scripts.length - 1][1]; };
     for (const registration of [
       'document.addEventListener("DOMContentLoaded", initialize);',
       'window.addEventListener("load", initialize);',

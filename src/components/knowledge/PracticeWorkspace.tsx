@@ -19,7 +19,7 @@ export function PracticeWorkspace({ initial, onBack, onSaved }: {
         text: string;
     } | null>(null);
     const request = useRef<AbortController | null>(null), alive = useRef(true), heading = useRef<HTMLHeadingElement>(null), helpHeading = useRef<HTMLHeadingElement>(null), helpTrigger = useRef<HTMLElement | null>(null);
-    const round = session.rounds.at(-1);
+    const round = session.rounds[session.rounds.length - 1];
     const references = round ? practiceReferences(session.material, [round.targetId]) : [];
     const reviewState = useQuestionReview(round?.check || null, references, session.status === "active" && !round?.attempt);
     const reviewReady = reviewState.review?.status === "approved";
@@ -93,7 +93,7 @@ export function PracticeWorkspace({ initial, onBack, onSaved }: {
         if (next === session)
             return;
         if (commit(next))
-            explain(next, next.rounds.at(-1)!);
+            explain(next, next.rounds[next.rounds.length - 1]);
     };
     const dispute = (id: string) => { request.current?.abort(); commit(disputePracticeAttempt(session, id)); };
     const askHelp = (kind: "hint" | "walkthrough" | "visual") => {

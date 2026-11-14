@@ -438,7 +438,7 @@ export function PdfReadingCompanion({
               {stop?.range.pages[0].label &&
                 stop.range.pages[0].label !== String(stop.range.from) && (
                   <small>
-                    printed {stop.range.pages[0].label}–{stop.range.pages.at(-1)?.label || "?"}
+                    printed {stop.range.pages[0].label}–{stop.range.pages[stop.range.pages.length - 1]?.label || "?"}
                   </small>
                 )}
             </p>
