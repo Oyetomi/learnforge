@@ -31,10 +31,13 @@ export const Header: React.FC<HeaderProps> = ({
   isSidebarOpen,
   onOpenNewTopic,
   onManageTopics,
-}) => (
-  <header className="app-header">
+}) => {
+  // Before the first topic, navigation and topic tools have nothing to act on.
+  const empty = tracks.length === 0;
+  return (
+  <header className={`app-header ${empty ? "is-empty" : ""}`}>
     <div className="header-brand-group">
-      <button
+      {!empty && <button
         className="icon-button"
         onClick={(event) => {
           event.currentTarget.focus();
@@ -60,7 +63,7 @@ export const Header: React.FC<HeaderProps> = ({
         }
       >
         <PanelLeft size={18} />
-      </button>
+      </button>}
       <div className="workspace-brand" aria-label="LearnForge">
         <img
           src="/app-icon@2x.png"
@@ -74,14 +77,14 @@ export const Header: React.FC<HeaderProps> = ({
         </span>
       </div>
     </div>
-    <TrackPicker
+    {empty ? <div className="header-spacer" /> : <TrackPicker
       tracks={tracks}
       currentTrackId={currentTrackId}
       onSelectTrack={onSelectTrack}
       onManageTopics={onManageTopics}
-    />
+    />}
     <div className="header-actions">
-      {onOpenKnowledge && <button className="header-secondary-button knowledge-trigger" disabled={!tracks.length} onClick={onOpenKnowledge} aria-label="Knowledge and practice" aria-pressed={!!knowledgeVisible}><Network size={16}/><span>Practice</span></button>}
+      {onOpenKnowledge && !empty && <button className="header-secondary-button knowledge-trigger" disabled={!tracks.length} onClick={onOpenKnowledge} aria-label="Knowledge and practice" aria-pressed={!!knowledgeVisible}><Network size={16}/><span>Practice</span></button>}
       <button
         className="header-secondary-button new-topic-trigger"
         onClick={(event) => {
@@ -93,7 +96,7 @@ export const Header: React.FC<HeaderProps> = ({
         <Plus size={16} />
         <span>New topic</span>
       </button>
-      <button
+      {!empty && <button
         className="icon-button export-button"
         disabled={!tracks.length}
         onClick={onExportNotes}
@@ -101,7 +104,7 @@ export const Header: React.FC<HeaderProps> = ({
         title="Export notes"
       >
         <Download size={17} />
-      </button>
+      </button>}
       <button
         className="icon-button"
         onClick={onOpenSettings}
@@ -112,4 +115,5 @@ export const Header: React.FC<HeaderProps> = ({
       </button>
     </div>
   </header>
-);
+  );
+};

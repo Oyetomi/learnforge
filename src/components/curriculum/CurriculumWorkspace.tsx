@@ -139,11 +139,12 @@ export function CurriculumWorkspace({
           </h1>
           <p>{plan.destination}</p>
         </div>
-        <span className="curriculum-version">
+        {/* Only worth showing once the plan has actually been revised. */}
+        {(plan.legacy || plan.version > 1) && <span className="curriculum-version">
           {plan.legacy
             ? "Existing plan preserved"
-            : `Plan v${plan.version}`}
-        </span>
+            : `Revised ${plan.version - 1}×`}
+        </span>}
       </header>
       {plan.sourceDocument && onOpenReading && <section className="curriculum-reading-entry"><div><strong>Reading the book on your own?</strong><p>Save your place and check what you’ve read, one section at a time.</p></div><button className="dialog-secondary-button" onClick={onOpenReading}>Read alongside this PDF <ArrowRight size={14}/></button></section>}
       <div

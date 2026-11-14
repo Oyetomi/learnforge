@@ -214,7 +214,8 @@
   align-items: flex-start;
 }
 .curriculum-heading h1 {
-  font-size: clamp(24px, 2.4vw, 36px);
+  font-size: clamp(22px, 2vw, 28px);
+  max-width: 40ch;
   line-height: 1.4;
   font-weight: 500;
   letter-spacing: -1px;
@@ -1090,3 +1091,12 @@
 }
 .diagnostic-first-choice { display: flex; align-items: center; gap: 10px; margin-top: 14px; min-height: 44px; cursor: pointer; }
 .diagnostic-first-choice input { width: 18px; height: 18px; accent-color: var(--c-accent-deep); }
+
+/* The approval decision stays in reach while the outline scrolls. */
+.curriculum-approval > .new-topic-footer {
+  position: sticky; bottom: 0; z-index: 3;
+  background: var(--c-surface-1);
+  box-shadow: 0 -12px 20px -12px #0008;
+}
+.curriculum-scope-card ul { list-style: disc; padding-left: 18px; }
+.curriculum-scope-card li::marker { color: var(--c-text-faint); }

@@ -67,3 +67,55 @@
   .focused-session[data-question-active="true"] .check-response-detail > summary { padding: 7px 0; }
   .focused-session[data-question-active="true"] .check-submit-row { margin-top: 8px; padding-top: 6px; }
 }
+
+/* One Help entry point instead of three always-visible chips. */
+.session-help-menu { position: relative; }
+.app-shell .focused-session .session-help-menu > summary {
+  display: inline-flex; align-items: center; gap: 5px;
+  min-height: 32px; padding: 0 10px;
+  border: 1px solid var(--c-line); border-radius: var(--radius-pill);
+  color: var(--c-text-secondary); font-size: var(--text-xs);
+  list-style: none; cursor: pointer; user-select: none;
+}
+.session-help-menu > summary::-webkit-details-marker { display: none; }
+.app-shell .focused-session .session-help-menu > summary:hover,
+.app-shell .focused-session .session-help-menu[open] > summary {
+  border-color: #6d5a49; color: var(--c-accent-strong); background: #d2b4970a;
+}
+.session-help-menu > summary[aria-disabled="true"] { opacity: .45; cursor: default; }
+.session-help-menu > summary:focus-visible { outline: 2px solid rgb(var(--color-accent) / .55); outline-offset: 2px; }
+.session-help-chevron { transition: transform 120ms ease; }
+.session-help-menu[open] .session-help-chevron { transform: rotate(180deg); }
+.session-help-menu-panel {
+  position: absolute; right: 0; bottom: calc(100% + 10px); z-index: 60;
+  display: grid; gap: 2px; width: 280px; padding: 6px;
+  border: 1px solid var(--chrome-edge, var(--c-line-strong)); border-radius: var(--radius-xl);
+  background: var(--chrome-surface, var(--c-surface-raised));
+  box-shadow: var(--chrome-shadow, 0 16px 40px #0006);
+}
+.app-shell .focused-session .session-help-actions .session-help-menu-panel > button {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%;
+  min-height: 0; padding: 9px 10px;
+  border: 0 !important; border-radius: var(--radius-lg);
+  background: transparent; color: var(--c-text-bright); text-align: left;
+}
+.app-shell .focused-session .session-help-actions .session-help-menu-panel > button > svg { flex-shrink: 0; margin-top: 2px; color: var(--c-accent-text); }
+.app-shell .focused-session .session-help-actions .session-help-menu-panel > button > span { display: grid !important; gap: 2px; }
+.session-help-menu-panel strong { font-size: var(--text-sm); font-weight: 500; }
+.app-shell .focused-session .session-help-menu-panel small { font-family: var(--font-reading); line-height: 1.4; font-size: var(--text-xs); color: var(--c-text-quiet); }
+.app-shell .focused-session .session-help-actions .session-help-menu-panel > button:hover:not(:disabled),
+.app-shell .focused-session .session-help-actions .session-help-menu-panel > button[aria-pressed="true"] { background: #ffffff0a; }
+.app-shell .focused-session .session-help-actions .session-help-menu-panel > button:disabled { opacity: .45; }
+@media (max-width: 720px) {
+  .app-shell .focused-session .session-help-menu > summary > span,
+  .app-shell .focused-session .session-help-actions > button > span { display: none; }
+  .app-shell .focused-session .session-help-menu > summary,
+  .app-shell .focused-session .session-help-actions > button { padding: 0 9px; }
+}
+/* Two icon buttons fit beside the input: keep the composer to one row while collapsed. */
+@container sessioncomposer (max-width: 680px) {
+  .app-shell .focused-session .session-composer-row:not(:has(.composer[data-expanded="true"])) .composer { grid-column: 1; }
+  .app-shell .focused-session .session-composer-row:not(:has(.composer[data-expanded="true"])) .session-help-actions { grid-column: 2; padding: 4px 6px 4px 0 !important; }
+}
+/* The stage line is one line of context: truncate rather than wrap in narrow windows. */
+.session-focus-stage { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

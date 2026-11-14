@@ -1,11 +1,13 @@
-/* One dominant answering surface, with a quieter workspace around it. */
+/* One dominant answering surface, with a quieter workspace around it.
+ * Choices are short lines; a reading-width card keeps eye travel short. */
+.focused-session { --question-measure: 720px; }
 .focused-session[data-question-active="true"] .session-flow {
   background: var(--c-bg-deep);
-  padding-inline: max(20px, calc((100% - 960px) / 2));
+  padding-inline: max(20px, calc((100% - var(--question-measure)) / 2));
 }
 .focused-session[data-question-active="true"] .knowledge-check {
   margin: 8px auto 16px;
-  max-width: 960px;
+  max-width: var(--question-measure);
   padding: clamp(18px, 3vw, 30px);
   border: 1px solid #50565f;
   border-radius: 12px;
@@ -42,3 +44,19 @@
   .focused-session[data-question-active="true"] .knowledge-check { padding: 18px 14px; margin-top: 4px; border-radius: 12px; }
   .focused-session[data-question-active="true"] .check-question .prose { font-size: 15px; }
 }
+
+/* Programmatic focus moves to the question for screen readers; no box around the heading. */
+.knowledge-check .check-question:focus:not(:focus-visible),
+.knowledge-check .check-question[tabindex="-1"]:focus { outline: none; }
+
+/* Keyboard legend is for people already using keys: quiet until the card is in use. */
+.focused-session[data-question-active="true"] .check-key-hints { opacity: .55; transition: opacity 150ms ease; }
+.focused-session[data-question-active="true"] .knowledge-check:is(:hover, :focus-within) .check-key-hints { opacity: 1; }
+@media (pointer: coarse), (hover: none), (max-width: 600px) { .check-key-hints { display: none !important; } }
+
+/* The recall toggle is an option, not a second call to action. */
+.focused-session[data-question-active="true"] .check-recall-toggle {
+  border-color: transparent; background: transparent; color: var(--c-text-quiet);
+  text-decoration: underline; text-decoration-color: #ffffff30; text-underline-offset: 3px;
+}
+.focused-session[data-question-active="true"] .check-recall-toggle:hover { color: var(--c-accent-strong); text-decoration-color: currentColor; }

@@ -82,3 +82,5 @@
 }
 @media (prefers-reduced-motion: reduce) { .learning-start-example-list > button:hover .learning-start-example-prompt > svg { translate: none; } }
 @media (prefers-contrast: more) { .learning-start-prompt, .learning-start-example-list > button { border-color: var(--c-text-muted); } }
+/* The prompt card shows focus; the textarea inside must not draw a second frame. */
+.app-shell .learning-start-prompt textarea:focus-visible { outline: none; }

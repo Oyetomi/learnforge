@@ -78,5 +78,6 @@ window.fetch = async (_url, init) => {
     return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ answerable: true, confidence: "high", correctOptionIds: ["base"], rubricValid: true, reasoning: "Authored screenshot fixture: 120 − 24 = 96." }) } }] }), { headers: { "content-type": "application/json" } });
   throw new Error("This is an authored screenshot demonstration; provider calls are disabled.");
 };
+await (await import("../../src/services/db/storage")).db.ready();
 const App = (await import("../../src/App")).default;
 createRoot(document.getElementById("root")!).render(<App />);

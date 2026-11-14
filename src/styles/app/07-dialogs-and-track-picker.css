@@ -585,3 +585,14 @@
 .coach-composer-slot {
   flex-shrink: 0;
 }
+
+/* The goal field wraps like the start screen instead of scrolling one line. */
+.new-topic-form textarea.new-topic-goal {
+  width: 100%; min-height: 66px; resize: none;
+  background: var(--c-bg-deep); border: 1px solid #42464d; border-radius: 6px;
+  color: var(--c-text-strong); font-size: 14px; line-height: 22px; padding: 11px 12px;
+  transition: border-color var(--motion-fast);
+}
+.new-topic-form textarea.new-topic-goal::placeholder { color: var(--c-text-faint); }
+.app-shell .new-topic-form textarea.new-topic-goal:focus { outline: 2px solid #e5aa7255; outline-offset: 2px; border-color: #b18c69; }
+.new-topic-form textarea.new-topic-goal:disabled { color: var(--c-text-muted); opacity: .7; }

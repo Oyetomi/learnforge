@@ -191,7 +191,7 @@ it("opens a saved visual as its own activity without previous turns or the pendi
     />
   );
   expect(html).toContain("Current visual");
-  expect(html).toContain("Open question");
+  expect(html).toContain("Go to question");
   expect(html).not.toContain("An earlier long explanation");
   expect(html).not.toContain("The pending question");
   expect(html).not.toContain("An introduction to this visual");
@@ -531,9 +531,27 @@ it("surfaces the transparent open-book explanation peek contract on unanswered c
       onOpenEditor={vi.fn()}
     />
   );
-  expect(html).toContain("Peek at explanation (switches to supported practice)");
+  expect(html).toContain("Peek at lesson (counts as practice with help)");
   expect(html).toContain("Independent practice");
   expect(html).not.toContain("Anchored explanation prose.");
+});
+
+it("groups help behind one menu and offers clarification only while a question is open", () => {
+  const pending = { id: "menu-check", milestoneId: "m1", question: "Which fits?",
+    options: [{id: "a", label: "First"}, {id: "b", label: "Second"}],
+    correctOptionIds: ["a"], multiple: false, explanation: "Because." };
+  const render = (attempt?: object) => renderToStaticMarkup(<ChatPane {...props} onQuickAction={vi.fn()} messages={[
+    {id: "q", session_id: "s1", milestone_id: "m1", role: "assistant", content: "", created_at: 1, learning_check: pending},
+    ...(attempt ? [{id: "a", session_id: "s1", milestone_id: "m1", role: "user" as const, content: "First", created_at: 2,
+      check_attempt: {checkId: "menu-check", milestoneId: "m1", selectedIds: ["a"], dontKnow: false, thinking: "", confidence: null, correct: true, submittedAt: 2, ...attempt}}] : []),
+  ]} />);
+  const open = render();
+  expect(open).toContain('aria-label="Get help with this step"');
+  expect(open).toContain('aria-label="Side question"');
+  expect(open.match(/class="session-help-menu"/g)).toHaveLength(1);
+  for (const label of ["Hint", "Walkthrough", "Visual", "Clarify question"]) expect(open).toContain(`<strong>${label}</strong>`);
+  expect(open).not.toContain(">/btw<");
+  expect(render({})).not.toContain("<strong>Clarify question</strong>");
 });
 
 

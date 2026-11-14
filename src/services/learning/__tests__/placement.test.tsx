@@ -115,7 +115,7 @@ describe("tentative placement and durable planning", () => {
   it("offers optional checks for a single-concept plan and no promise of fixed duration", () => {
     const html = renderToStaticMarkup(<PlanApproval track={{ ...track, milestones: [track.milestones[0]] }} onApprove={vi.fn()} onRevise={vi.fn()} />);
     expect(html).toContain("Find my starting point");
-    expect(html).toContain("Approve plan &amp; start");
+    expect(html).toContain("Approve &amp; start");
     expect(html).not.toContain("60s");
     expect(html).not.toContain("Skipped (know this)");
     expect(html).not.toContain(check.explanation);

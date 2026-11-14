@@ -329,7 +329,7 @@ export const PlanApproval: React.FC<Props> = ({
               type="button"
               onClick={onRevise}
             >
-              Revise goal
+              Adjust goal
             </button>
             <button
               className="dialog-primary-button"
@@ -349,7 +349,7 @@ export const PlanApproval: React.FC<Props> = ({
                 }
               }}
             >
-              Approve plan & start
+              Approve & start
               <ArrowRight size={14} />
             </button>
           </footer>

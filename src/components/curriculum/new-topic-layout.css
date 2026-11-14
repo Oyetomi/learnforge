@@ -98,3 +98,8 @@
 .new-topic-dialog .new-topic-reference .pdf-manual-contents[open] > summary::before { transform: rotate(45deg); }
 .new-topic-dialog .new-topic-reference .pdf-manual-contents > summary:hover { color: var(--c-accent-strong); }
 .new-topic-dialog .pdf-chapter-pages input { height: 32px; min-height: 32px; }
+/* Narrow windows: the two actions share one row instead of stacking unevenly. */
+@media (max-width: 540px) {
+  .new-topic-dialog .new-topic-footer > button { flex: 1 1 0; min-width: 0; justify-content: center; white-space: nowrap; }
+  .new-topic-dialog .new-topic-footer > .dialog-primary-button { flex-grow: 2; }
+}

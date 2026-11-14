@@ -51,6 +51,7 @@ window.fetch=async(_input,init)=>{
  await new Promise<void>((resolve,reject)=>{const timer=setTimeout(resolve,500);init?.signal?.addEventListener('abort',()=>{clearTimeout(timer);reject(new DOMException('Aborted','AbortError'));},{once:true});});
  return new Response(body.stream?'data: '+JSON.stringify({choices:[{delta:{content}}]})+'\n\ndata: [DONE]\n\n':JSON.stringify({choices:[{message:{content}}]}),{headers:{'content-type':body.stream?'text/event-stream':'application/json'}});
 };
+await (await import('../../src/services/db/storage')).db.ready();
 const App=(await import('../../src/App')).default;
 createRoot(document.getElementById('root')!).render(<App/>);
 setInterval(refresh,700);

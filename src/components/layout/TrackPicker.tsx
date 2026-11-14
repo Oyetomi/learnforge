@@ -111,12 +111,12 @@ export const TrackPicker: React.FC<TrackPickerProps> = ({
     <>
       <div className="header-track">
         <span className="track-picker-label" id={`${id}-label`}>
-          Learning track
+          Topic
         </span>
         <button
           ref={triggerRef}
           className="track-picker-trigger"
-          aria-label={`Learning track: ${title}`}
+          aria-label={`Topic: ${title}`}
           aria-haspopup="dialog"
           aria-expanded={open}
           aria-controls={open ? `${id}-popup` : undefined}
@@ -146,7 +146,7 @@ export const TrackPicker: React.FC<TrackPickerProps> = ({
             className="track-picker-popover"
             style={position}
             role="dialog"
-            aria-label="Choose learning track"
+            aria-label="Choose a topic"
             onBlur={(event) => {
               if (
                 event.relatedTarget &&
@@ -197,14 +197,14 @@ export const TrackPicker: React.FC<TrackPickerProps> = ({
               <input
                 ref={searchRef}
                 role="combobox"
-                aria-label="Search learning tracks"
+                aria-label="Search topics"
                 aria-controls={listId}
                 aria-expanded={true}
                 aria-autocomplete="list"
                 aria-activedescendant={
                   activeIndex >= 0 ? `${id}-option-${activeIndex}` : undefined
                 }
-                placeholder="Search your tracks…"
+                placeholder="Search your topics…"
                 value={query}
                 onChange={(event) => {
                   setQuery(event.target.value);
@@ -235,7 +235,7 @@ export const TrackPicker: React.FC<TrackPickerProps> = ({
                     setHighlight(0);
                     searchRef.current?.focus();
                   }}
-                  aria-label="Clear track search"
+                  aria-label="Clear topic search"
                 >
                   <X size={14} />
                 </button>
@@ -245,7 +245,7 @@ export const TrackPicker: React.FC<TrackPickerProps> = ({
               id={listId}
               className="track-picker-options"
               role="listbox"
-              aria-label="Learning tracks"
+              aria-label="Topics"
             >
               {filtered.length ? (
                 filtered.map((track, index) => (
@@ -303,7 +303,7 @@ export const TrackPicker: React.FC<TrackPickerProps> = ({
             </button>
             <div className="track-picker-footer">
               <span>
-                {filtered.length} {filtered.length === 1 ? "track" : "tracks"}
+                {filtered.length} {filtered.length === 1 ? "topic" : "topics"}
               </span>
               <span>
                 <kbd>↑</kbd>

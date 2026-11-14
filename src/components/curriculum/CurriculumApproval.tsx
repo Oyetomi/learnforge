@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { startingPointLabel } from "../../services/learning/goalDraft";
 import { ArrowLeft, ArrowRight, ChevronDown, Loader2 } from "lucide-react";
 import type { CourseTrack } from "../../services/ai/types";
 import type { CurriculumPlan } from "../../services/learning/curriculumPlan";
@@ -474,7 +475,7 @@ export function CurriculumApproval({
                 <p>{plan.destination}</p>
               )}
               <h4>Starting point</h4>
-              <p>{plan.startingPoint}</p>
+              <p>{startingPointLabel(plan.startingPoint)}</p>
               <h4>Outside this scope</h4>
               {editing ? (
                 <label>

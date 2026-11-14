@@ -16,6 +16,17 @@ const STORAGE_KEYS = {
   MILESTONES: "learnforge:milestones",
   SRS_CARDS: "learnforge:srs_cards",
   INITIALIZED: "learnforge:initialized_v1",
+  CUSTOM_TRACKS: "learnforge:custom-tracks",
+};
+
+const IDB_NAME = "learnforge-records";
+const IDB_STORE = "records";
+const IDB_KEYS = {
+  SESSIONS: "sessions",
+  MILESTONES: "milestones",
+  CARDS: "srs_cards",
+  TRACKS: "custom_tracks",
+  MESSAGES_PREFIX: "messages:",
 };
 
 export const STORAGE_STATUS_EVENT = "learnforge:storage-status";
@@ -44,14 +55,64 @@ export class LocalDatabase {
   private messages: Map<string, ChatMessage[]> = new Map(); // sessionId -> messages
   private milestones: Map<string, Milestone[]> = new Map(); // sessionId -> milestones
   private cards: Map<string, SRSCard> = new Map();
+  private customTracks: unknown[] = [];
   private inMemoryOnly = false;
   private persisted = true;
   private persistenceError = "";
   private failedKeys: Set<string> = new Set();
   private flushingPending = false;
 
-  constructor() {
+  /*
+   * Persistence backends.
+   *  - "indexeddb": the default wherever IndexedDB exists. Records are written
+   *    behind the synchronous in-memory API, one record per session's messages,
+   *    so an answer rewrites one session rather than every conversation.
+   *  - "local": localStorage, used when IndexedDB is missing or fails to open.
+   * Data from older localStorage builds is migrated once, and the legacy keys
+   * are removed only after IndexedDB has committed the copy.
+   */
+  private backend: "pending" | "indexeddb" | "local" = "local";
+  private idbFactory: IDBFactory | null;
+  private idb: IDBDatabase | null = null;
+  private dirty: Set<string> = new Set();
+  private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  private flushInFlight: Promise<void> | null = null;
+  private legacyFound = false;
+  private readyPromise: Promise<void>;
+
+  constructor(options: { indexedDB?: IDBFactory | null } = {}) {
+    this.idbFactory =
+      options.indexedDB !== undefined
+        ? options.indexedDB
+        : typeof indexedDB !== "undefined"
+        ? indexedDB
+        : null;
     this.init();
+    this.readyPromise = this.idbFactory ? this.openIndexedDb(this.idbFactory) : Promise.resolve();
+    if (this.idbFactory && typeof window !== "undefined" && typeof window.addEventListener === "function") {
+      const flushNow = () => { if (this.dirty.size) void this.flush(); };
+      window.addEventListener("pagehide", flushNow);
+      document.addEventListener?.("visibilitychange", () => { if (document.visibilityState === "hidden") flushNow(); });
+    }
+  }
+
+  /** Resolves once stored records are loaded (and any legacy data migrated). */
+  ready(): Promise<void> {
+    return this.readyPromise;
+  }
+
+  /** Resolves when every pending write has been committed or has failed. */
+  async whenSaved(): Promise<void> {
+    await this.readyPromise;
+    while (this.dirty.size || this.flushInFlight) {
+      if (this.flushInFlight) await this.flushInFlight;
+      else await this.flush();
+      if (!this.persisted) return;
+    }
+  }
+
+  getStorageBackend(): "indexeddb" | "local" | "memory" | "pending" {
+    return this.inMemoryOnly ? "memory" : this.backend;
   }
 
   isPersisted(): boolean {
@@ -85,16 +146,29 @@ export class LocalDatabase {
   }
 
   private init() {
+    let storage: Storage | null = null;
     try {
-      const isInit = localStorage.getItem(STORAGE_KEYS.INITIALIZED);
-      if (!isInit) {
-        this.initializeEmptyStorage();
-      } else {
-        this.loadFromStorage();
-      }
+      storage = localStorage;
+      storage.getItem(STORAGE_KEYS.INITIALIZED);
     } catch (e) {
-      console.warn("LocalStorage unavailable, running in-memory mode:", e);
+      storage = null;
+    }
+    if (this.idbFactory) {
+      this.backend = "pending";
+      // Load legacy records synchronously so the app can render immediately.
+      if (storage) this.loadFromStorage();
+      return;
+    }
+    if (!storage) {
+      console.warn("LocalStorage unavailable, running in-memory mode");
       this.inMemoryOnly = true;
+      return;
+    }
+    this.backend = "local";
+    if (!storage.getItem(STORAGE_KEYS.INITIALIZED)) {
+      this.initializeEmptyStorage();
+    } else {
+      this.loadFromStorage();
     }
   }
 
@@ -123,44 +197,197 @@ export class LocalDatabase {
     return milestone;
   }
 
+  private applySessions(arr: LearningSession[]) {
+    arr.forEach((s) => { if (!this.sessions.has(s.id)) this.sessions.set(s.id, s); });
+  }
+  private applyMilestones(arr: Milestone[]) {
+    const loaded = new Map<string, Milestone[]>();
+    arr.forEach((m) => {
+      const list = loaded.get(m.session_id) || [];
+      list.push(this.hydrateMilestone(m));
+      loaded.set(m.session_id, list);
+    });
+    loaded.forEach((list, sessionId) => { if (!this.milestones.has(sessionId)) this.milestones.set(sessionId, list); });
+  }
+  private applyMessages(arr: ChatMessage[]) {
+    const loaded = new Map<string, ChatMessage[]>();
+    arr.forEach((msg) => {
+      const list = loaded.get(msg.session_id) || [];
+      list.push(msg);
+      loaded.set(msg.session_id, list);
+    });
+    loaded.forEach((list, sessionId) => { if (!this.messages.has(sessionId)) this.messages.set(sessionId, list); });
+  }
+  private applyCards(arr: SRSCard[]) {
+    arr.forEach((c) => { if (!this.cards.has(c.id)) this.cards.set(c.id, c); });
+  }
+
   private loadFromStorage() {
     try {
-      const sessionsJson = localStorage.getItem(STORAGE_KEYS.SESSIONS);
-      if (sessionsJson) {
-        const arr: LearningSession[] = JSON.parse(sessionsJson);
-        arr.forEach((s) => this.sessions.set(s.id, s));
-      }
-
-      const milestonesJson = localStorage.getItem(STORAGE_KEYS.MILESTONES);
-      if (milestonesJson) {
-        const arr: Milestone[] = JSON.parse(milestonesJson);
-        arr.forEach((m) => {
-          const list = this.milestones.get(m.session_id) || [];
-          list.push(this.hydrateMilestone(m));
-          this.milestones.set(m.session_id, list);
-        });
-      }
-
-      const messagesJson = localStorage.getItem(STORAGE_KEYS.MESSAGES);
-      if (messagesJson) {
-        const arr: ChatMessage[] = JSON.parse(messagesJson);
-        arr.forEach((msg) => {
-          const list = this.messages.get(msg.session_id) || [];
-          list.push(msg);
-          this.messages.set(msg.session_id, list);
-        });
-      }
-
-      const cardsJson = localStorage.getItem(STORAGE_KEYS.SRS_CARDS);
-      if (cardsJson) {
-        const arr: SRSCard[] = JSON.parse(cardsJson);
-        arr.forEach((c) => this.cards.set(c.id, c));
+      const read = (key: string) => {
+        const value = localStorage.getItem(key);
+        if (value !== null) this.legacyFound = true;
+        return value;
+      };
+      const sessionsJson = read(STORAGE_KEYS.SESSIONS);
+      if (sessionsJson) this.applySessions(JSON.parse(sessionsJson));
+      const milestonesJson = read(STORAGE_KEYS.MILESTONES);
+      if (milestonesJson) this.applyMilestones(JSON.parse(milestonesJson));
+      const messagesJson = read(STORAGE_KEYS.MESSAGES);
+      if (messagesJson) this.applyMessages(JSON.parse(messagesJson));
+      const cardsJson = read(STORAGE_KEYS.SRS_CARDS);
+      if (cardsJson) this.applyCards(JSON.parse(cardsJson));
+      const tracksJson = read(STORAGE_KEYS.CUSTOM_TRACKS);
+      if (tracksJson) {
+        const tracks = JSON.parse(tracksJson);
+        if (Array.isArray(tracks)) this.customTracks = tracks;
       }
     } catch (e) {
       console.error("Failed to parse data from localStorage:", e);
     }
   }
 
+  // --- IndexedDB backend ---
+  private async openIndexedDb(factory: IDBFactory): Promise<void> {
+    try {
+      const idb = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = factory.open(IDB_NAME, 1);
+        request.onupgradeneeded = () => {
+          if (!request.result.objectStoreNames.contains(IDB_STORE))
+            request.result.createObjectStore(IDB_STORE);
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+        request.onblocked = () => reject(new Error("Storage upgrade blocked by another window."));
+      });
+      if (this.legacyFound) {
+        // Migrate: memory holds the legacy records plus any edits since launch.
+        this.idb = idb;
+        this.backend = "indexeddb";
+        this.markAllDirty();
+        await this.flush();
+        if (!this.dirty.size && this.persisted) this.removeLegacyKeys();
+        return;
+      }
+      const records = await new Promise<{ key: IDBValidKey; value: unknown }[]>((resolve, reject) => {
+        const out: { key: IDBValidKey; value: unknown }[] = [];
+        const request = idb.transaction(IDB_STORE, "readonly").objectStore(IDB_STORE).openCursor();
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) return resolve(out);
+          out.push({ key: cursor.key, value: cursor.value });
+          cursor.continue();
+        };
+        request.onerror = () => reject(request.error);
+      });
+      for (const { key, value } of records) {
+        if (!Array.isArray(value)) continue;
+        if (key === IDB_KEYS.SESSIONS) this.applySessions(value);
+        else if (key === IDB_KEYS.MILESTONES) this.applyMilestones(value);
+        else if (key === IDB_KEYS.CARDS) this.applyCards(value);
+        else if (key === IDB_KEYS.TRACKS) { if (!this.customTracks.length) this.customTracks = value; }
+        else if (typeof key === "string" && key.startsWith(IDB_KEYS.MESSAGES_PREFIX)) this.applyMessages(value);
+      }
+      this.idb = idb;
+      this.backend = "indexeddb";
+      if (this.dirty.size) this.scheduleFlush();
+    } catch (e) {
+      console.warn("IndexedDB unavailable, using localStorage:", e);
+      this.idb = null;
+      this.backend = "local";
+      this.dirty.clear();
+      try {
+        localStorage.getItem(STORAGE_KEYS.INITIALIZED);
+        this.persistAll();
+        localStorage.setItem(STORAGE_KEYS.INITIALIZED, "true");
+      } catch {
+        this.inMemoryOnly = true;
+      }
+    }
+  }
+
+  private removeLegacyKeys() {
+    for (const key of [STORAGE_KEYS.SESSIONS, STORAGE_KEYS.MILESTONES, STORAGE_KEYS.MESSAGES, STORAGE_KEYS.SRS_CARDS, STORAGE_KEYS.CUSTOM_TRACKS]) {
+      try { localStorage.removeItem?.(key); } catch {}
+    }
+    this.legacyFound = false;
+  }
+
+  private markAllDirty() {
+    this.dirty.add(IDB_KEYS.SESSIONS);
+    this.dirty.add(IDB_KEYS.MILESTONES);
+    this.dirty.add(IDB_KEYS.CARDS);
+    this.dirty.add(IDB_KEYS.TRACKS);
+    this.messages.forEach((_list, sessionId) => this.dirty.add(IDB_KEYS.MESSAGES_PREFIX + sessionId));
+    this.scheduleFlush();
+  }
+
+  private markDirty(key: string) {
+    this.dirty.add(key);
+    this.scheduleFlush();
+  }
+
+  private scheduleFlush() {
+    if (!this.idb || this.flushTimer) return;
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = null;
+      void this.flush();
+    }, 0);
+  }
+
+  /** A plain copy of what a record should hold now; undefined deletes it. */
+  private recordValue(key: string): unknown[] | undefined {
+    if (key === IDB_KEYS.SESSIONS) return Array.from(this.sessions.values());
+    if (key === IDB_KEYS.CARDS) return Array.from(this.cards.values());
+    if (key === IDB_KEYS.TRACKS) return this.customTracks;
+    if (key === IDB_KEYS.MILESTONES) {
+      const all: Milestone[] = [];
+      this.milestones.forEach((list) => list.forEach((m) => all.push(this.dehydrateMilestone(m))));
+      return all;
+    }
+    if (key.startsWith(IDB_KEYS.MESSAGES_PREFIX)) return this.messages.get(key.slice(IDB_KEYS.MESSAGES_PREFIX.length));
+    return undefined;
+  }
+
+  private flush(): Promise<void> {
+    if (this.flushTimer) { clearTimeout(this.flushTimer); this.flushTimer = null; }
+    if (this.flushInFlight) return this.flushInFlight.then(() => (this.dirty.size ? this.flush() : undefined));
+    const idb = this.idb;
+    if (!idb || !this.dirty.size) return Promise.resolve();
+    const keys = Array.from(this.dirty);
+    this.dirty.clear();
+    const run = new Promise<void>((resolve, reject) => {
+      const tx = idb.transaction(IDB_STORE, "readwrite");
+      const store = tx.objectStore(IDB_STORE);
+      for (const key of keys) {
+        const value = this.recordValue(key);
+        // JSON round trip: a structured, detached copy of plain learning records.
+        if (value === undefined) store.delete(key);
+        else store.put(JSON.parse(JSON.stringify(value)), key);
+      }
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error("Storage write aborted."));
+    })
+      .then(() => {
+        if (!this.persisted) this.emitStorageStatus(true, "");
+      })
+      .catch((e) => {
+        keys.forEach((key) => this.dirty.add(key));
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn("Storage persistence failed:", e);
+        this.emitStorageStatus(false, msg || "Saving learning records failed.");
+      })
+      .finally(() => {
+        this.flushInFlight = null;
+        // Writes made during this flush go out next; failed keys wait for the next change.
+        if (this.persisted && this.dirty.size) this.scheduleFlush();
+      });
+    this.flushInFlight = run;
+    return run;
+  }
+
+  // --- localStorage backend ---
   private writeKey(key: string, value: string): boolean {
     if (this.inMemoryOnly) return true;
     try {
@@ -192,13 +419,19 @@ export class LocalDatabase {
         else if (pendingKey === STORAGE_KEYS.MILESTONES) this.persistMilestones();
         else if (pendingKey === STORAGE_KEYS.MESSAGES) this.persistMessages();
         else if (pendingKey === STORAGE_KEYS.SRS_CARDS) this.persistCards();
+        else if (pendingKey === STORAGE_KEYS.CUSTOM_TRACKS) this.persistCustomTracks();
       }
     } finally {
       this.flushingPending = false;
     }
   }
 
+  private get usesIndexedDb() {
+    return this.backend === "indexeddb" || this.backend === "pending";
+  }
+
   private persistSessions() {
+    if (this.usesIndexedDb) return this.markDirty(IDB_KEYS.SESSIONS);
     this.writeKey(
       STORAGE_KEYS.SESSIONS,
       JSON.stringify(Array.from(this.sessions.values()))
@@ -206,6 +439,7 @@ export class LocalDatabase {
   }
 
   private persistMilestones() {
+    if (this.usesIndexedDb) return this.markDirty(IDB_KEYS.MILESTONES);
     const allMilestones: Milestone[] = [];
     this.milestones.forEach((list) => {
       for (const milestone of list) {
@@ -215,17 +449,29 @@ export class LocalDatabase {
     this.writeKey(STORAGE_KEYS.MILESTONES, JSON.stringify(allMilestones));
   }
 
-  private persistMessages() {
+  /** With a session id, IndexedDB rewrites only that conversation. */
+  private persistMessages(sessionId?: string) {
+    if (this.usesIndexedDb) {
+      if (sessionId) return this.markDirty(IDB_KEYS.MESSAGES_PREFIX + sessionId);
+      this.messages.forEach((_list, id) => this.dirty.add(IDB_KEYS.MESSAGES_PREFIX + id));
+      return this.scheduleFlush();
+    }
     const allMessages: ChatMessage[] = [];
     this.messages.forEach((list) => allMessages.push(...list));
     this.writeKey(STORAGE_KEYS.MESSAGES, JSON.stringify(allMessages));
   }
 
   private persistCards() {
+    if (this.usesIndexedDb) return this.markDirty(IDB_KEYS.CARDS);
     this.writeKey(
       STORAGE_KEYS.SRS_CARDS,
       JSON.stringify(Array.from(this.cards.values()))
     );
+  }
+
+  private persistCustomTracks(): boolean {
+    if (this.usesIndexedDb) { this.markDirty(IDB_KEYS.TRACKS); return true; }
+    return this.writeKey(STORAGE_KEYS.CUSTOM_TRACKS, JSON.stringify(this.customTracks));
   }
 
   private persistAll() {
@@ -241,6 +487,23 @@ export class LocalDatabase {
     if (this.failedKeys.size === 0 && !this.persisted) {
       this.emitStorageStatus(true, "");
     }
+  }
+
+  // --- Learner-created topics (approved outlines and curricula) ---
+  getCustomTracks<T = unknown>(): T[] {
+    return [...this.customTracks] as T[];
+  }
+
+  /** Returns false when the localStorage backend could not save the outline. */
+  setCustomTracks(tracks: unknown[]): boolean {
+    const previous = this.customTracks;
+    this.customTracks = [...tracks];
+    const saved = this.persistCustomTracks();
+    if (!saved) {
+      this.customTracks = previous;
+      this.failedKeys.delete(STORAGE_KEYS.CUSTOM_TRACKS);
+    }
+    return saved;
   }
 
   // --- Sessions CRUD ---
@@ -298,6 +561,7 @@ export class LocalDatabase {
     this.sessions.delete(id);
     this.messages.delete(id);
     this.milestones.delete(id);
+    if (this.usesIndexedDb) this.dirty.add(IDB_KEYS.MESSAGES_PREFIX + id);
     this.persistAll();
   }
 
@@ -324,7 +588,7 @@ export class LocalDatabase {
       this.persistSessions();
     }
 
-    this.persistMessages();
+    this.persistMessages(msg.session_id);
     return fullMsg;
   }
 
@@ -335,7 +599,7 @@ export class LocalDatabase {
     message.check_attempt = { ...attempt, correct: false, assisted: true,
       grading: { ...(attempt.grading || { feedback: "The learner asked to review this question and its answer.", criteria: [] }), status: "uncertain", reviewRequested: true } };
     message.content += "\nFeedback disputed by learner; this result is unresolved and excluded from readiness.";
-    this.persistMessages();
+    this.persistMessages(sessionId);
     return true;
   }
 
@@ -348,7 +612,7 @@ export class LocalDatabase {
     const rating = retentionRating(review.check, review.attempt);
     review.finishedAt = Date.now();
     if (rating !== null) this.rateCard(card.id, rating);
-    this.persistMessages();
+    this.persistMessages(sessionId);
     return true;
   }
 
@@ -357,7 +621,7 @@ export class LocalDatabase {
     if (!review || review.attempt.grading?.reviewRequested || review.finishedAt !== undefined) return null;
     review.attempt = { ...review.attempt, correct: false, assisted: true,
       grading: { ...(review.attempt.grading || { feedback: "The learner asked to review this question and its answer.", criteria: [] }), status: "uncertain", reviewRequested: true } };
-    this.persistMessages();
+    this.persistMessages(sessionId);
     return review;
   }
 

@@ -13,6 +13,9 @@ import {
   Lightbulb,
   MoreHorizontal,
   Route,
+  CircleHelp,
+  MessageCircleQuestion,
+  Settings2,
 } from "lucide-react";
 import type {
   ChatMessage,
@@ -203,9 +206,16 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
     sessionMenu.current.open = false;
     sessionMenu.current.querySelector("summary")?.focus({ preventScroll: true });
   };
+  const helpMenu = useRef<HTMLDetailsElement>(null);
+  const closeHelpMenu = () => {
+    if (!helpMenu.current) return;
+    helpMenu.current.open = false;
+    helpMenu.current.querySelector("summary")?.focus({ preventScroll: true });
+  };
   useEffect(() => {
     const dismiss = (event: PointerEvent) => {
-      if (sessionMenu.current?.open && !sessionMenu.current.contains(event.target as Node)) sessionMenu.current.open = false;
+      for (const menu of [sessionMenu.current, helpMenu.current])
+        if (menu?.open && !menu.contains(event.target as Node)) menu.open = false;
     };
     document.addEventListener("pointerdown", dismiss);
     return () => document.removeEventListener("pointerdown", dismiss);
@@ -704,12 +714,12 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
       : activity === "visual"
       ? "Explore the idea"
       : activity === "lesson"
-      ? `Explanation · ${
-          overview
-            ? "overview"
-            : `step ${visibleStep + 1} of ${Math.max(1, lessonSteps.length)}`
-        }`
-      : `Explanation · part ${replyStep + 1} of ${Math.max(1, replySteps.length)}`;
+      ? overview || lessonSteps.length <= 1
+        ? "Explanation"
+        : `Explanation · step ${visibleStep + 1} of ${lessonSteps.length}`
+      : replySteps.length <= 1
+      ? "Explanation"
+      : `Explanation · part ${replyStep + 1} of ${replySteps.length}`;
   const slideCount =
     activity === "lesson"
       ? overview
@@ -736,15 +746,12 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
       : separateReference
       ? 2
       : 1;
+  const questionActive = activity === "check" && !!reviewCheck && !reviewAttempt;
   return (
     <section
       className="lesson-pane workspace-panel unified-session focused-session"
       data-help-open={shownHelp ? "true" : undefined}
-      data-question-active={
-        activity === "check" && !!reviewCheck && !reviewAttempt
-          ? "true"
-          : undefined
-      }
+      data-question-active={questionActive ? "true" : undefined}
       aria-label="Guided learning session"
     >
       <header className="session-toolbar session-focus-header">
@@ -760,18 +767,18 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
         </div>
         <div className="session-focus-actions">
           {!busy && activity !== "check" && activity !== "reference" && latest && (
-            <button onClick={goToQuestion}>{attempt ? "Review answer" : "Open question"}</button>
+            <button onClick={goToQuestion}>{attempt ? "Review answer" : "Go to question"}</button>
           )}
           {!busy && activity !== "lesson" && lessonSteps.length > 0 && (
-            <button title={activity === "check" && !reviewAttempt ? "Show the lesson alongside this question; this counts as supported practice" : undefined}
-              aria-label={activity === "check" && !reviewAttempt ? inlineLessonOpen ? "Hide explanation" : "Peek at explanation (switches to supported practice)" : undefined}
+            <button title={activity === "check" && !reviewAttempt ? "Show the lesson beside this question. Answers then count as practice with help." : undefined}
+              aria-label={activity === "check" && !reviewAttempt ? inlineLessonOpen ? "Hide lesson" : "Peek at lesson (counts as practice with help)" : undefined}
               onClick={() => {
                 if (activity === "check" && reviewCheck && !reviewAttempt) {
                   if (!inlineLessonOpen && latest) recordVisualSupport(latest.id, "open-book:lesson");
                   setInlineLessonOpen(value => !value);
                 } else setActivity("lesson");
               }} aria-expanded={activity === "check" && !reviewAttempt ? inlineLessonOpen : undefined}>
-              {activity === "check" && !reviewAttempt ? inlineLessonOpen ? "Hide explanation" : "Peek at explanation" : "Review explanation"}</button>
+              {activity === "check" && !reviewAttempt ? inlineLessonOpen ? "Hide lesson" : "Peek at lesson" : "Review lesson"}</button>
           )}
           <details className="session-details" ref={sessionMenu} onKeyDown={event => {
             if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeSessionMenu(); }
@@ -785,7 +792,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
               {allowCoding && <button aria-pressed={isCodeWorkspaceOpen} onClick={() => { closeSessionMenu(); onToggleCode(); }}>
                 <Code2 size={14} />{isCodeWorkspaceOpen ? "Hide code" : "Coding practice"}
               </button>}
-              {onOpenSettings && <button onClick={() => { closeSessionMenu(); onOpenSettings(); }}><ChevronDown size={14} /> AI connection</button>}
+              {onOpenSettings && <button onClick={() => { closeSessionMenu(); onOpenSettings(); }}><Settings2 size={14} /> AI connection</button>}
             </div>
           </details>
         </div>
@@ -812,9 +819,9 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
         {!storageStatus.persisted && (
           <div className="continuation-error" role="alert">
             <p>
-              Local storage is full, so new progress is held in memory for this
-              session only. Export your notes or remove unused topics in Manage
-              Topics to free space.
+              New progress couldn’t be saved on this device, so it’s kept in
+              memory until you close the app. Export your notes, or remove
+              unused topics in Manage topics to free space.
             </p>
           </div>
         )}
@@ -1090,7 +1097,6 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                   continuePending={busy}
                   onSubmit={onSubmitCheck}
                   onAskCoach={ask}
-                  onClarify={() => onQuickAction?.("clarify")}
                   onNewQuestion={onRequestCheck}
                   feedbackTeaching={
                     reviewAttempt && !approved ? (
@@ -1318,7 +1324,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
       {btwState && (
         <aside className="btw-popover" aria-label="Quick side question">
           <div className="btw-popover-header">
-            <span className="btw-badge">/btw · Quick side question</span>
+            <span className="btw-badge">Side question</span>
             <strong>{btwState.question}</strong>
             <button
               type="button"
@@ -1386,41 +1392,68 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                 setBtwMode((v) => !v);
                 ask();
               }}
-              title="Ask a quick side question without leaving this step (/btw)"
+              aria-label="Side question"
+              title="Ask a quick side question without leaving this step (or type /btw)"
             >
-              <span>/btw</span>
+              <MessageCircleQuestion size={13} aria-hidden="true" />
+              <span>Side question</span>
             </button>
-            <button
-              disabled={busy}
-              data-help-kind="hint"
-              onClick={() => openHelp("hint")}
-              aria-label="Hint"
-              title="Give me a hint"
+            <details
+              className="session-help-menu"
+              ref={helpMenu}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  closeHelpMenu();
+                }
+              }}
             >
-              <Lightbulb size={13} />
-              <span>Hint</span>
-            </button>
-            <button
-              disabled={busy}
-              aria-pressed={shownHelp && helpKind === "visual"}
-              data-help-kind="visual"
-              onClick={() => openHelp("visual")}
-              aria-label="Visual"
-              title="Open a visual alongside this activity"
-            >
-              <Eye size={13} />
-              <span>Visual</span>
-            </button>
-            <button
-              disabled={busy}
-              data-help-kind="walkthrough"
-              onClick={() => openHelp("walkthrough")}
-              aria-label="Walkthrough"
-              title="Open a walkthrough alongside this activity"
-            >
-              <ListTree size={13} />
-              <span>Walkthrough</span>
-            </button>
+              <summary
+                aria-label="Get help with this step"
+                aria-disabled={busy || undefined}
+                data-help-kind={helpKind}
+                onClick={(event) => { if (busy) event.preventDefault(); }}
+              >
+                <Lightbulb size={13} aria-hidden="true" />
+                <span>Help</span>
+                <ChevronDown size={12} className="session-help-chevron" aria-hidden="true" />
+              </summary>
+              <div className="session-help-menu-panel" role="group" aria-label="Help options">
+                {([
+                  ["hint", Lightbulb, "Hint", "A nudge without the answer"],
+                  ["walkthrough", ListTree, "Walkthrough", "Step by step, beside this activity"],
+                  ["visual", Eye, "Visual", "A picture or model of the idea"],
+                ] as const).map(([kind, Icon, label, detail]) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    disabled={busy}
+                    aria-pressed={shownHelp && helpKind === kind}
+                    onClick={() => {
+                      closeHelpMenu();
+                      openHelp(kind);
+                    }}
+                  >
+                    <Icon size={14} aria-hidden="true" />
+                    <span><strong>{label}</strong><small>{detail}</small></span>
+                  </button>
+                ))}
+                {questionActive && onQuickAction && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      closeHelpMenu();
+                      onQuickAction("clarify");
+                    }}
+                  >
+                    <CircleHelp size={14} aria-hidden="true" />
+                    <span><strong>Clarify question</strong><small>Rephrase what’s being asked</small></span>
+                  </button>
+                )}
+              </div>
+            </details>
           </div>
           <div className="session-telemetry-bar" aria-label="AI model and usage">
           <button

@@ -78,16 +78,10 @@ import {
 export default function App() {
   const [retentionActive, setRetentionActive] = useState(false);
   // --- Curriculum Tracks State ---
-  const [tracks, setTracks] = useState<CourseTrack[]>(() => {
-    try {
-      const stored = localStorage.getItem("learnforge:custom-tracks");
-      if (stored) {
-        const custom: CourseTrack[] = JSON.parse(stored);
-        return [...STARTER_TRACKS, ...custom];
-      }
-    } catch {}
-    return STARTER_TRACKS;
-  });
+  const [tracks, setTracks] = useState<CourseTrack[]>(() => [
+    ...STARTER_TRACKS,
+    ...db.getCustomTracks<CourseTrack>(),
+  ]);
   const [addedStarterIds, setAddedStarterIds] = useState(() => {
     let current = "";
     try {
@@ -204,6 +198,11 @@ export default function App() {
         )?.learning_check ||
       starterLearningCheck(currentTrackId, activeMilestone, milestoneIndex)
     : null;
+
+  // Lesson, editor and roadmap don't fit side by side below 1440px: the editor wins.
+  useEffect(() => {
+    if (isCodeWorkspaceOpen && window.innerWidth < 1440) setIsSidebarOpen(false);
+  }, [isCodeWorkspaceOpen]);
 
   useEffect(() => {
     const desktop = window.matchMedia("(min-width: 1200px)");
@@ -396,9 +395,12 @@ export default function App() {
 
     // Initial greeting if session is empty
     if (sessionMessages.length === 0) {
+      // Kept for the AI's context; it is not lesson material, so it stays out of
+      // saved explanations, exports and the knowledge map.
       const greeting: ChatMessage = db.addMessage({
         session_id: session.id,
         role: "assistant",
+        internal: true,
         content: `I can help with **${
           track.title
         }**. Ask about your challenge, request a hint, or share what you’ve tried. Start with the interactive lesson. ${
@@ -414,8 +416,9 @@ export default function App() {
   // Handle new custom track created dynamically by AI
   const handleTrackCreated = (newTrack: CourseTrack) => {
     const updated = [...tracks, newTrack];
-    // Persist the approved outline before committing the UI. Quota errors leave review open.
-    localStorage.setItem("learnforge:custom-tracks", JSON.stringify(updated.filter(t => !STARTER_TRACKS.some(st => st.id === t.id))));
+    // Persist the approved outline before committing the UI. Save errors leave review open.
+    if (!db.setCustomTracks(updated.filter(t => !STARTER_TRACKS.some(st => st.id === t.id))))
+      throw new Error("Couldn’t save this topic. Free some space and try again.");
     setTracks(updated);
 
     handleSelectTrack(newTrack.id);
@@ -464,11 +467,8 @@ export default function App() {
     for (const id of erased) delete drafts.current![id];
     persistDrafts();
     const remaining = tracks.filter((t) => !deleting.has(t.id));
-    localStorage.setItem(
-      "learnforge:custom-tracks",
-      JSON.stringify(
-        remaining.filter((t) => !STARTER_TRACKS.some((s) => s.id === t.id))
-      )
+    db.setCustomTracks(
+      remaining.filter((t) => !STARTER_TRACKS.some((s) => s.id === t.id))
     );
     setTracks(remaining);
     const added = addedStarterIds.filter((id) => !deleting.has(id));
@@ -1392,7 +1392,7 @@ export default function App() {
                     onActiveChange={setRetentionActive} onSaved={() => { setDueCards(db.getDueCardsList()); setMessages([...db.getMessages(currentSession.id)]); }} />
                   <div className="session-slot" hidden={retentionActive}>
                   {activeMilestone?.content_status === "outline" ? <section className="curriculum-preparing" aria-labelledby="preparing-unit-title">
-                    <span className="curriculum-eyebrow">Approved unit · preparing on demand</span><h1 id="preparing-unit-title">{activeMilestone.title}</h1><p>{activeMilestone.prompt}</p>
+                    <span className="curriculum-eyebrow">Getting your lesson ready</span><h1 id="preparing-unit-title">{activeMilestone.title}</h1><p>{activeMilestone.prompt}</p>
                     {unitPreparation?.id===activeMilestone.id && unitPreparation.state==="loading" ? <><p role="status"><Loader2 size={16} className="animate-spin"/> Preparing a small explanation, example and check…</p><button className="dialog-secondary-button" onClick={()=>{unitController.current?.abort();setUnitPreparation({id:activeMilestone.id,state:"cancelled"});}}>Cancel preparation</button></>:<><p role={unitPreparation?.state==="error"?"alert":"status"}>{unitPreparation?.error || "Preparation is paused. Your approved outline and progress are unchanged."}</p><button className="dialog-primary-button" onClick={()=>setPreparationRetry(n=>n+1)}>Prepare this lesson</button></>}
                     <button className="check-coach-button" onClick={()=>setWorkspaceView("curriculum")}>Back to curriculum</button>
                   </section> : <ChatPane
@@ -1502,6 +1502,7 @@ export default function App() {
           isOpen={isNewTopicModalOpen}
           initialInterest={startGoal}
           showMaterial={startWithMaterial}
+          autoScope={!!startGoal?.trim() && !startWithMaterial}
           onClose={() => setIsNewTopicModalOpen(false)}
           onTrackCreated={handleTrackCreated}
           onOpenPlugins={() => {

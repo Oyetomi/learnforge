@@ -418,7 +418,7 @@ export const MilestoneSidebar: React.FC<MilestoneSidebarProps> = ({
         <span>
           {milestones.some((m) => m.adaptive)
             ? "Adjusted from your answers"
-            : "Provisional roadmap"}
+            : "Adjusts as you answer"}
         </span>
         <strong>
           {Math.max(

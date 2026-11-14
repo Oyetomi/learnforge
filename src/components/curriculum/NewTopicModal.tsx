@@ -55,7 +55,7 @@ import "./curriculum.css";
 import "./new-topic-layout.css";
 
 import { requestsDiagnosticFirst } from "../../services/learning/diagnosticIntent";
-import { loadGoalDraft as savedDraft, saveGoalDraft, GOAL_DRAFT_KEY as draftKey, STARTING_POINTS as startingPoints } from "../../services/learning/goalDraft";
+import { loadGoalDraft as savedDraft, saveGoalDraft, GOAL_DRAFT_KEY as draftKey, STARTING_POINTS as startingPoints, STARTING_POINT_LABELS } from "../../services/learning/goalDraft";
 
 interface Props {
   isOpen: boolean;
@@ -64,6 +64,8 @@ interface Props {
   onOpenPlugins?: () => void;
   initialInterest?: string;
   showMaterial?: boolean;
+  /** The goal was already written on the start screen: begin scoping immediately. */
+  autoScope?: boolean;
 }
 export const NewTopicModal: React.FC<Props> = ({
   isOpen,
@@ -72,6 +74,7 @@ export const NewTopicModal: React.FC<Props> = ({
   onOpenPlugins,
   initialInterest,
   showMaterial = false,
+  autoScope = false,
 }) => {
   const [interest, setInterest] = useState(() => initialInterest ?? savedDraft().interest ?? "");
   const [destination, setDestination] = useState(
@@ -135,7 +138,7 @@ export const NewTopicModal: React.FC<Props> = ({
   const dialogRef = useRef<HTMLDialogElement>(null),
     formRef = useRef<HTMLFormElement>(null),
     statusRef = useRef<HTMLDivElement>(null),
-    inputRef = useRef<HTMLInputElement>(null),
+    inputRef = useRef<HTMLTextAreaElement>(null),
     headingRef = useRef<HTMLHeadingElement>(null),
     fileRef = useRef<HTMLInputElement>(null),
     referenceDetailsRef = useRef<HTMLDetailsElement>(null),
@@ -570,6 +573,16 @@ export const NewTopicModal: React.FC<Props> = ({
       if (requestRef.current === controller) requestRef.current = null;
     }
   };
+  // Deferred so a development double-mount schedules (and runs) it only once.
+  const autoScoped = useRef(false);
+  useEffect(() => {
+    if (!isOpen || !autoScope || showMaterial || autoScoped.current || !interest.trim()) return;
+    const timer = setTimeout(() => {
+      autoScoped.current = true;
+      void run();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [isOpen]);
   const processFile = async (file: File) => {
     if (task !== "idle" || readingFile.current) return;
     const sequence = ++readSequence.current;
@@ -708,9 +721,18 @@ export const NewTopicModal: React.FC<Props> = ({
               </p>
             </div>
             <label htmlFor="topic-input">Your learning goal</label>
-            <input
+            {/* Two lines so a whole question stays readable; Enter still submits. */}
+            <textarea
               ref={inputRef}
               id="topic-input"
+              className="new-topic-goal"
+              rows={2}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  formRef.current?.requestSubmit();
+                }
+              }}
               value={interest}
               onChange={(e) => {
                 setInterest(e.target.value);
@@ -722,7 +744,7 @@ export const NewTopicModal: React.FC<Props> = ({
               maxLength={400}
               required={!referenceContent.trim() && exaSources.length === 0}
               autoComplete="off"
-              placeholder="What would you like to be able to do?"
+              placeholder="e.g. Understand compound interest"
             />
             {exaReady ? (
               <div
@@ -773,7 +795,7 @@ export const NewTopicModal: React.FC<Props> = ({
                     disabled={busy}
                     onClick={onOpenPlugins}
                   >
-                    Connect Exa plugin
+                    Set up web search
                   </button>
                 </div>
               )
@@ -844,7 +866,7 @@ export const NewTopicModal: React.FC<Props> = ({
                   disabled={busy}
                 >
                   {startingPoints.map((point, index) => (
-                    <option key={point} value={point}>{["Help me find a starting point", "I’m new to this", "I know the basics", "I want to go deeper"][index]}</option>
+                    <option key={point} value={point}>{STARTING_POINT_LABELS[index]}</option>
                   ))}
                 </select>
                 <label className="diagnostic-first-choice">
@@ -1260,8 +1282,9 @@ export const NewTopicModal: React.FC<Props> = ({
                 className="dialog-secondary-button"
                 type="button"
                 onClick={busy ? cancel : close}
+                aria-label={busy ? "Cancel preparation" : undefined}
               >
-                {busy ? "Cancel preparation" : "Cancel"}
+                Cancel
               </button>
               <button
                 className="dialog-primary-button"
@@ -1275,11 +1298,6 @@ export const NewTopicModal: React.FC<Props> = ({
                     exaSources.length === 0)
                 }
               >
-                {busy ? (
-                  <Loader2 className="animate-spin" size={14} />
-                ) : (
-                  <ArrowRight size={14} />
-                )}
                 {error
                   ? "Try again"
                   : proposal && diagnosticFirst && !probeQuestions.length
@@ -1288,7 +1306,12 @@ export const NewTopicModal: React.FC<Props> = ({
                   ? scope === "curriculum"
                     ? "Prepare curriculum"
                     : "Prepare focused lesson"
-                  : "Shape my learning goal"}
+                  : "Continue"}
+                {busy ? (
+                  <Loader2 className="animate-spin" size={14} />
+                ) : (
+                  <ArrowRight size={14} />
+                )}
               </button>
             </footer>
           </>)}

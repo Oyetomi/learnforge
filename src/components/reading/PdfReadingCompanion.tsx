@@ -442,7 +442,7 @@ export function PdfReadingCompanion({
                         ? " Your saved questions and answers are still available below."
                         : ""}
                     </p>
-                    <label className="dialog-secondary-button">
+                    <label className="dialog-primary-button">
                       Choose original PDF
                       <input
                         type="file"
@@ -571,11 +571,13 @@ export function PdfReadingCompanion({
                       Save my place <ArrowRight size={14} />
                     </button>
                   </div>
-                  {document && (
+                  {document ? (
                     <small>
                       {document.pageCount} PDF pages · Updated manually; your
                       external reader isn’t monitored.
                     </small>
+                  ) : (
+                    <small>Reconnect the PDF above to save your place.</small>
                   )}
                 </form>
               )}

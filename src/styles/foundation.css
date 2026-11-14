@@ -90,7 +90,10 @@
     .knowledge-tutoring,
     .schematic-inspector-prose,
     .adaptive-context p,
-    .readiness-review p
+    .readiness-review p,
+    .check-retry-banner p,
+    .written-grading-note,
+    .check-feedback-pause
   ),
 .app-shell :is(
     .prose,
@@ -106,6 +109,19 @@
   letter-spacing: -0.003em;
 }
 
+/* Titles on the reading surface share the face of their sections and body. */
+.app-shell .session-flow .lesson-heading h1,
+.app-shell .knowledge-check h3.check-feedback-title {
+  font-family: var(--font-reading);
+  letter-spacing: -0.015em;
+}
+
+/* Lesson actions end where the prose ends, not at the wider activity column.
+ * 42rem = the 70ch reading measure at the 16px lesson size. */
+.app-shell .session-flow .lesson-reading ~ .activity-continue {
+  max-width: 42rem;
+}
+
 /* Proportional text sets tighter than monospace; keep generous but not airy leading. */
 .app-shell .prose :is(p, li) {
   line-height: 1.65;
@@ -118,6 +134,10 @@
 .app-shell textarea:not(.monaco-editor textarea):not(.inputarea) {
   font-family: var(--font-reading);
 }
+
+/* Headings and regions that receive focus programmatically (tabindex="-1")
+ * are announced by screen readers; they are not controls, so no focus box. */
+.app-shell [tabindex="-1"]:not(button, a, input, select, textarea, summary, [role="tab"], [role="option"]):focus { outline: none; }
 
 /* Consistent keyboard focus for text inputs (buttons already have it). */
 .app-shell :is(input, textarea):focus-visible {

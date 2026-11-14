@@ -247,3 +247,8 @@
 @media(max-width:600px) { .curriculum-session-context>span { display:none; } }
 .study-sheet-actions { display:flex; flex-wrap:wrap; gap:8px; }
 .study-sheet-actions .check-coach-button { border:1px solid var(--border); border-radius:6px; padding:8px 11px; min-height:36px; }
+
+/* Section tabs change the content height; a fixed frame stops the dialog jumping. */
+.settings-dialog[open] > .review-surface,
+.session-history-dialog[open] > .review-surface { height: min(720px, calc(100dvh - 40px)); }
+.app-header .header-spacer { flex: 1; }

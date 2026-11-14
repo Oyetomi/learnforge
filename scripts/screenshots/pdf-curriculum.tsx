@@ -18,5 +18,6 @@ window.fetch=async(input,init)=>{
  }catch{data={scope:'curriculum',reason:'A connected curriculum.'};}
  return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify(data)}}]}),{headers:{'content-type':'application/json'}});
 };
+await (await import('../../src/services/db/storage')).db.ready();
 const App=(await import('../../src/App')).default;
 createRoot(document.getElementById('root')!).render(<App/>);

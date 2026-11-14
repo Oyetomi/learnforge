@@ -181,7 +181,7 @@
 /* Inline open-book explanation panel anchored above QuestionCard */
 .session-inline-lesson {
   margin: 8px auto 14px;
-  max-width: 960px;
+  max-width: var(--question-measure, 720px);
   border: 1px solid #594a3a;
   border-radius: 12px;
   background: var(--c-surface-sunken);

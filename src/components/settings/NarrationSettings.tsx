@@ -33,7 +33,7 @@ export function NarrationSettings({ value, onChange, apiKey, onKeyChange, onKeyS
         <div className="settings-plugin-title-row">
           <strong id="narration-settings-title">ElevenLabs</strong>
           <span className={`codex-status-pill ${enabled && configured ? "is-connected" : ""}`}>
-            {enabled ? (configured ? "Connected" : "Needs API key") : "Disabled"}
+            {enabled ? (configured ? "Connected" : "Needs API key") : "Off"}
           </span>
         </div>
         <small className="settings-plugin-tagline">Natural voices for lessons and explanations</small>

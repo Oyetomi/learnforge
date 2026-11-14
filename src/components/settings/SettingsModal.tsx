@@ -636,24 +636,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               <div className="settings-group">
-                <label className="retention-setting">
-                  <input
-                    type="checkbox"
-                    checked={learning.retention}
-                    onChange={(event) =>
-                      setPreference({ retention: event.target.checked })
-                    }
-                  />
-                  Offer a quick revisit in later sessions
-                </label>
-                <p className="written-grading-note">
-                  Optional and off by default. Offers one earlier idea within
-                  the same topic, without a review modal. You can always
-                  continue your current lesson.
-                </p>
-              </div>
-
-              <div className="settings-group">
                 <span className="settings-group-label">Explanation depth</span>
                 <div className="settings-option-grid cols-2">
                   {[
@@ -721,6 +703,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="settings-group">
+                <label className="retention-setting">
+                  <input
+                    type="checkbox"
+                    checked={learning.retention}
+                    onChange={(event) =>
+                      setPreference({ retention: event.target.checked })
+                    }
+                  />
+                  Offer a quick revisit in later sessions
+                </label>
+                <p className="written-grading-note">
+                  Now and then, revisit one earlier idea from the same topic.
+                  You can always skip it and continue your lesson.
+                </p>
               </div>
 
               <label className="settings-field">

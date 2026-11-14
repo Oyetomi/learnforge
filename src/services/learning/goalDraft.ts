@@ -6,6 +6,12 @@ export const STARTING_POINTS = [
   "I know the basics and want to apply them",
   "I have experience and want to deepen it",
 ];
+/** Short, learner-facing names for STARTING_POINTS (the full sentences go to the AI). */
+export const STARTING_POINT_LABELS = ["Not sure yet", "I’m new to this", "I know the basics", "I want to go deeper"];
+export function startingPointLabel(value: string): string {
+  const index = STARTING_POINTS.indexOf(value);
+  return index >= 0 ? STARTING_POINT_LABELS[index] : value;
+}
 export interface GoalDraft { interest?: string; destination?: string; startingPoint?: string }
 
 export function loadGoalDraft(): GoalDraft {

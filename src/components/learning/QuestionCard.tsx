@@ -567,11 +567,10 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
                   type="button"
                   className="check-recall-toggle"
                   aria-pressed={choicesHidden}
+                  title="Answer from memory first, then compare with the choices"
                   onClick={() => setChoicesHidden((v) => !v)}
                 >
-                  {choicesHidden
-                    ? "Show choices"
-                    : "Recall before seeing choices"}
+                  {choicesHidden ? "Show choices" : "Hide choices"}
                 </button>
               </legend>
             )}
