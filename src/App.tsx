@@ -20,25 +20,24 @@ const EditorPane = lazy(() =>
 import { ManageTopicsModal } from "./components/curriculum/ManageTopicsModal";
 import { SettingsModal } from "./components/settings/SettingsModal";
 import {
-  extractVisualExample,
   hideCustomCanvasBlocks,
-  visualForScientificPresentation,
-  visualForSubject,
 } from "./services/learning/visuals";
 import { visualSupportFor } from "./services/learning/preferences";
-import { nextLearningMilestone, plannedMilestoneFields } from "./services/learning/placement";
+import { nextLearningMilestone } from "./services/learning/placement";
 import { isAcceptedFreeResponseGrade } from "./services/learning/freeResponse";
 import { RetentionFlow } from "./components/learning/RetentionFlow";
 import { deleteTopicData } from "./services/learning/topicDeletion";
-import { topicsInWorkspace, savedTopicIds } from "./services/learning/topics";
 import { CurriculumWorkspace } from "./components/curriculum/CurriculumWorkspace";
 import { PdfReadingCompanion } from "./components/reading/PdfReadingCompanion";
 import { PdfBookRail } from "./components/reading/PdfBookRail";
 import { deleteReadingData } from "./services/learning/readingStore";
-import { curriculumForTrack, curriculumUnits } from "./services/learning/curriculumPlan";
 import { prepareCurriculumUnit } from "./services/ai/curriculumOutline";
 import { NewTopicModal } from "./components/curriculum/NewTopicModal";
 import { LearningStart } from "./components/curriculum/LearningStart";
+import { openTrackSession } from "./services/learning/sessionLoader";
+import { useCodeDrafts } from "./components/editor/useCodeDrafts";
+import { useTopics } from "./components/curriculum/useTopics";
+import { interpretAssistantReply, readinessCard } from "./services/learning/assistantReply";
 import {
   LearningSession,
   ChatMessage,
@@ -55,14 +54,10 @@ import { answerTutoring, answerTutoringPrompt, tutoringAttemptKey } from "./serv
 import { hasQuestionReview } from "./services/learning/questionReview";
 import { nextTeachingStep, teachingContinuationPrompt } from "./services/learning/teaching";
 import {
-  acceptsReadiness,
   approvedLessonIds,
-  extractAssessment,
-  extractRepair,
   isLessonUnlocked,
 } from "./services/learning/adaptation";
 import {
-  extractLearningCheck,
   hideLearningCheckBlocks,
   gradeLearningCheck,
   learningEvidence,
@@ -70,37 +65,13 @@ import {
 } from "./services/learning/checks";
 import {
   streamSocraticChat,
-  extractCleanResponse,
-  STARTER_TRACKS,
   type CourseTrack,
 } from "./services/ai";
 
 export default function App() {
   const [retentionActive, setRetentionActive] = useState(false);
   // --- Curriculum Tracks State ---
-  const [tracks, setTracks] = useState<CourseTrack[]>(() => [
-    ...STARTER_TRACKS,
-    ...db.getCustomTracks<CourseTrack>(),
-  ]);
-  const [addedStarterIds, setAddedStarterIds] = useState(() => {
-    let current = "";
-    try {
-      current = localStorage.getItem("learnforge:active-track") || "";
-    } catch {}
-    return savedTopicIds(
-      "learnforge:added-starters",
-      STARTER_TRACKS.some((track) => track.id === current) ? [current] : []
-    );
-  });
-  const [removedTopicIds, setRemovedTopicIds] = useState(() =>
-    savedTopicIds("learnforge:removed-topics")
-  );
-  const visibleTracks = topicsInWorkspace(
-    tracks,
-    STARTER_TRACKS.map((track) => track.id),
-    addedStarterIds,
-    removedTopicIds
-  );
+  const { tracks, visibleTracks, removedTopicIds, addTopic, removeTopics } = useTopics();
   const [currentTrackId, setCurrentTrackId] = useState<string>(() => {
     try {
       const saved = localStorage.getItem("learnforge:active-track");
@@ -161,30 +132,8 @@ export default function App() {
   const [isCompactLayout, setIsCompactLayout] = useState(
     () => window.innerWidth < 1200
   );
-  const [draftStatus, setDraftStatus] = useState<"saved" | "saving" | "memory">(
-    "saved"
-  );
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const codeDrafts = useCodeDrafts();
   const executionId = useRef(0);
-  const drafts = useRef<Record<string, string> | null>(null);
-  if (drafts.current === null) {
-    try {
-      const stored = JSON.parse(
-        localStorage.getItem("learnforge:code-drafts") || "{}"
-      );
-      drafts.current =
-        stored && typeof stored === "object" && !Array.isArray(stored)
-          ? Object.fromEntries(
-              Object.entries(stored).filter(
-                (entry): entry is [string, string] =>
-                  typeof entry[1] === "string"
-              )
-            )
-          : {};
-    } catch {
-      drafts.current = {};
-    }
-  }
   const milestoneIndex = Math.max(
     0,
     milestones.findIndex((m) => m.id === activeMilestone?.id)
@@ -253,46 +202,10 @@ export default function App() {
     };
   }, [isSidebarOpen, isCompactLayout]);
 
-  const persistDrafts = () => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    try {
-      localStorage.setItem(
-        "learnforge:code-drafts",
-        JSON.stringify(drafts.current)
-      );
-      setDraftStatus("saved");
-    } catch {
-      setDraftStatus("memory");
-    }
-  };
-
   const handleChangeCode = (code: string) => {
     setEditorCode(code);
-    if (!activeMilestone) return;
-    drafts.current![activeMilestone.id] = code;
-    setDraftStatus("saving");
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(persistDrafts, 350);
+    if (activeMilestone) codeDrafts.update(activeMilestone.id, code);
   };
-
-  useEffect(() => {
-    const flush = () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      try {
-        localStorage.setItem(
-          "learnforge:code-drafts",
-          JSON.stringify(drafts.current)
-        );
-      } catch {}
-    };
-    window.addEventListener("pagehide", flush);
-    window.addEventListener("beforeunload", flush);
-    return () => {
-      flush();
-      window.removeEventListener("pagehide", flush);
-      window.removeEventListener("beforeunload", flush);
-    };
-  }, []);
 
   // Initialize or load session on track change
   useEffect(() => {
@@ -305,121 +218,32 @@ export default function App() {
       setEditorCode("");
       return;
     }
-    const sessions = db.getSessions();
-    let session = sessions.find(
-      (s) =>
-        s.track_id === track.id ||
-        (!track.learningIntent && !s.track_id && s.title === track.title)
-    );
-
-    if (!session) {
-      session = db.createSession({
-        title: track.title,
-        topic: track.tagline,
-        language: track.language,
-        track_id: track.id,
-        learning_intent: track.learningIntent,
-        placement: track.placement,
-        references: track.references,
-      });
-    }
-
-    // Seed an existing empty session as well as a newly created session.
-    if (db.getMilestones(session.id).length === 0) {
-      db.seedMilestonePlan(session.id, track.milestones.map(m => ({
-          sourceId: m.id,
-          curriculum_unit_id: m.id,
-          curriculum_module_id: track.curriculum?.modules.find(module => module.units.some(u => u.id === m.id))?.id,
-          content_status: m.contentStatus,
-          curriculum_context: track.curriculum ? {
-            goal: track.curriculum.originalGoal, destination: track.curriculum.destination,
-            module: track.curriculum.modules.find(module => module.units.some(u => u.id === m.id))?.title || "",
-            assessment: curriculumUnits(track.curriculum).find(u => u.id === m.id)?.assessment || "",
-            version: track.curriculum.version,
-          } : undefined,
-          learning_intent: session!.learning_intent,
-          references: session!.references,
-          title: m.title,
-          prompt: m.prompt,
-          starter_code: m.starter_code,
-          test_code: m.test_code,
-          lesson: m.lesson,
-          visual: m.visual,
-          ...plannedMilestoneFields(track, m.id),
-          prerequisite_ids: m.prerequisite_ids,
-      })));
-    }
-
+    const opened = openTrackSession(db, track, (sessionId) => {
+      try {
+        return localStorage.getItem(`learnforge:active-milestone:${sessionId}`);
+      } catch {
+        return null;
+      }
+    });
+    const { session, activeMilestone: active } = opened;
     setCurrentSession(session);
     setLanguage(session.language || "go");
     if (!session.language) {
       setIsCodeWorkspaceOpen(false);
       setMobilePane("lesson");
     }
-
-    const sessionMilestones = db.getMilestones(session.id);
-    setMilestones(sessionMilestones);
-    let rememberedMilestone: string | null = null;
-    try {
-      rememberedMilestone = localStorage.getItem(
-        `learnforge:active-milestone:${session.id}`
-      );
-    } catch {}
-    const approved = approvedLessonIds(db.getMessages(session.id));
-    const active =
-      sessionMilestones.find(
-        (m) =>
-          m.id === rememberedMilestone &&
-          isLessonUnlocked(m, sessionMilestones, approved)
-      ) ||
-      sessionMilestones.find(
-        (m) =>
-          m.status === "active" &&
-          isLessonUnlocked(m, sessionMilestones, approved)
-      ) ||
-      sessionMilestones.find(
-        (m) =>
-          m.status !== "completed" &&
-          isLessonUnlocked(m, sessionMilestones, approved)
-      ) ||
-      sessionMilestones[0] ||
-      null;
+    setMilestones(opened.milestones);
     setActiveMilestone(active);
-
     if (active) {
-      setEditorCode(drafts.current![active.id] ?? active.starter_code);
+      setEditorCode(codeDrafts.draftFor(active.id) ?? active.starter_code);
     }
-
-    const sessionMessages = db.getMessages(session.id);
-    setMessages(sessionMessages);
-
-    // Initial greeting if session is empty
-    if (sessionMessages.length === 0) {
-      // Kept for the AI's context; it is not lesson material, so it stays out of
-      // saved explanations, exports and the knowledge map.
-      const greeting: ChatMessage = db.addMessage({
-        session_id: session.id,
-        role: "assistant",
-        internal: true,
-        content: `I can help with **${
-          track.title
-        }**. Ask about your challenge, request a hint, or share what you’ve tried. Start with the interactive lesson. ${
-          session.language
-            ? "Open coding practice when you want to experiment."
-            : ""
-        }`,
-      });
-      setMessages([greeting]);
-    }
+    setMessages(opened.messages);
   }, [currentTrackId, tracks]);
 
   // Handle new custom track created dynamically by AI
   const handleTrackCreated = (newTrack: CourseTrack) => {
-    const updated = [...tracks, newTrack];
     // Persist the approved outline before committing the UI. Save errors leave review open.
-    if (!db.setCustomTracks(updated.filter(t => !STARTER_TRACKS.some(st => st.id === t.id))))
-      throw new Error("Couldn’t save this topic. Free some space and try again.");
-    setTracks(updated);
+    addTopic(newTrack);
 
     handleSelectTrack(newTrack.id);
     if (newTrack.curriculum) setWorkspaceView("curriculum");
@@ -429,7 +253,7 @@ export default function App() {
   const handleSelectTrack = (trackId: string) => {
     if (trackId === currentTrackId) return;
     handleStopStreaming();
-    persistDrafts();
+    codeDrafts.persist();
     executionId.current += 1;
     setExecutionResult(null);
     setIsRunningCode(false);
@@ -444,45 +268,18 @@ export default function App() {
     } catch {}
   };
 
-  const updateTopicMembership = (added: string[], removed: string[]) => {
-    setAddedStarterIds(added);
-    setRemovedTopicIds(removed);
-    try {
-      localStorage.setItem("learnforge:added-starters", JSON.stringify(added));
-      localStorage.setItem(
-        "learnforge:removed-topics",
-        JSON.stringify(removed)
-      );
-    } catch {}
-  };
   const handleDeleteTopics = async (ids: string[]) => {
     const deleting = new Set(ids);
     if (deleting.has(currentTrackId)) { handleStopStreaming(); setWorkspaceView("curriculum"); }
-    if (saveTimer.current) clearTimeout(saveTimer.current);
     // Await removal of original PDFs and bookmarks before reporting permanent deletion.
     for (const id of ids) if (tracks.find(t=>t.id===id)?.curriculum?.sourceDocument) await deleteReadingData(id);
     const erased = ids.flatMap((id) =>
       deleteTopicData(db, tracks.find((t) => t.id === id) || { id, title: "" })
     );
-    for (const id of erased) delete drafts.current![id];
-    persistDrafts();
-    const remaining = tracks.filter((t) => !deleting.has(t.id));
-    db.setCustomTracks(
-      remaining.filter((t) => !STARTER_TRACKS.some((s) => s.id === t.id))
-    );
-    setTracks(remaining);
-    const added = addedStarterIds.filter((id) => !deleting.has(id));
-    const removed = removedTopicIds.filter((id) => !deleting.has(id));
-    updateTopicMembership(added, removed);
+    codeDrafts.forget(erased);
+    const stillVisible = removeTopics(deleting);
     if (deleting.has(currentTrackId)) {
-      handleSelectTrack(
-        topicsInWorkspace(
-          remaining,
-          STARTER_TRACKS.map((t) => t.id),
-          added,
-          removed
-        )[0]?.id || ""
-      );
+      handleSelectTrack(stillVisible[0]?.id || "");
       setIsCodeWorkspaceOpen(false);
     }
     setDueCards(db.getDueCardsList());
@@ -496,13 +293,13 @@ export default function App() {
     )
       return;
     handleStopStreaming();
-    persistDrafts();
+    codeDrafts.persist();
     setWorkspaceView("session");
     setDiagnosticFor(null);
     setActiveMilestone(m);
     executionId.current += 1;
     setIsRunningCode(false);
-    setEditorCode(drafts.current![m.id] ?? m.starter_code);
+    setEditorCode(codeDrafts.draftFor(m.id) ?? m.starter_code);
     setExecutionResult(null);
     setMobilePane("lesson");
     if (window.innerWidth < 1200) setIsSidebarOpen(false);
@@ -587,7 +384,7 @@ export default function App() {
               },
             });
             setMessages((previous) => [...previous, note]);
-            persistDrafts();
+            codeDrafts.persist();
             setMilestones(db.getMilestones(currentSession.id));
             setActiveMilestone(repair);
             setEditorCode("");
@@ -634,79 +431,26 @@ export default function App() {
             setIsStreaming(false);
             setStreamingContent("");
 
-            // Parse for any structured challenge block
-            const { challenge, conversationalText, hasChallenge } =
-              extractCleanResponse(fullText);
-
-            const candidateVisual = options?.independent || options?.answerTutoringFor
-              ? null
-              : visualForSubject(
-                  extractVisualExample(conversationalText),
-                  currentSession.language
-                );
-            const visual = options?.scientificFigure
-              ? visualForScientificPresentation(candidateVisual) : candidateVisual;
-            const review = options?.teachOnly
-              ? null
-              : extractAssessment(conversationalText);
-            const acceptedReview =
-              review &&
-              activeMilestone &&
-              (review.decision === "practice" ||
-                acceptsReadiness(updatedMessages, activeMilestone.id, review))
-                ? {
-                    ...review,
-                    milestoneId: activeMilestone.id,
-                    createdAt: Date.now(),
-                  }
-                : undefined;
-            const repairProposal =
-              activeMilestone && !options?.teachOnly && !plannerDecidedStay
-                ? extractRepair(
-                    conversationalText,
-                    updatedMessages,
-                    activeMilestone,
-                    milestones
-                  )
-                : null;
+            const reply = interpretAssistantReply(fullText, options || {}, {
+              activeMilestone,
+              milestones,
+              history: updatedMessages,
+              language: currentSession.language,
+              plannerDecidedStay,
+            });
+            const { acceptedReview, repairProposal, learningCheck, challenge } = reply;
             const repair = repairProposal
               ? db.addRepairMilestone(activeMilestone!.id, repairProposal)
               : null;
-            const checkResult = extractLearningCheck(options?.scientificFigure
-              ? hideCustomCanvasBlocks(conversationalText) : conversationalText);
-            const learningCheck: LearningCheck | undefined =
-              checkResult.check && activeMilestone && !options?.teachOnly
-                ? {
-                    ...checkResult.check,
-                    id: `check-${Date.now()}-${Math.random()
-                      .toString(36)
-                      .slice(2, 7)}`,
-                    milestoneId: activeMilestone.id,
-                    practice: options?.practice ?? nextTeachingStep(updatedMessages, activeMilestone.id).practice,
-                  }
-                : undefined;
-            const reviewProblem =
-              review?.decision === "ready" && !acceptedReview
-                ? "\n\nThe readiness evidence could not be verified. The next concept stays in preview."
-                : "";
             // Save the structured question with its message so it survives navigation.
             const botMsg = db.addMessage({
               session_id: currentSession.id,
               role: "assistant",
               tutoring_for_check_id: options?.answerTutoringFor,
               tutoring_attempt_key: options?.tutoringAttemptKey,
-              generation_error: options?.answerTutoringFor && !checkResult.text.trim() ? true : undefined,
-              content:
-                checkResult.hasBlock && !learningCheck && !options?.teachOnly
-                  ? `${checkResult.text}\n\nThis question could not be displayed. Ask for a new knowledge check.`
-                  : checkResult.text +
-                    reviewProblem +
-                    (options?.visual && !visual
-                      ? options.scientificFigure
-                        ? "\n\nI couldn’t prepare the typeset figure. Please try again."
-                        : "\n\nI couldn’t prepare the visual example. Try ‘Show me visually’ again, or ask for a plain-language explanation."
-                      : ""),
-              visual_example: visual || undefined,
+              generation_error: reply.generationError || undefined,
+              content: reply.content,
+              visual_example: reply.visual,
               visual_requested: options?.visual,
               learning_check: learningCheck,
               milestone_id: repair?.id || activeMilestone?.id,
@@ -745,21 +489,7 @@ export default function App() {
                     session_id: currentSession.id,
                     milestone_id: activeMilestone.id,
                     topic: `${currentSession.title}: ${activeMilestone.title}`,
-                    prompt: activeCheck
-                      ? [activeCheck.context, activeCheck.question]
-                          .filter(Boolean)
-                          .join("\n\n")
-                      : `What did you learn about ${activeMilestone.title}?`,
-                    answer: activeCheck
-                      ? activeCheck.expectedAnswer || [
-                          ...activeCheck.options
-                            .filter((option) =>
-                              activeCheck.correctOptionIds.includes(option.id)
-                            )
-                            .map((option) => option.label),
-                          activeCheck.explanation,
-                        ].join("\n\n")
-                      : activeMilestone.lesson,
+                    ...readinessCard(activeMilestone, activeCheck),
                   });
                   setDueCards(db.getDueCardsList());
                 }
@@ -769,7 +499,7 @@ export default function App() {
               setMilestones(db.getMilestones(currentSession.id));
               setActiveMilestone(repair);
               setEditorCode("");
-              persistDrafts();
+              codeDrafts.persist();
               try {
                 localStorage.setItem(
                   `learnforge:active-milestone:${currentSession.id}`,
@@ -781,12 +511,7 @@ export default function App() {
             if (learningCheck) setMobilePane("lesson");
 
             // If AI introduced a new challenge, update editor & milestone
-            if (
-              hasChallenge &&
-              challenge &&
-              currentSession.language &&
-              !options?.teachOnly
-            ) {
+            if (challenge) {
               const newM = db.createMilestone({
                 session_id: currentSession.id,
                 title: challenge.title,
@@ -1215,7 +940,7 @@ export default function App() {
       if (!prepared) return;
       setMilestones(db.getMilestones(sessionId));
       setActiveMilestone(current => current?.id===runtimeId?prepared:current);
-      setEditorCode(drafts.current![runtimeId] ?? prepared.starter_code);
+      setEditorCode(codeDrafts.draftFor(runtimeId) ?? prepared.starter_code);
       setUnitPreparation(null);
     }).catch(error => {
       if (!controller.signal.aborted || timeout) setUnitPreparation({id:runtimeId,state:"error",
@@ -1470,7 +1195,7 @@ export default function App() {
                         canAdvance={activeMilestone?.status === "completed" && approvedLessonIds(messages).has(activeMilestone.id)}
                         executionResult={executionResult}
                         onClearConsole={() => setExecutionResult(null)}
-                        draftStatus={draftStatus}
+                        draftStatus={codeDrafts.status}
                         milestoneId={activeMilestone?.id}
                         onNextMilestone={
                           nextMilestone ? handleNextMilestone : undefined
