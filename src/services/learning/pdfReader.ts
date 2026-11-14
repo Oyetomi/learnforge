@@ -2,29 +2,48 @@ import type { PDFDocumentProxy, TextContent } from "pdfjs-dist/types/src/display
 import { sectionsFromContents, withPageRanges, type PdfBook, type PdfSection } from "./pdfContents";
 type ReadOptions = { signal?: AbortSignal; onProgress?: (page: number, total: number) => void };
 
+async function loadPdfjs() {
+  const [pdfjs, worker] = await Promise.all([import("pdfjs-dist"), import("pdfjs-dist/build/pdf.worker.min.mjs?url")]);
+  pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+  return pdfjs;
+}
+
+/**
+ * A PDF.js loading task. A Blob is read on demand in 64 KiB ranges, so large
+ * books are never copied into memory whole; bytes are passed directly.
+ */
+function openPdfTask(
+  pdfjs: Awaited<ReturnType<typeof loadPdfjs>>,
+  input: Uint8Array | Blob,
+  hooks: { activity?: () => void; failed?: (error: unknown) => void } = {}
+) {
+  const range = input instanceof Uint8Array ? undefined : new class extends pdfjs.PDFDataRangeTransport {
+    stopped = false;
+    constructor(private file: Blob) { super(file.size, new Uint8Array(), false); }
+    requestDataRange(begin: number, end: number) {
+      hooks.activity?.();
+      void this.file.slice(begin, end).arrayBuffer().then(buffer => {
+        if (!this.stopped) { this.onDataRange(begin, new Uint8Array(buffer)); hooks.activity?.(); }
+      }).catch(error => hooks.failed?.(error));
+    }
+    abort() { this.stopped = true; }
+  }(input as Blob);
+  const task = pdfjs.getDocument({ ...(range ? { range, rangeChunkSize: 65536, disableAutoFetch: true, disableStream: true } : { data: (input as Uint8Array).slice() }), cMapUrl: `${import.meta.env.BASE_URL}vendor/pdfjs/cmaps/`, cMapPacked: true, standardFontDataUrl: `${import.meta.env.BASE_URL}vendor/pdfjs/standard_fonts/`, useWasm: false, useSystemFonts: true, disableFontFace: true });
+  const stopReads = () => range?.abort();
+  return { task, stopReads, abort: () => { stopReads(); void task.destroy().catch(() => {}); } };
+}
+
 async function withPdf<T>(input: Uint8Array | Blob, options: ReadOptions, action: (pdf: PDFDocumentProxy, activity: () => void) => Promise<T>): Promise<T> {
   options.signal?.throwIfAborted();
-  const [pdfjs, worker] = await Promise.all([import("pdfjs-dist"), import("pdfjs-dist/build/pdf.worker.min.mjs?url")]);
+  const pdfjs = await loadPdfjs();
   options.signal?.throwIfAborted();
-  pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
   let timedOut = false, rangeFailure: unknown;
   let timer: ReturnType<typeof setTimeout>;
   let stop = () => {};
   // Inactivity recovery, not a time allowance based on the book's length.
   const activity = () => { clearTimeout(timer); timer = setTimeout(() => { timedOut = true; stop(); }, 120000); };
-  const range = input instanceof Uint8Array ? undefined : new class extends pdfjs.PDFDataRangeTransport {
-    stopped = false;
-    constructor(private file: Blob) { super(file.size, new Uint8Array(), false); }
-    requestDataRange(begin: number, end: number) {
-      activity();
-      void this.file.slice(begin, end).arrayBuffer().then(buffer => {
-        if (!this.stopped) { this.onDataRange(begin, new Uint8Array(buffer)); activity(); }
-      }).catch(error => { rangeFailure = error; stop(); });
-    }
-    abort() { this.stopped = true; }
-  }(input as Blob);
-  const task = pdfjs.getDocument({ ...(range ? { range, rangeChunkSize: 65536, disableAutoFetch: true, disableStream: true } : { data: (input as Uint8Array).slice() }), cMapUrl: `${import.meta.env.BASE_URL}vendor/pdfjs/cmaps/`, cMapPacked: true, standardFontDataUrl: `${import.meta.env.BASE_URL}vendor/pdfjs/standard_fonts/`, useWasm: false, useSystemFonts: true, disableFontFace: true });
-  stop = () => { range?.abort(); void task.destroy().catch(() => {}); };
+  const { task, abort, stopReads } = openPdfTask(pdfjs, input, { activity, failed: error => { rangeFailure = error; stop(); } });
+  stop = abort;
   activity();
   options.signal?.addEventListener("abort", stop, { once: true });
   try {
@@ -39,10 +58,52 @@ async function withPdf<T>(input: Uint8Array | Blob, options: ReadOptions, action
     throw error;
   } finally {
     clearTimeout(timer!);
-    range?.abort();
+    stopReads();
     options.signal?.removeEventListener("abort", stop);
     await task.destroy().catch(() => {});
   }
+}
+
+export interface PdfPageView {
+  pageCount: number;
+  /** Draw one page into a canvas at the given CSS width (sharp on high-density screens). */
+  render(pageNumber: number, canvas: HTMLCanvasElement, cssWidth: number): Promise<void>;
+  close(): void;
+}
+
+/** Keep a stored PDF open for reading pages inside the app. */
+export async function openPdfPageView(file: Blob): Promise<PdfPageView> {
+  const pdfjs = await loadPdfjs();
+  const { task, abort } = openPdfTask(pdfjs, file);
+  const pdf = await task.promise;
+  const rendering = new Map<HTMLCanvasElement, { cancel(): void }>();
+  return {
+    pageCount: pdf.numPages,
+    async render(pageNumber, canvas, cssWidth) {
+      rendering.get(canvas)?.cancel();
+      const page = await pdf.getPage(pageNumber);
+      try {
+        const base = page.getViewport({ scale: 1 });
+        const ratio = Math.min(window.devicePixelRatio || 1, 2);
+        const viewport = page.getViewport({ scale: (cssWidth / base.width) * ratio });
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        canvas.style.aspectRatio = `${base.width} / ${base.height}`;
+        const task = page.render({ canvas, viewport, background: "#ffffff" });
+        rendering.set(canvas, task);
+        await task.promise.catch((error: unknown) => {
+          if ((error as { name?: string })?.name !== "RenderingCancelledException") throw error;
+        });
+      } finally {
+        rendering.delete(canvas);
+        page.cleanup();
+      }
+    },
+    close() {
+      rendering.forEach((task) => task.cancel());
+      abort();
+    },
+  };
 }
 function textFromItems(content: TextContent): string {
   const rows: { y: number; items: { text: string; x: number; width: number }[] }[] = [];

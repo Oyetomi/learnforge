@@ -43,6 +43,7 @@ import { Composer } from "../chat/Composer";
 import { recordVisualSupport } from "../../services/learning/preferences";
 import type { HelpKind } from "../../services/learning/sessionHelp";
 import { HelpMenu } from "../chat/HelpMenu";
+import { PdfPageViewer } from "./PdfPageViewer";
 import { readableFileTitle } from "../../services/learning/pdfContents";
 import "../chat/learning-help.css";
 import "./reading.css";
@@ -66,6 +67,8 @@ export function PdfReadingCompanion({
   const [busy, setBusy] = useState(""),
     [editing, setEditing] = useState(true),
     [help, setHelp] = useState<HelpKind | null>(null);
+  // The look-back viewer mounts only while open, so the PDF isn't kept open during a check.
+  const [lookingBack, setLookingBack] = useState(false);
   const controller = useRef<AbortController | null>(null),
     mounted = useRef(true),
     writes = useRef(Promise.resolve());
@@ -386,6 +389,37 @@ export function PdfReadingCompanion({
           document.pageCount
         )
       : null;
+  const readyActions = stop && (
+    <>
+      <label className="reading-book-closed">
+        <input
+          type="checkbox"
+          checked={closedBook}
+          onChange={(e) => setClosedBook(e.target.checked)}
+        />
+        <span>
+          Answer with the book closed
+          <small>Counts as independent practice</small>
+        </span>
+      </label>
+      <div className="reading-ready-buttons">
+        <button
+          className="dialog-primary-button"
+          disabled={busyButton}
+          onClick={() => void prepareQuestion(stop)}
+        >
+          Check what I read <ArrowRight size={15} />
+        </button>
+        <button
+          className="dialog-secondary-button"
+          disabled={busyButton}
+          onClick={() => setHelp("walkthrough")}
+        >
+          I’m stuck here
+        </button>
+      </div>
+    </>
+  );
   return (
     <section className="pdf-reading" aria-labelledby="reading-title">
       <header className="reading-heading">
@@ -612,43 +646,27 @@ export function PdfReadingCompanion({
                       aria-label="Current reading activity"
                     >
                       {!round ? (
-                        <div className="reading-ready">
-                          <span className="reading-eyebrow">
-                            PDF pages {stop.range.from}–{stop.range.to}
-                          </span>
-                          <h2>Read these pages, then check yourself</h2>
-                          <p className="pdf-reading-copy">
-                            When you’ve read them, try one short question about
-                            what stayed with you. Help is here if you get stuck.
-                          </p>
-                          <label className="reading-book-closed">
-                            <input
-                              type="checkbox"
-                              checked={closedBook}
-                              onChange={(e) => setClosedBook(e.target.checked)}
-                            />
-                            <span>
-                              Answer with the book closed
-                              <small>Counts as independent practice</small>
+                        <>
+                          <div className={`reading-ready${document ? " is-viewing" : ""}`}>
+                            <span className="reading-eyebrow">
+                              PDF pages {stop.range.from}–{stop.range.to}
                             </span>
-                          </label>
-                          <div>
-                            <button
-                              className="dialog-primary-button"
-                              disabled={busyButton}
-                              onClick={() => void prepareQuestion(stop)}
-                            >
-                              Check what I read <ArrowRight size={15} />
-                            </button>
-                            <button
-                              className="dialog-secondary-button"
-                              disabled={busyButton}
-                              onClick={() => setHelp("walkthrough")}
-                            >
-                              I’m stuck here
-                            </button>
+                            <h2>Read these pages, then check yourself</h2>
+                            <p className="pdf-reading-copy">
+                              {document
+                                ? "Read the pages below. When you’re done, try one short question about what stayed with you. Help is here if you get stuck."
+                                : "Read them in your PDF viewer, then try one short question about what stayed with you. Help is here if you get stuck."}
+                            </p>
+                            {!document && readyActions}
                           </div>
-                        </div>
+                          {document && (
+                            <>
+                              <PdfPageViewer file={document.file} pages={stop.range.pages} />
+                              {/* Stays in reach at the end of a long reading stop. */}
+                              <div className="reading-done-bar">{readyActions}</div>
+                            </>
+                          )}
+                        </>
                       ) : (
                         <>
                           {/* Only useful once there is more than one check to move between. */}
@@ -890,16 +908,22 @@ export function PdfReadingCompanion({
                         onStopStreaming={() => controller.current?.abort()}
                         onSendMessage={ask}
                       />
-                      <details
+                      {(round || !document) && <details
                         className="reading-covered-text"
                         onToggle={(e) => {
                           if (e.currentTarget.open) support();
+                          setLookingBack(e.currentTarget.open);
                         }}
                       >
                         <summary>
-                          Show the text of these pages{" "}
+                          Look back at these pages{" "}
                           <small>counts as practice with help</small>
                         </summary>
+                        {document && lookingBack && (
+                          <PdfPageViewer file={document.file} pages={stop.range.pages} />
+                        )}
+                        <details className="reading-plain-text">
+                          <summary>Plain text of these pages</summary>
                         {stop.range.pages.map((p) => (
                           <section key={p.number}>
                             <h3>
@@ -911,7 +935,8 @@ export function PdfReadingCompanion({
                             </pre>
                           </section>
                         ))}
-                      </details>
+                        </details>
+                      </details>}
                       <p className="reading-footnote">
                         Your reading place is saved separately from curriculum
                         progress. Only these pages are shared with your tutor.

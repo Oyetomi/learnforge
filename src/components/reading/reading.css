@@ -492,3 +492,23 @@ label:is(.dialog-secondary-button, .dialog-primary-button):has(> input[type="fil
 /* Once answered, the feedback card stands alone (as in lessons), not inside the question card. */
 .pdf-reading .knowledge-check.is-answered { border: 0; padding: 0; background: transparent; box-shadow: none; }
 .app-shell .pdf-reading p.reading-pacing-note { font-family: var(--font-reading); font-size: var(--text-sm); line-height: 1.6; color: var(--c-text-secondary); max-width: 720px; margin-inline: auto; }
+
+/* In-app reading: intro, the pages, then a done bar pinned to the bottom edge. */
+.reading-ready.is-viewing { margin-bottom: 20px; }
+.reading-ready-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+.reading-done-bar {
+  position: sticky; bottom: -40px; z-index: 5;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  margin: 24px auto 0; padding: 14px 18px;
+  border: 1px solid var(--c-line); border-bottom: 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: var(--c-surface-1); box-shadow: 0 -12px 28px -14px #000a;
+}
+.reading-done-bar .reading-book-closed { margin: 0; }
+.reading-covered-text .pdf-viewer { margin: 14px auto 18px; }
+.reading-plain-text { margin-top: 8px; }
+.reading-plain-text > summary { cursor: pointer; font-size: var(--text-xs); color: var(--c-text-quiet); }
+@media (max-width: 600px) {
+  .reading-done-bar { padding: 12px 14px; }
+  .reading-ready-buttons { width: 100%; }
+  .reading-ready-buttons > button { flex: 1; justify-content: center; }
+}

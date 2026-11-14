@@ -3,7 +3,7 @@ const sdk = vi.hoisted(() => ({ PDFDataRangeTransport: class {
   length: number; onDataRange = vi.fn(); constructor(length: number) { this.length = length; }
 }, getDocument: vi.fn(), GlobalWorkerOptions: { workerSrc: "" } }));
 vi.mock("pdfjs-dist", () => sdk);
-import { readPdfBook, readSelectedPdfChapters, readPdfStudyRange } from "../pdfReader";
+import { openPdfPageView, readPdfBook, readSelectedPdfChapters, readPdfStudyRange } from "../pdfReader";
 const items = (lines: string[]) => lines.map((str, i) => ({str,transform:[1,0,0,1,40,750-i*24],width:200,hasEOL:true}));
 function documentFixture(pages: string[][]) {
   return { numPages: pages.length, getOutline: vi.fn(async()=>null), getPageLabels:vi.fn(async()=>null),
@@ -96,4 +96,23 @@ describe("local PDF reader lifecycle",()=>{
   expect(slice).toHaveBeenCalledWith(65536,131072);
  });
 
+ it("keeps a stored PDF open for in-app pages, draws at the requested width and releases it on close",async()=>{
+  const render=vi.fn(()=>({promise:Promise.resolve(),cancel:vi.fn()}));
+  const cleanup=vi.fn();
+  const pdf={numPages:3,getPage:vi.fn(async()=>({getViewport:({scale}:{scale:number})=>({width:600*scale,height:800*scale}),render,cleanup}))};
+  const destroy=vi.fn(async()=>{});sdk.getDocument.mockReturnValue({promise:Promise.resolve(pdf),destroy});
+  vi.stubGlobal("window",{devicePixelRatio:2});
+  const view=await openPdfPageView(new Blob([new Uint8Array([1,2,3])]));
+  expect(view.pageCount).toBe(3);
+  const canvas={width:0,height:0,style:{} as Record<string,string>} as unknown as HTMLCanvasElement;
+  await view.render(2,canvas,300);
+  expect(pdf.getPage).toHaveBeenCalledWith(2);
+  // 300 CSS pixels at a 2x screen: a 600-pixel-wide bitmap.
+  expect([canvas.width,canvas.height]).toEqual([600,800]);
+  expect(cleanup).toHaveBeenCalledOnce();
+  expect(destroy).not.toHaveBeenCalled();
+  view.close();
+  expect(destroy).toHaveBeenCalledOnce();
+  vi.unstubAllGlobals();
+ });
 });
