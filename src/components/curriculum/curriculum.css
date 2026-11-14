@@ -1094,9 +1094,28 @@
 
 /* The approval decision stays in reach while the outline scrolls. */
 .curriculum-approval > .new-topic-footer {
-  position: sticky; bottom: 0; z-index: 3;
+  /* Reach the scroll area's edges (its 22px/24px padding) so nothing shows beneath. */
+  position: sticky; bottom: -22px; z-index: 3;
+  margin-inline: -24px; padding-inline: 24px;
   background: var(--c-surface-1);
   box-shadow: 0 -12px 20px -12px #0008;
 }
 .curriculum-scope-card ul { list-style: disc; padding-left: 18px; }
 .curriculum-scope-card li::marker { color: var(--c-text-faint); }
+
+/* Next step: one primary action, with reading the book as the quieter alternative. */
+.curriculum-next { border-radius: 0 var(--radius-xl) var(--radius-xl) 0; }
+.curriculum-next p { font-size: var(--text-sm); line-height: 1.6; color: var(--c-text-secondary); }
+.curriculum-next-actions { display: grid; justify-items: stretch; gap: 8px; flex-shrink: 0; }
+.curriculum-next-actions .dialog-primary-button { justify-content: center; }
+.curriculum-next-read {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: 32px; padding: 6px 12px;
+  border: 0; border-radius: var(--radius-lg); background: transparent;
+  color: var(--c-accent-text); font: inherit; font-size: var(--text-xs); cursor: pointer;
+}
+.curriculum-next-read:hover { background: #d2b49712; color: var(--c-accent-strong); }
+.curriculum-next-read:focus-visible { outline: 2px solid rgb(var(--color-accent) / .55); outline-offset: 2px; }
+@media (max-width: 720px) {
+  .curriculum-next { flex-direction: column; align-items: stretch; }
+}

@@ -2,7 +2,7 @@
 
 Choose **New topic → Add notes or a file → Choose local file** and attach a PDF. LearnForge reads document bookmarks first, then looks for an explicit printed contents listing in the opening pages. Review the detected chapters, choose your scope, check the physical PDF page ranges, and prepare a curriculum. The outline remains editable and requires approval before it is saved.
 
-Main chapters appear first; **Show all sections** exposes the detailed bookmarks. Front matter such as the cover and copyright page is not selected by default. You can replace a detected listing with pasted contents. Unresolved page ranges are labelled **outline only** until corrected; a heading is not presented as extracted chapter text.
+Main chapters appear first; in books divided into parts ("Part I", "Unit 2"), these are the chapters inside each part. **Show all sections** exposes the detailed bookmarks. Choosing a part replaces any of its chapters you had chosen (and the reverse), so the same pages are never taught twice. Front matter such as the cover and copyright page is not selected by default. You can replace a detected listing with pasted contents. Unresolved page ranges are labelled **outline only** until corrected; a heading is not presented as extracted chapter text.
 
 ## Large books
 
@@ -18,9 +18,9 @@ Only bounded extracted text is included in the topic JSON and provider payload. 
 
 ## Read the book separately
 
-Use **Study alongside this PDF** from the curriculum. Set the physical PDF page or recently read range and save your place. **Check what I read** asks before explaining; your submitted answer stays visible while tutoring is prepared. Page-linked hints, walkthroughs and figures preserve the same activity. An open book or a hint counts as supported practice; you can put the book aside for an independent check.
+From the curriculum, choose **Read PDF pages …** under your next step, or **Start reading** in the book sidebar. Pages open pre-filled for the current unit. Set the physical PDF page or recently read range and save your place. **Check what I read** asks before explaining; your submitted answer stays visible while tutoring is prepared. Hints, walkthroughs and visuals come from the same **Help** menu as lessons and keep the activity in place. An open book or a hint counts as supported practice; you can put the book aside for an independent check.
 
-The left book rail shows the actual first-page thumbnail, saved position, and a searchable chapter index for long books. Its highlight locates you in the document, without marking the chapter as learned. Printed labels remain separate from PDF page indexes. Your external reader is not monitored: change the range explicitly when you read ahead. Existing PDF curricula need the original file reconnected once because older imports retained only excerpts.
+The book sidebar shows the first-page thumbnail, your saved position, and the chapter contents (searchable for long books). Its highlight locates you in the document, without marking the chapter as learned. Printed labels remain separate from PDF page indexes. Your external reader is not monitored: change the range explicitly when you read ahead. Existing PDF curricula need the original file reconnected once because older imports retained only excerpts.
 
 Your bookmark, reading stops, submitted work and feedback resume across app restarts. The original PDF and reading data are removed when the topic is deleted. Available device storage and browser data clearing still apply. See the [reading companion design and limits](pdf-reading-companion-design.md).
 

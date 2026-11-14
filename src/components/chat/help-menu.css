@@ -1,0 +1,48 @@
+/* Shared Help menu (lessons and reading). Selectors are one step stronger than
+ * the older pill rules for .session-help-actions buttons, which load later. */
+.help-menu { position: relative; }
+.app-shell .help-menu > summary.help-menu-trigger {
+  display: inline-flex; align-items: center; gap: 5px;
+  min-height: 32px; padding: 0 10px;
+  border: 1px solid var(--c-line); border-radius: var(--radius-pill);
+  color: var(--c-text-secondary); font-size: var(--text-xs);
+  list-style: none; cursor: pointer; user-select: none;
+}
+.help-menu > summary::-webkit-details-marker { display: none; }
+.app-shell .help-menu > summary.help-menu-trigger:hover,
+.app-shell .help-menu[open] > summary.help-menu-trigger {
+  border-color: #6d5a49; color: var(--c-accent-strong); background: #d2b4970a;
+}
+.help-menu > summary[aria-disabled="true"] { opacity: .45; cursor: default; }
+.help-menu > summary:focus-visible { outline: 2px solid rgb(var(--color-accent) / .55); outline-offset: 2px; }
+.help-menu-chevron { transition: transform 120ms ease; }
+.help-menu[open] .help-menu-chevron { transform: rotate(180deg); }
+.help-menu-panel {
+  position: absolute; right: 0; bottom: calc(100% + 10px); z-index: 60;
+  display: grid; gap: 2px; width: 280px; padding: 6px;
+  border: 1px solid var(--chrome-edge, var(--c-line-strong)); border-radius: var(--radius-xl);
+  background: var(--chrome-surface, var(--c-surface-raised));
+  box-shadow: var(--chrome-shadow, 0 16px 40px #0006);
+}
+.help-menu.align-start .help-menu-panel { left: 0; right: auto; }
+/* Opens downward where the trigger sits near the top of its area. */
+.help-menu.opens-down .help-menu-panel { bottom: auto; top: calc(100% + 8px); left: 0; right: auto; }
+.app-shell .help-menu .help-menu-panel > button.help-menu-item {
+  display: flex; align-items: flex-start; justify-content: flex-start; gap: 10px; width: 100%;
+  min-height: 0; padding: 9px 10px;
+  border: 0; border-radius: var(--radius-lg);
+  background: transparent; color: var(--c-text-strong); text-align: left; cursor: pointer;
+}
+.app-shell .help-menu .help-menu-panel > button.help-menu-item > svg { flex-shrink: 0; margin-top: 2px; color: var(--c-accent-text); }
+/* Older narrow/code-mode rules hide spans inside help buttons; the menu always shows its labels. */
+.help-menu-panel .help-menu-text { display: grid !important; gap: 2px; }
+.help-menu-panel strong { font-size: var(--text-sm); font-weight: 500; }
+.app-shell .help-menu .help-menu-panel small { font-family: var(--font-reading); font-size: var(--text-xs); line-height: 1.4; color: var(--c-text-quiet); }
+.app-shell .help-menu .help-menu-panel > button.help-menu-item:hover:not(:disabled),
+.app-shell .help-menu .help-menu-panel > button.help-menu-item[aria-pressed="true"] { background: #ffffff0a; border: 0; }
+.app-shell .help-menu .help-menu-panel > button.help-menu-item:disabled { opacity: .45; }
+.app-shell .help-menu .help-menu-panel > button.help-menu-item:focus-visible { outline: 2px solid rgb(var(--color-accent) / .55); outline-offset: -2px; }
+@media (max-width: 720px) {
+  .help-menu > summary > span { display: none; }
+  .app-shell .help-menu > summary.help-menu-trigger { padding: 0 9px; }
+}

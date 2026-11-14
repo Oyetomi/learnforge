@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { ArrowRight, ArrowLeft, Check } from "lucide-react";
+import { ArrowRight, ArrowLeft, BookOpen, Check } from "lucide-react";
 import type { CourseTrack } from "../../services/ai/types";
 import type { ChatMessage, Milestone } from "../../types";
 import {
@@ -26,7 +26,7 @@ interface Props {
   onSelect: (milestone: Milestone) => void;
   onResume: () => void;
   onDiagnostic: (milestone: Milestone) => void;
-  onOpenReading?: () => void;
+  onOpenReading?: (pages?: { from: number; to: number }) => void;
 }
 export function CurriculumWorkspace({
   track,
@@ -122,6 +122,10 @@ export function CurriculumWorkspace({
   const available = runtime && isLessonUnlocked(runtime, milestones, approved);
   const foundation =
     runtime && firstAvailableFoundation(runtime, milestones, approved);
+  const activeReference = active?.references?.find((r) => r.pdfPageStart);
+  const activePages = activeReference?.pdfPageStart
+    ? { from: activeReference.pdfPageStart, to: activeReference.pdfPageEnd ?? activeReference.pdfPageStart }
+    : null;
   return (
     <section
       className="curriculum-workspace"
@@ -146,7 +150,6 @@ export function CurriculumWorkspace({
             : `Revised ${plan.version - 1}×`}
         </span>}
       </header>
-      {plan.sourceDocument && onOpenReading && <section className="curriculum-reading-entry"><div><strong>Reading the book on your own?</strong><p>Save your place and check what you’ve read, one section at a time.</p></div><button className="dialog-secondary-button" onClick={onOpenReading}>Read alongside this PDF <ArrowRight size={14}/></button></section>}
       <div
         className="curriculum-progress"
         aria-label="Evidence of understanding"
@@ -182,12 +185,23 @@ export function CurriculumWorkspace({
                   "Build evidence for this outcome through a small example and fresh practice."}
             </p>
           </div>
-          <button className="dialog-primary-button" onClick={onResume}>
-            {approved.has(active.id)
-              ? "Review current unit"
-              : "Continue learning"}
-            <ArrowRight size={14} />
-          </button>
+          <div className="curriculum-next-actions">
+            <button className="dialog-primary-button" onClick={onResume}>
+              {approved.has(active.id)
+                ? "Review current unit"
+                : "Continue learning"}
+              <ArrowRight size={14} />
+            </button>
+            {/* For a book-based plan, reading the chapter is the other way in. */}
+            {plan.sourceDocument && onOpenReading && (
+              <button className="curriculum-next-read" onClick={() => onOpenReading(activePages || undefined)}>
+                <BookOpen size={14} aria-hidden="true" />
+                {activePages
+                  ? `Read PDF pages ${activePages.from}–${activePages.to}`
+                  : "Read alongside the book"}
+              </button>
+            )}
+          </div>
         </section>
       )}
       <div className="curriculum-content">

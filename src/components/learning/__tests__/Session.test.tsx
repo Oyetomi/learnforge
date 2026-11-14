@@ -548,7 +548,7 @@ it("groups help behind one menu and offers clarification only while a question i
   const open = render();
   expect(open).toContain('aria-label="Get help with this step"');
   expect(open).toContain('aria-label="Side question"');
-  expect(open.match(/class="session-help-menu"/g)).toHaveLength(1);
+  expect(open.match(/class="help-menu"/g)).toHaveLength(1);
   for (const label of ["Hint", "Walkthrough", "Visual", "Clarify question"]) expect(open).toContain(`<strong>${label}</strong>`);
   expect(open).not.toContain(">/btw<");
   expect(render({})).not.toContain("<strong>Clarify question</strong>");

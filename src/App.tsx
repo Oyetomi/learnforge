@@ -37,6 +37,7 @@ import { LearningStart } from "./components/curriculum/LearningStart";
 import { openTrackSession } from "./services/learning/sessionLoader";
 import { useCodeDrafts } from "./components/editor/useCodeDrafts";
 import { useTopics } from "./components/curriculum/useTopics";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { interpretAssistantReply, readinessCard } from "./services/learning/assistantReply";
 import {
   LearningSession,
@@ -81,7 +82,7 @@ export default function App() {
     return visibleTracks[0]?.id || "";
   });
   const [workspaceView, setWorkspaceView] = useState<"session" | "curriculum" | "knowledge" | "reading">("session");
-  const [readingPageRequest, setReadingPageRequest] = useState<{ page: number; at: number }>();
+  const [readingPageRequest, setReadingPageRequest] = useState<{ page: number; to?: number; at: number }>();
   const [unitPreparation, setUnitPreparation] = useState<{ id: string; state: "loading" | "error" | "cancelled"; error?: string } | null>(null);
   const [preparationRetry, setPreparationRetry] = useState(0);
   const [diagnosticFor, setDiagnosticFor] = useState<string | null>(null);
@@ -238,7 +239,22 @@ export default function App() {
       setEditorCode(codeDrafts.draftFor(active.id) ?? active.starter_code);
     }
     setMessages(opened.messages);
+    // Return to where the learner was in this topic: reading, the plan, or the lesson.
+    try {
+      const saved = localStorage.getItem(`learnforge:workspace-view:${track.id}`);
+      if (saved === "reading" && track.curriculum?.sourceDocument) setWorkspaceView("reading");
+      else if (saved === "curriculum" && track.curriculum) setWorkspaceView("curriculum");
+    } catch {}
   }, [currentTrackId, tracks]);
+
+  // Declared after the loader above so it reads the saved view before this
+  // effect records the view of the current render.
+  useEffect(() => {
+    if (!currentTrackId || workspaceView === "knowledge") return;
+    try {
+      localStorage.setItem(`learnforge:workspace-view:${currentTrackId}`, workspaceView);
+    } catch {}
+  }, [workspaceView, currentTrackId]);
 
   // Handle new custom track created dynamically by AI
   const handleTrackCreated = (newTrack: CourseTrack) => {
@@ -1050,6 +1066,7 @@ export default function App() {
           </>
         )}
         <main className="main-workspace" id="main-content" tabIndex={-1}>
+          <ErrorBoundary resetKey={`${currentTrackId}:${workspaceView}:${activeMilestone?.id || ""}`}>
           {workspaceView === "knowledge" ? <KnowledgeWorkspace tracks={visibleTracks} initialTrackId={currentTrackId} database={db} pendingQuestion={!!activeCheck && !messages.some(m => m.check_attempt?.checkId === activeCheck.id)} onReturn={() => setWorkspaceView("session")} onOpenTopic={id => { handleSelectTrack(id); setWorkspaceView("session"); }} /> : !currentSession ? (
             <LearningStart
               onStart={(goal, material) => {
@@ -1064,7 +1081,7 @@ export default function App() {
           ) : workspaceView === "curriculum" && selectedTrack ? (
             <CurriculumWorkspace key={selectedTrack.id} track={selectedTrack} milestones={milestones} messages={messages} active={activeMilestone}
               onSelect={handleSelectMilestone} onResume={()=>setWorkspaceView("session")}
-              onOpenReading={()=>{setReadingPageRequest(undefined);setWorkspaceView("reading");}}
+              onOpenReading={(pages)=>{setReadingPageRequest(pages?{page:pages.from,to:pages.to,at:Date.now()}:undefined);setWorkspaceView("reading");}}
               onDiagnostic={milestone=>{handleSelectMilestone(milestone);setDiagnosticFor(milestone.id);}} />
           ) : (
             <>
@@ -1211,6 +1228,7 @@ export default function App() {
               </div>
             </>
           )}
+          </ErrorBoundary>
         </main>
       </div>
       {isManageTopicsOpen && (

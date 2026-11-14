@@ -83,8 +83,10 @@
   --c-danger-vivid: #f87171;
 }
 
-/* Reading surfaces. Code, math, and figure internals keep their own faces. */
-.app-shell :is(
+/* Reading surfaces. Code, math, and figure internals keep their own faces.
+ * The doubled .app-shell outranks the interface-wide monospace rule
+ * (.app-shell :where(…):not(.katex):not(.katex *), specificity 0,3,0). */
+.app-shell.app-shell :is(
     .prose,
     .check-question,
     .check-option-label,
@@ -97,7 +99,11 @@
     .readiness-review p,
     .check-retry-banner p,
     .written-grading-note,
-    .check-feedback-pause
+    .check-feedback-pause,
+    .curriculum-heading > div > p,
+    .curriculum-next p,
+    .curriculum-inspector p,
+    .pdf-reading-copy
   ),
 .app-shell :is(
     .prose,

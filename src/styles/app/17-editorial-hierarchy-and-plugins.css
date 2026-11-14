@@ -284,12 +284,12 @@
 .answer-tutoring .answer-tutoring-step .prose > p { margin: 0 0 12px; }
 .answer-tutoring nav { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--c-line); }
 .answer-tutoring nav .dialog-primary-button { font-size: 12px; min-height: 36px; padding: 8px 12px; max-width: 100%; white-space: normal; }
-.focused-session .check-feedback:has(.answer-tutoring) { padding: 16px 20px !important; }
-.focused-session .check-feedback:has(.answer-tutoring) .check-feedback-title { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
-.focused-session .check-feedback:has(.answer-tutoring) .check-feedback-title svg { width: 17px; height: 17px; }
-.focused-session .check-feedback:has(.answer-tutoring) .check-answer-lines > div { padding: 10px 12px; border-color: #3a4544; background: #202827; }
-.focused-session .check-feedback:has(.answer-tutoring) .check-answer-lines dd :is(.prose,p) { font-size: 13px; line-height: 1.65; }
-.focused-session .check-feedback:has(.answer-tutoring) .check-answer-lines dt { font-size: 11px; letter-spacing: .04em; }
+:is(.focused-session, .pdf-reading) .check-feedback:has(.answer-tutoring) { padding: 16px 20px !important; }
+:is(.focused-session, .pdf-reading) .check-feedback:has(.answer-tutoring) .check-feedback-title { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
+:is(.focused-session, .pdf-reading) .check-feedback:has(.answer-tutoring) .check-feedback-title svg { width: 17px; height: 17px; }
+:is(.focused-session, .pdf-reading) .check-feedback:has(.answer-tutoring) .check-answer-lines > div { padding: 10px 12px; border-color: #3a4544; background: #202827; }
+:is(.focused-session, .pdf-reading) .check-feedback:has(.answer-tutoring) .check-answer-lines dd :is(.prose,p) { font-size: 13px; line-height: 1.65; }
+:is(.focused-session, .pdf-reading) .check-feedback:has(.answer-tutoring) .check-answer-lines dt { font-size: 11px; letter-spacing: .04em; }
 
 /* Disabled integrations stay quiet while keeping configuration discoverable. */
 .settings-plugin-details { min-width: 0; border-top: 1px solid var(--c-line); margin-top: 10px; }

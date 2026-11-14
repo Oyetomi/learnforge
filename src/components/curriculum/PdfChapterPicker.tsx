@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { mainPdfSections, sectionsFromContents, withPageRanges, type PdfBook } from "../../services/learning/pdfContents";
+import { mainPdfSections, sectionsFromContents, togglePdfSection, withPageRanges, type PdfBook } from "../../services/learning/pdfContents";
 import "./pdf-chapters.css";
 
 const SOURCE_COPY: Record<string, string> = {
@@ -48,7 +48,7 @@ export function PdfChapterPicker({ book, selected, enabled, busy, onChange, onSe
         <ol className={`pdf-chapter-list ${pagesEditable ? "is-editing" : ""}`}>{visibleSections.map(section => {
           const missing = !section.pageStart || !section.pageEnd;
           return <li key={section.id} style={{ "--chapter-depth": Math.min(section.level, 3) } as React.CSSProperties}>
-            <label className="pdf-chapter-choice"><input type="checkbox" disabled={busy} checked={selected.includes(section.id)} onChange={e => onSelected(e.target.checked ? [...selected, section.id] : selected.filter(id => id !== section.id))} /><span>{section.title}{missing && <small>Page range needed to read this chapter</small>}</span></label>
+            <label className="pdf-chapter-choice"><input type="checkbox" disabled={busy} checked={selected.includes(section.id)} onChange={() => onSelected(togglePdfSection(book.sections, selected, section.id))} /><span>{section.title}{missing && <small>Page range needed to read this chapter</small>}</span></label>
             {pagesEditable ? <div className="pdf-chapter-pages"><label>From<input type="number" min={1} max={book.pageCount} disabled={busy} value={section.pageStart || ""} aria-label={`PDF start page for ${section.title}`} placeholder="?" onChange={e => {
               const value = e.target.valueAsNumber;
               const pageStart = Number.isInteger(value) && value >= 1 && value <= book.pageCount ? value : undefined;

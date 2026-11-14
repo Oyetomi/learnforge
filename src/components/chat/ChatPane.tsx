@@ -5,12 +5,10 @@ import {
   ChevronDown,
   Code2,
   History,
-  ListTree,
   Loader2,
   X,
   ArrowRight,
   Eye,
-  Lightbulb,
   MoreHorizontal,
   Route,
   CircleHelp,
@@ -78,6 +76,7 @@ import {
 import { MasteryMeter } from "../learning/MasteryMeter";
 import { SessionRouteStrip } from "../learning/SessionRouteStrip";
 import { Composer } from "./Composer";
+import { HelpMenu } from "./HelpMenu";
 import { cleanMilestoneTitle } from "../milestones/MilestoneSidebar";
 import {
   db,
@@ -206,16 +205,9 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
     sessionMenu.current.open = false;
     sessionMenu.current.querySelector("summary")?.focus({ preventScroll: true });
   };
-  const helpMenu = useRef<HTMLDetailsElement>(null);
-  const closeHelpMenu = () => {
-    if (!helpMenu.current) return;
-    helpMenu.current.open = false;
-    helpMenu.current.querySelector("summary")?.focus({ preventScroll: true });
-  };
   useEffect(() => {
     const dismiss = (event: PointerEvent) => {
-      for (const menu of [sessionMenu.current, helpMenu.current])
-        if (menu?.open && !menu.contains(event.target as Node)) menu.open = false;
+      if (sessionMenu.current?.open && !sessionMenu.current.contains(event.target as Node)) sessionMenu.current.open = false;
     };
     document.addEventListener("pointerdown", dismiss);
     return () => document.removeEventListener("pointerdown", dismiss);
@@ -713,13 +705,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
         : "Try this question"
       : activity === "visual"
       ? "Explore the idea"
-      : activity === "lesson"
-      ? overview || lessonSteps.length <= 1
-        ? "Explanation"
-        : `Explanation · step ${visibleStep + 1} of ${lessonSteps.length}`
-      : replySteps.length <= 1
-      ? "Explanation"
-      : `Explanation · part ${replyStep + 1} of ${replySteps.length}`;
+      : "Explanation"; // the "n / total" counter beside it shows the step
   const slideCount =
     activity === "lesson"
       ? overview
@@ -1398,62 +1384,22 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
               <MessageCircleQuestion size={13} aria-hidden="true" />
               <span>Side question</span>
             </button>
-            <details
-              className="session-help-menu"
-              ref={helpMenu}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  closeHelpMenu();
-                }
-              }}
-            >
-              <summary
-                aria-label="Get help with this step"
-                aria-disabled={busy || undefined}
-                data-help-kind={helpKind}
-                onClick={(event) => { if (busy) event.preventDefault(); }}
-              >
-                <Lightbulb size={13} aria-hidden="true" />
-                <span>Help</span>
-                <ChevronDown size={12} className="session-help-chevron" aria-hidden="true" />
-              </summary>
-              <div className="session-help-menu-panel" role="group" aria-label="Help options">
-                {([
-                  ["hint", Lightbulb, "Hint", "A nudge without the answer"],
-                  ["walkthrough", ListTree, "Walkthrough", "Step by step, beside this activity"],
-                  ["visual", Eye, "Visual", "A picture or model of the idea"],
-                ] as const).map(([kind, Icon, label, detail]) => (
-                  <button
-                    key={kind}
-                    type="button"
-                    disabled={busy}
-                    aria-pressed={shownHelp && helpKind === kind}
-                    onClick={() => {
-                      closeHelpMenu();
-                      openHelp(kind);
-                    }}
-                  >
-                    <Icon size={14} aria-hidden="true" />
-                    <span><strong>{label}</strong><small>{detail}</small></span>
-                  </button>
-                ))}
-                {questionActive && onQuickAction && (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => {
-                      closeHelpMenu();
-                      onQuickAction("clarify");
-                    }}
-                  >
-                    <CircleHelp size={14} aria-hidden="true" />
-                    <span><strong>Clarify question</strong><small>Rephrase what’s being asked</small></span>
-                  </button>
-                )}
-              </div>
-            </details>
+            <HelpMenu
+              busy={busy}
+              activeKind={shownHelp ? helpKind : null}
+              onPick={(kind) => openHelp(kind)}
+              extra={
+                questionActive && onQuickAction
+                  ? [{
+                      key: "clarify",
+                      icon: CircleHelp,
+                      label: "Clarify question",
+                      detail: "Rephrase what’s being asked",
+                      onSelect: () => onQuickAction("clarify"),
+                    }]
+                  : []
+              }
+            />
           </div>
           <div className="session-telemetry-bar" aria-label="AI model and usage">
           <button

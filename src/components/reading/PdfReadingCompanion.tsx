@@ -42,6 +42,8 @@ import { MarkdownView } from "../chat/MarkdownView";
 import { Composer } from "../chat/Composer";
 import { recordVisualSupport } from "../../services/learning/preferences";
 import type { HelpKind } from "../../services/learning/sessionHelp";
+import { HelpMenu } from "../chat/HelpMenu";
+import { readableFileTitle } from "../../services/learning/pdfContents";
 import "../chat/learning-help.css";
 import "./reading.css";
 
@@ -52,7 +54,7 @@ export function PdfReadingCompanion({
 }: {
   track: CourseTrack;
   onReturn: () => void;
-  pageRequest?: { page: number; at: number };
+  pageRequest?: { page: number; to?: number; at: number };
 }) {
   const source = track.curriculum!.sourceDocument!;
   const [state, setState] = useState<ReadingState | null>(null);
@@ -77,7 +79,7 @@ export function PdfReadingCompanion({
     if (loaded && pageRequest) {
       controller.current?.abort();
       setFrom(String(pageRequest.page));
-      setTo(String(pageRequest.page));
+      setTo(String(pageRequest.to ?? pageRequest.page));
       setEditing(true);
       setHelp(null);
     }
@@ -387,16 +389,50 @@ export function PdfReadingCompanion({
   return (
     <section className="pdf-reading" aria-labelledby="reading-title">
       <header className="reading-heading">
-        <div>
-          <span className="reading-eyebrow">
-            <BookOpen size={15} /> Reading companion
-          </span>
-          <h1 id="reading-title">Your book, at your pace</h1>
-          <p>{source.name}</p>
-        </div>
-        <button className="dialog-secondary-button" onClick={onReturn}>
-          <ArrowLeft size={14} /> Curriculum
+        <button className="reading-back" onClick={onReturn}>
+          <ArrowLeft size={14} aria-hidden="true" /> Curriculum
         </button>
+        <div className="reading-heading-main">
+          <div>
+            <span className="reading-eyebrow">
+              <BookOpen size={13} aria-hidden="true" /> Reading
+            </span>
+            <h1 id="reading-title">{readableFileTitle(source.name)}</h1>
+            <p className="reading-place">
+              <MapPin size={13} aria-hidden="true" />
+              {stop ? `PDF pages ${stop.range.from}–${stop.range.to}` : "Choose the pages you’ll read"}
+              {stop?.range.pages[0].label &&
+                stop.range.pages[0].label !== String(stop.range.from) && (
+                  <small>
+                    printed {stop.range.pages[0].label}–{stop.range.pages.at(-1)?.label || "?"}
+                  </small>
+                )}
+            </p>
+          </div>
+          {loaded && state && stop && (
+            <div className="reading-heading-actions">
+              <button
+                disabled={busyButton}
+                onClick={() => {
+                  setEditing((v) => !v);
+                  setHelp(null);
+                  setTimeout(() => fromInput.current?.focus(), 0);
+                }}
+              >
+                {editing ? "Cancel" : "Change pages"}
+              </button>
+              {state.stops.length > 1 && (
+                <button
+                  disabled={busyButton}
+                  aria-expanded={history}
+                  onClick={() => setHistory((v) => !v)}
+                >
+                  Earlier stops <small>{state.stops.length}</small>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </header>
       {!loaded ? (
         <p role="status">
@@ -458,44 +494,6 @@ export function PdfReadingCompanion({
                   </div>
                 </section>
               )}
-              <div className="reading-bookmark">
-                <div>
-                  <MapPin size={16} />
-                  <span>
-                    {stop
-                      ? `PDF pages ${stop.range.from}–${stop.range.to}`
-                      : "Where are you reading?"}
-                  </span>
-                  {stop?.range.pages[0].label &&
-                    stop.range.pages[0].label !== String(stop.range.from) && (
-                      <small>
-                        Printed {stop.range.pages[0].label}–
-                        {stop.range.pages.at(-1)?.label || "?"}
-                      </small>
-                    )}
-                </div>
-                <div>
-                  <button
-                    disabled={busyButton}
-                    onClick={() => {
-                      setEditing((v) => !v);
-                      setHelp(null);
-                      setTimeout(() => fromInput.current?.focus(), 0);
-                    }}
-                  >
-                    {editing ? "Close page picker" : "Change pages"}
-                  </button>
-                  {state.stops.length > 0 && (
-                    <button
-                      disabled={busyButton}
-                      aria-expanded={history}
-                      onClick={() => setHistory((v) => !v)}
-                    >
-                      Reading stops <small>{state.stops.length}</small>
-                    </button>
-                  )}
-                </div>
-              </div>
               {history && (
                 <nav
                   className="reading-history"
@@ -531,10 +529,11 @@ export function PdfReadingCompanion({
                   }}
                 >
                   <div>
-                    <h2>Read a section, then pause here</h2>
-                    <p>
-                      Use the page number in your PDF viewer, not the printed
-                      page label. Start with one idea or a few pages.
+                    <h2>Which pages are you reading?</h2>
+                    <p className="pdf-reading-copy">
+                      Use the page numbers your PDF viewer shows; they can
+                      differ from the numbers printed on the page. A few pages
+                      or one idea is plenty.
                     </p>
                   </div>
                   <div className="reading-range-fields">
@@ -573,8 +572,8 @@ export function PdfReadingCompanion({
                   </div>
                   {document ? (
                     <small>
-                      {document.pageCount} PDF pages · Updated manually; your
-                      external reader isn’t monitored.
+                      {document.pageCount} PDF pages. Update this when you
+                      read on; LearnForge can’t see your PDF viewer.
                     </small>
                   ) : (
                     <small>Reconnect the PDF above to save your place.</small>
@@ -615,21 +614,23 @@ export function PdfReadingCompanion({
                       {!round ? (
                         <div className="reading-ready">
                           <span className="reading-eyebrow">
-                            When you’re ready
+                            PDF pages {stop.range.from}–{stop.range.to}
                           </span>
-                          <h2>What stayed with you?</h2>
-                          <p>
-                            Read these pages in your PDF, then try one short
-                            check. Get a hint or an explanation whenever you
-                            need it.
+                          <h2>Read these pages, then check yourself</h2>
+                          <p className="pdf-reading-copy">
+                            When you’ve read them, try one short question about
+                            what stayed with you. Help is here if you get stuck.
                           </p>
                           <label className="reading-book-closed">
                             <input
                               type="checkbox"
                               checked={closedBook}
                               onChange={(e) => setClosedBook(e.target.checked)}
-                            />{" "}
-                            I’ll answer with the book closed
+                            />
+                            <span>
+                              Answer with the book closed
+                              <small>Counts as independent practice</small>
+                            </span>
                           </label>
                           <div>
                             <button
@@ -650,7 +651,8 @@ export function PdfReadingCompanion({
                         </div>
                       ) : (
                         <>
-                          <div className="reading-round-nav">
+                          {/* Only useful once there is more than one check to move between. */}
+                          {stop.rounds.length > 1 && <div className="reading-round-nav">
                             <span>
                               Check {stop.roundIndex + 1}
                               {round.attempt
@@ -683,7 +685,7 @@ export function PdfReadingCompanion({
                                 </button>
                               )}
                             </div>
-                          </div>
+                          </div>}
                           {round.attempt && (
                             <label className="reading-book-closed">
                               <input
@@ -697,7 +699,7 @@ export function PdfReadingCompanion({
                               Answer the next check with the book closed
                             </label>
                           )}
-                          {!round.attempt && (
+                          {!round.attempt && !round.supported && (
                             <div className="reading-book-status">
                               <span>
                                 {round.supported
@@ -823,23 +825,14 @@ export function PdfReadingCompanion({
                         </>
                       )}
                       <div className="reading-support-actions">
-                        {(["hint", "walkthrough", "visual"] as HelpKind[]).map(
-                          (k) => (
-                            <button
-                              key={k}
-                              disabled={busyButton}
-                              aria-pressed={help === k}
-                              onClick={() => setHelp(k)}
-                            >
-                              {k === "hint"
-                                ? "Give me a hint"
-                                : k === "visual"
-                                ? "Show me a figure"
-                                : "Show the steps"}
-                            </button>
-                          )
-                        )}
+                        <HelpMenu
+                          align="start"
+                          busy={busyButton}
+                          activeKind={help}
+                          onPick={setHelp}
+                        />
                         <button
+                          className="reading-continue"
                           disabled={busyButton || !document}
                           onClick={() => {
                             const page = nextSection?.from || stop.range.to;
@@ -904,7 +897,8 @@ export function PdfReadingCompanion({
                         }}
                       >
                         <summary>
-                          See covered text · referring back counts as support
+                          Show the text of these pages{" "}
+                          <small>counts as practice with help</small>
                         </summary>
                         {stop.range.pages.map((p) => (
                           <section key={p.number}>

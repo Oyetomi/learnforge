@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mainPdfSections, sectionsFromContents, selectedPdfSource, withPageRanges, type PdfBook } from "../pdfContents";
+import { mainPdfSections, readableFileTitle, sectionsFromContents, selectedPdfSource, togglePdfSection, withPageRanges, type PdfBook } from "../pdfContents";
 import { referenceContext } from "../grounding";
 
 describe("PDF table of contents", () => {
@@ -20,6 +20,31 @@ describe("PDF table of contents", () => {
       {id:"aa",title:"A detail",level:2,pageStart:3}, {id:"b",title:"B",level:1,pageStart:5}], 9);
     expect(sections.map(s => s.pageEnd)).toEqual([9,4,4,9]);
     expect(mainPdfSections(sections).map(s => s.id)).toEqual(["a","b"]);
+  });
+  it("defaults to the chapters inside Part groupings, but keeps ordinary chapters that have sections", () => {
+    const parts = [
+      {id:"p1",title:"Part I: Describing data",level:0}, {id:"c1",title:"1. Averages",level:1}, {id:"s1",title:"1.1 Example",level:2},
+      {id:"c2",title:"2. Spread",level:1}, {id:"p2",title:"Part II: Uncertainty",level:0}, {id:"c3",title:"3. Sampling",level:1},
+      {id:"ix",title:"Index",level:0},
+    ];
+    expect(mainPdfSections(parts).map(s => s.id)).toEqual(["c1","c2","c3"]);
+    const chapters = [{id:"c1",title:"Chapter 1: Averages",level:0}, {id:"s1",title:"1.1 Example",level:1},
+      {id:"c2",title:"Chapter 2: Spread",level:0}, {id:"s2",title:"2.1 Example",level:1}];
+    expect(mainPdfSections(chapters).map(s => s.id)).toEqual(["c1","c2"]);
+  });
+  it("turns a file name into a readable title without recasing deliberate capitals", () => {
+    expect(readableFileTitle("practical-statistics.pdf")).toBe("Practical Statistics");
+    expect(readableFileTitle("everyday_money__2e.PDF")).toBe("Everyday Money 2e");
+    expect(readableFileTitle("SQL in 10 minutes.pdf")).toBe("SQL in 10 minutes");
+  });
+  it("never keeps a section and the section that contains it selected together", () => {
+    const outline = [{id:"p1",title:"Part I",level:0}, {id:"c1",title:"1",level:1}, {id:"s1",title:"1.1",level:2},
+      {id:"c2",title:"2",level:1}, {id:"p2",title:"Part II",level:0}, {id:"c3",title:"3",level:1}];
+    // Choosing a part replaces its chapters and sections, but not other parts' chapters.
+    expect(togglePdfSection(outline, ["c1","s1","c3"], "p1")).toEqual(["c3","p1"]);
+    // Choosing a section replaces the chapter and part that contain it.
+    expect(togglePdfSection(outline, ["p1","c2"], "s1")).toEqual(["c2","s1"]);
+    expect(togglePdfSection(outline, ["c1","c2"], "c1")).toEqual(["c2"]);
   });
   it("saves only selected chapter text with physical page provenance and distinguishes headings-only material", () => {
     const book: PdfBook = {name:"Book.pdf",pageCount:3,pages:["Budget text","Savings text","Other text"],contentsFrom:"bookmarks",truncated:false,

@@ -55,8 +55,10 @@
 @media (pointer: coarse), (hover: none), (max-width: 600px) { .check-key-hints { display: none !important; } }
 
 /* The recall toggle is an option, not a second call to action. */
+.pdf-reading .check-recall-toggle,
 .focused-session[data-question-active="true"] .check-recall-toggle {
   border-color: transparent; background: transparent; color: var(--c-text-quiet);
   text-decoration: underline; text-decoration-color: #ffffff30; text-underline-offset: 3px;
 }
+.pdf-reading .check-recall-toggle:hover,
 .focused-session[data-question-active="true"] .check-recall-toggle:hover { color: var(--c-accent-strong); text-decoration-color: currentColor; }

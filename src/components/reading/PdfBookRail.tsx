@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ArrowRight, BookOpen, FileText, MapPin } from "lucide-react";
 import type { CurriculumSource } from "../../services/learning/pdfContents";
-import { mainPdfSections } from "../../services/learning/pdfContents";
+import { mainPdfSections, readableFileTitle } from "../../services/learning/pdfContents";
 import {
   loadReadingDocument,
   loadReadingState,
@@ -29,6 +29,10 @@ export function PdfBookRail({
   const [cover, setCover] = useState(""),
     [error, setError] = useState(false);
   const [query, setQuery] = useState("");
+  // Contents are the rail's main navigation on wide windows; a horizontal bar on narrow ones.
+  const [indexOpen, setIndexOpen] = useState(
+    () => typeof window === "undefined" || window.innerWidth > 1150
+  );
   const index = useRef<HTMLElement>(null);
   useEffect(() => {
     let active = true,
@@ -93,50 +97,53 @@ export function PdfBookRail({
   useEffect(() => {
     if (index.current?.closest("details")?.open) revealCurrent();
   }, [current?.id]);
+  const title = readableFileTitle(source.name);
+  const placeLabel = lessonPage ? "This lesson" : page ? "Reading" : "Not started";
+  const placeText = lessonPage
+    ? `PDF page ${lessonPage}`
+    : page
+    ? `PDF pages ${bookmark!.from}–${bookmark!.to}`
+    : "Choose where to begin";
+  const matching = sections.filter((s) =>
+    s.title.toLocaleLowerCase().includes(query.toLocaleLowerCase())
+  );
   return (
     <aside className="pdf-book-rail" aria-label="Your PDF and book contents">
-      <div className="pdf-book-identity">
+      <header className="pdf-book-identity">
         <div className="pdf-book-cover">
           {cover ? (
-            <img src={cover} alt={`First page of ${source.name}`} />
+            <img src={cover} alt={`First page of ${title}`} />
           ) : (
-            <FileText size={30} aria-hidden="true" />
+            <FileText size={20} aria-hidden="true" />
           )}
         </div>
         <div>
-          <span className="pdf-book-eyebrow">Your book</span>
-          <h2>{source.name.replace(/\.pdf$/i, "").replace(/[-_]/g, " ").replace(/^./, (c) => c.toUpperCase())}</h2>
-          {book && <p>{book.pageCount} PDF pages</p>}
+          <h2 title={title}>{title}</h2>
+          {book && <p>{book.pageCount} pages</p>}
         </div>
-      </div>
+      </header>
       <div className="pdf-book-place">
-        <MapPin size={14} />
-        <div>
-          <strong>
-            {lessonPage
-              ? `This lesson · page ${lessonPage}`
-              : page
-              ? `Pages ${bookmark!.from}–${bookmark!.to}`
-              : "No reading place yet"}
-          </strong>
-          <p>
-            {current?.title ||
-              "Your reading place is saved separately from lesson progress."}
-          </p>
-        </div>
+        <span className="pdf-book-label">
+          <MapPin size={12} aria-hidden="true" /> {placeLabel}
+        </span>
+        <strong>{placeText}</strong>
+        {current && <span className="pdf-book-current">{current.title}</span>}
       </div>
       <button className="pdf-book-resume" onClick={onRead}>
-        {page ? "Resume reading" : "Read alongside"}
-        <ArrowRight size={14} />
+        {page ? "Resume reading" : "Start reading"}
+        <ArrowRight size={14} aria-hidden="true" />
       </button>
       <details
         className="pdf-book-index"
+        open={indexOpen}
         onToggle={(e) => {
+          setIndexOpen(e.currentTarget.open);
           if (e.currentTarget.open) revealCurrent();
         }}
       >
         <summary>
-          <BookOpen size={14} /> Book contents <span>{sections.length}</span>
+          <BookOpen size={13} aria-hidden="true" /> Contents{" "}
+          <span>{sections.length}</span>
         </summary>
         {sections.length > 12 && (
           <input
@@ -149,32 +156,19 @@ export function PdfBookRail({
           />
         )}
         <nav ref={index} aria-label="Book chapter index">
-          {sections
-            .filter((s) =>
-              s.title.toLocaleLowerCase().includes(query.toLocaleLowerCase())
-            )
-            .map((section) => (
-              <button
-                key={section.id}
-                disabled={!section.pageStart}
-                aria-current={
-                  section.id === current?.id ? "location" : undefined
-                }
-                onClick={() =>
-                  section.pageStart && onChoosePage(section.pageStart)
-                }
-              >
-                <span>{section.title}</span>
-                <small>
-                  {section.pageStart
-                    ? `PDF ${section.pageStart}`
-                    : "Page not mapped"}
-                </small>
-              </button>
-            ))}
-          {!sections.some((s) =>
-            s.title.toLocaleLowerCase().includes(query.toLocaleLowerCase())
-          ) && <p className="pdf-book-storage-note">No matching chapter.</p>}
+          {matching.map((section) => (
+            <button
+              key={section.id}
+              disabled={!section.pageStart}
+              aria-current={section.id === current?.id ? "location" : undefined}
+              onClick={() => section.pageStart && onChoosePage(section.pageStart)}
+              title={section.pageStart ? `Start at PDF page ${section.pageStart}` : "Page not mapped"}
+            >
+              <span>{section.title}</span>
+              <small>{section.pageStart ?? "—"}</small>
+            </button>
+          ))}
+          {!matching.length && <p className="pdf-book-storage-note">No matching chapter.</p>}
         </nav>
       </details>
       {error && (

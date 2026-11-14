@@ -44,7 +44,7 @@ import {
 import type { LearningScope } from "../../services/learning/curriculumPlan";
 import { extractTextFromFile } from "../../services/learning/fileExtractor";
 import { readPdfBook, readSelectedPdfChapters } from "../../services/learning/pdfReader";
-import { mainPdfSections, selectedPdfSource, type PdfBook } from "../../services/learning/pdfContents";
+import { mainPdfSections, readableFileTitle, selectedPdfSource, type PdfBook } from "../../services/learning/pdfContents";
 import { PdfChapterPicker } from "./PdfChapterPicker";
 import type { CourseTrack } from "../../services/ai/types";
 import type { ConfidenceLevel } from "../../types";
@@ -266,7 +266,7 @@ export const NewTopicModal: React.FC<Props> = ({
     (exaSources.length > 0
       ? `Teach me the key concepts in ${exaSources[0].title}`
       : referenceContent.trim()
-      ? `Teach me the key concepts in ${referenceName || "my reference"}`
+      ? `Teach me the key concepts in ${referenceName ? readableFileTitle(referenceName) : "my reference"}`
       : "");
 
   const handleFetchExaSources = async (explicitInput?: string) => {
@@ -606,7 +606,7 @@ export const NewTopicModal: React.FC<Props> = ({
       setReferenceName(file.name);
       setReferenceContent(content);
       setInterest((prev) =>
-        prev.trim() ? prev : `Teach me the key concepts in ${file.name}`
+        prev.trim() ? prev : `Teach me the key concepts in ${readableFileTitle(file.name)}`
       );
       setProposal(book?.sections.length ? { scope: "curriculum", reason: "Choose chapters from your PDF, then review the curriculum before starting." } : null);
       if (book?.sections.length) setScope("curriculum");

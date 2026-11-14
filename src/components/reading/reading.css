@@ -422,8 +422,73 @@
 }
 
 /* A label styled as a button owns the file picker; hide the native control but keep it focusable. */
-label.dialog-secondary-button:has(> input[type="file"]) { position: relative; display: inline-flex; align-items: center; gap: 8px; width: fit-content; cursor: pointer; }
-label.dialog-secondary-button > input[type="file"] { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-label.dialog-secondary-button:has(> input[type="file"]:focus-visible) { outline: 2px solid var(--accent); outline-offset: 3px; }
-label.dialog-secondary-button:has(> input[type="file"]:disabled) { opacity: .45; cursor: default; }
+label:is(.dialog-secondary-button, .dialog-primary-button):has(> input[type="file"]) { position: relative; display: inline-flex; align-items: center; gap: 8px; width: fit-content; cursor: pointer; }
+label:is(.dialog-secondary-button, .dialog-primary-button) > input[type="file"] { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+label:is(.dialog-secondary-button, .dialog-primary-button):has(> input[type="file"]:focus-visible) { outline: 2px solid var(--accent); outline-offset: 3px; }
+label:is(.dialog-secondary-button, .dialog-primary-button):has(> input[type="file"]:disabled) { opacity: .45; cursor: default; }
 .pdf-reading .reading-heading > .dialog-secondary-button { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0; }
+
+
+/* ── Reading companion layout (2026-11-14): compact header, one step at a time ── */
+.pdf-reading { padding: 20px clamp(18px, 3vw, 40px) 40px; }
+.pdf-reading > * { max-width: 960px; margin-inline: auto; }
+.reading-heading { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; align-items: stretch; gap: 14px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--c-line); }
+.pdf-reading .reading-back {
+  justify-self: start; display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 6px 4px 2px; border: 0; background: transparent;
+  color: var(--c-text-quiet); font-size: var(--text-xs);
+}
+.pdf-reading .reading-back:hover { color: var(--c-accent-strong); }
+.reading-heading-main { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.reading-heading .reading-eyebrow { font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: .06em; color: var(--c-accent-text); }
+.app-shell .pdf-reading .reading-heading h1 {
+  margin: 6px 0 4px; font-family: var(--font-reading);
+  font-size: var(--text-2xl); font-weight: 600; letter-spacing: -0.015em; color: var(--c-text-heading);
+}
+.reading-heading .reading-place { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0; font-size: var(--text-sm); color: var(--c-text-secondary); }
+.reading-heading .reading-place small { color: var(--c-text-quiet); font-size: var(--text-xs); }
+.reading-heading .reading-place small::before { content: "· "; }
+.reading-heading-actions { display: flex; gap: 8px; }
+.pdf-reading .reading-heading-actions button {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 6px 12px;
+  border: 1px solid var(--c-line); border-radius: var(--radius-pill); background: transparent;
+  color: var(--c-text-secondary); font-size: var(--text-xs);
+}
+.pdf-reading .reading-heading-actions button:hover { border-color: #6d5a49; color: var(--c-accent-strong); }
+.reading-heading-actions small { color: var(--c-text-quiet); }
+
+.reading-range { padding: 20px 22px; border: 1px solid var(--c-line); border-radius: var(--radius-xl); background: var(--c-surface-sunken); }
+.reading-ready {
+  max-width: none; margin: 4px 0 0; padding: 26px 28px;
+  border: 1px solid var(--c-line); border-radius: var(--radius-xl); background: var(--c-surface-1);
+}
+.app-shell .pdf-reading :is(.reading-ready, .reading-range) h2 {
+  font-family: var(--font-reading); font-size: var(--text-xl); font-weight: 600; color: var(--c-text-heading); margin: 6px 0 8px;
+}
+.reading-ready .reading-eyebrow { margin-bottom: 0; }
+.app-shell .pdf-reading-copy { font-size: var(--text-md); line-height: 1.6; color: var(--c-text-secondary); max-width: 62ch; }
+.reading-ready .reading-book-closed { align-items: flex-start; margin: 18px 0 20px; cursor: pointer; }
+.reading-book-closed > span { display: grid; gap: 2px; color: var(--c-text-strong); font-size: var(--text-sm); }
+.reading-book-closed small { color: var(--c-text-quiet); font-size: var(--text-xs); }
+
+.reading-support-actions { align-items: center; margin: 18px 0; }
+.pdf-reading .reading-support-actions .reading-continue {
+  margin-left: auto; border: 0; background: transparent; color: var(--c-accent-text); min-height: 32px; padding: 6px 8px;
+}
+.pdf-reading .reading-support-actions .reading-continue:hover { color: var(--c-accent-strong); background: #d2b49712; }
+.reading-covered-text summary small { color: var(--c-text-quiet); font-size: var(--text-xs); }
+.reading-covered-text summary small::before { content: "· "; }
+.reading-footnote { color: var(--c-text-quiet); font-size: var(--text-xs); }
+@media (max-width: 600px) {
+  .reading-ready { padding: 20px 18px; }
+  .reading-heading-main { align-items: flex-start; }
+}
+/* Questions read at the same width as lessons. */
+.pdf-reading .reading-activity > .reviewed-question-slot,
+.pdf-reading .reading-activity .knowledge-check { max-width: 720px; margin-inline: auto; }
+.pdf-reading .reading-round-nav,
+.pdf-reading .reading-book-status { max-width: 720px; margin-inline: auto; }
+.app-shell .pdf-reading p.reading-range-note { font-family: var(--font-reading); font-size: var(--text-sm); color: var(--c-text-quiet); }
+/* Once answered, the feedback card stands alone (as in lessons), not inside the question card. */
+.pdf-reading .knowledge-check.is-answered { border: 0; padding: 0; background: transparent; box-shadow: none; }
+.app-shell .pdf-reading p.reading-pacing-note { font-family: var(--font-reading); font-size: var(--text-sm); line-height: 1.6; color: var(--c-text-secondary); max-width: 720px; margin-inline: auto; }

@@ -30,6 +30,13 @@ export interface CurriculumSource {
   pageCount?: number;
   fingerprint?: string;
 }
+/** "practical-statistics_2e.pdf" → "Practical Statistics 2e" for learner-facing text. */
+export function readableFileTitle(fileName: string): string {
+  const base = fileName.replace(/\.[a-z0-9]{1,5}$/i, "").replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!base) return fileName;
+  // Only recase names typed entirely in lower case; keep deliberate capitals ("SQL in 10 minutes").
+  return base === base.toLowerCase() ? base.replace(/\b\p{L}/gu, (c) => c.toUpperCase()) : base;
+}
 const normal = (s: string) => s.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
 /** Only explicit contents listings, never guessed headings from the body. */
@@ -90,12 +97,47 @@ export function selectedPdfSource(book: PdfBook, ids: string[]): { source: Curri
   return { source: { name: book.name, sections, pageCount: book.pageCount, fingerprint: book.fingerprint }, references };
 }
 
+const FRONT_OR_BACK_MATTER = /^(?:cover|back\s*cover|copyright|table of contents|contents|preface|foreword|index|colophon|acknowledg(?:e)?ments|about the authors?)$/i;
+/** "Part II: Uncertainty", "Book 1", "Unit 3", "Volume I", "IV. Decisions" */
+const GROUPING_HEADING = /^(?:part|book|unit|volume|module)\b|^[IVXLC]+[.:]\s/i;
+
+/** Indexes of the sections nested under sections[index] (outline order). */
+export function pdfSectionDescendants(sections: PdfSection[], index: number): PdfSection[] {
+  const out: PdfSection[] = [];
+  for (let i = index + 1; i < sections.length && sections[i].level > sections[index].level; i++) out.push(sections[i]);
+  return out;
+}
+
+/** The sections that contain sections[index], nearest first. */
+export function pdfSectionAncestors(sections: PdfSection[], index: number): PdfSection[] {
+  const out: PdfSection[] = [];
+  let level = sections[index].level;
+  for (let i = index - 1; i >= 0 && level > 0; i--) {
+    if (sections[i].level < level) { out.push(sections[i]); level = sections[i].level; }
+  }
+  return out;
+}
+
+/**
+ * Selecting a section replaces any selected parts of it and any selected
+ * section containing it, so the same pages are never taught twice.
+ */
+export function togglePdfSection(sections: PdfSection[], selected: string[], id: string): string[] {
+  const index = sections.findIndex(s => s.id === id);
+  if (index < 0) return selected;
+  if (selected.includes(id)) return selected.filter(x => x !== id);
+  const overlapping = new Set([...pdfSectionDescendants(sections, index), ...pdfSectionAncestors(sections, index)].map(s => s.id));
+  return [...selected.filter(x => !overlapping.has(x)), id];
+}
+
 export function mainPdfSections(sections: PdfSection[]): PdfSection[] {
   if (!sections.length) return [];
   const level = Math.min(...sections.map(s => s.level));
-  const roots = sections.filter(s => s.level === level);
-  // A single book/part wrapper should expose its chapters by default.
-  const candidates = roots.length === 1 && sections.some(s => s.level === level + 1)
-    ? sections.filter(s => s.level === level + 1) : roots;
-  return candidates.filter(s => !/^(?:cover|back\s*cover|copyright|table of contents|contents|preface|index|colophon|acknowledg(?:e)?ments|about the authors?)$/i.test(s.title.trim()));
+  const roots = sections.filter(s => s.level === level && !FRONT_OR_BACK_MATTER.test(s.title.trim()));
+  const hasChildren = (root: PdfSection) => pdfSectionDescendants(sections, sections.indexOf(root)).some(s => s.level === level + 1);
+  // A single book wrapper, or a book divided into "Part …" groupings, should
+  // expose the chapters inside by default rather than the wrappers themselves.
+  const wrappers = roots.length > 0 && roots.every(hasChildren) && (roots.length === 1 || roots.every(r => GROUPING_HEADING.test(r.title.trim())));
+  const candidates = wrappers ? sections.filter(s => s.level === level + 1) : roots;
+  return candidates.filter(s => !FRONT_OR_BACK_MATTER.test(s.title.trim()));
 }
