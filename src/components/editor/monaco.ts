@@ -1,5 +1,8 @@
 import { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/editor/editor.api.js';
+// The core API ships without editor features; load them all (completion and
+// hover widgets, go to definition, rename, find, folding, bracket matching…).
+import 'monaco-editor/features/register.all.js';
 import EditorWorker from 'monaco-editor/editor/editor.worker.js?worker';
 import 'monaco-editor/languages/definitions/go/register.js';
 import 'monaco-editor/languages/definitions/python/register.js';

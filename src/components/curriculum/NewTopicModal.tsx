@@ -56,6 +56,8 @@ import "./new-topic-layout.css";
 
 import { requestsDiagnosticFirst } from "../../services/learning/diagnosticIntent";
 import { supportsProjectMode } from "../../services/learning/project";
+import { loadLanguageStatus, profileFor, type LanguageStatus } from "../../services/languages";
+import { projectRuntime } from "../editor/useProjectWorkspace";
 import { loadGoalDraft as savedDraft, saveGoalDraft, GOAL_DRAFT_KEY as draftKey, STARTING_POINTS as startingPoints, STARTING_POINT_LABELS } from "../../services/learning/goalDraft";
 
 interface Props {
@@ -107,6 +109,34 @@ export const NewTopicModal: React.FC<Props> = ({
   const [codeLanguage, setCodeLanguage] = useState("");
   const [buildProject, setBuildProject] = useState(false);
   const projectAvailable = supportsProjectMode(codeLanguage);
+  const [languageStatus, setLanguageStatus] = useState<LanguageStatus[] | null | undefined>(undefined);
+  useEffect(() => {
+    if (!codeLanguage) return;
+    let cancelled = false;
+    void loadLanguageStatus().then((list) => { if (!cancelled) setLanguageStatus(list); });
+    return () => { cancelled = true; };
+  }, [codeLanguage]);
+  const projectRunHelp = (() => {
+    if (!projectAvailable) return "Project mode needs a language with step tests. This language gets an exercise per lesson.";
+    if (languageStatus === undefined) return "Checking whether this language is installed…";
+    const runtime = projectRuntime(codeLanguage, languageStatus);
+    const name = profileFor(codeLanguage)?.name ?? codeLanguage;
+    const missing = languageStatus?.find((p) => p.id === codeLanguage)?.missing ?? [];
+    const where = runtime.local
+      ? `Runs on this Mac with your ${name} toolchain.`
+      : runtime.available
+      ? languageStatus
+        ? "Runs on the Go Playground until Go is installed on this Mac."
+        : "Runs on the Go Playground here; the Mac app uses your installed Go."
+      : languageStatus
+      ? `${name} isn’t installed yet (needs ${missing.join(", ") || name}). You can plan the course now and install it before the first step.`
+      : `${name} projects run in the Mac app with your installed toolchain.`;
+    return `Each unit adds a tested step to one codebase, and earlier steps’ tests keep running. ${where}`;
+  })();
+  const codeLanguages: [string, string][] = [
+    ...CODE_LANGUAGES,
+    ...(languageStatus || []).filter((p) => p.custom && !CODE_LANGUAGES.some(([id]) => id === p.id)).map((p): [string, string] => [p.id, `${p.name} (custom)`]),
+  ];
   const diagnosticFirst = diagnosticChoice ?? requestsDiagnosticFirst(`${interest} ${destination}`);
   const [referenceName, setReferenceName] = useState(""),
     [referenceContent, setReferenceContent] = useState("");
@@ -902,12 +932,14 @@ export const NewTopicModal: React.FC<Props> = ({
                   disabled={busy}
                   aria-describedby="goal-code-language-help"
                 >
-                  {CODE_LANGUAGES.map(([value, label]) => (
+                  {codeLanguages.map(([value, label]) => (
                     <option key={value} value={value}>{label}</option>
                   ))}
                 </select>
                 <small id="goal-code-language-help" className="goal-field-help">
-                  {codeLanguage ? "Coding practice uses this language." : "LearnForge adds code only when your goal asks for it."}
+                  {codeLanguage
+                    ? `Lessons, exercises and the project use ${profileFor(codeLanguage)?.name ?? codeLanguage}.`
+                    : "LearnForge adds code only when your goal asks for it."}
                 </small>
                 {scope === "curriculum" && codeLanguage && (
                   <label className="diagnostic-first-choice">
@@ -917,9 +949,7 @@ export const NewTopicModal: React.FC<Props> = ({
                     <span>
                       <strong>Build one project across the course</strong>
                       <small id="goal-project-help">
-                        {projectAvailable
-                          ? "Each unit adds a tested step to the same codebase. Earlier steps’ tests keep running."
-                          : "Available for Go for now. Other languages get an exercise per lesson."}
+                        {projectRunHelp}
                       </small>
                     </span>
                   </label>

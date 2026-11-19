@@ -9,6 +9,8 @@ import {
   goPlaygroundBody,
   markStagePassed,
   projectPromptContext,
+  stageOfTest,
+  removeFile,
   resetFileToStageStart,
   summarizeSuite,
   supportsProjectMode,
@@ -17,6 +19,59 @@ import {
   type SuiteSummary,
 } from "../../services/learning/project";
 import { loadProject, saveProject } from "../../services/learning/projectStore";
+import { loadLanguageStatus, profileFor, type LanguageStatus } from "../../services/languages";
+import { runHeadline, type Headline } from "../../services/sandbox/runReport";
+
+export interface ProjectRuntime {
+  available: boolean;
+  local: boolean;
+  label: string;
+  detail: string;
+}
+
+/**
+ * The file to open first: the newest step's stub, else the entry file, else
+ * the first source that is not a config file (go.mod, package.json…).
+ */
+export function initialFile(ws: ProjectWorkspace, language: string): string {
+  const latest = [...ws.stages].sort((a, b) => b.number - a.number)[0];
+  const stub = latest?.addedFiles.find((f) => ws.files.some((x) => x.path === f.path))?.path;
+  if (stub) return stub;
+  const entry = profileFor(language)?.entry;
+  if (entry && ws.files.some((f) => f.path === entry)) return entry;
+  const config = /(^|\/)(go\.(mod|sum)|package\.json|tsconfig\.json|Cargo\.toml)$/;
+  return ws.files.find((f) => !config.test(f.path))?.path ?? ws.files[0]?.path ?? "";
+}
+
+/** Where this project's code runs: the sandboxed local toolchain, the Go Playground, or nowhere yet. */
+export function projectRuntime(language: string, status: LanguageStatus[] | null | undefined): ProjectRuntime {
+  const name = profileFor(language)?.name ?? language;
+  const local = status?.find((p) => p.id === language);
+  if (local?.runnable)
+    return {
+      available: true,
+      local: true,
+      label: `${name} · local sandbox`,
+      detail: `Runs with your installed ${name} toolchain inside a sandbox: no internet, and it can write only to this project's folder.`,
+    };
+  if (language === "go")
+    return {
+      available: true,
+      local: false,
+      label: "Go Playground · cloud",
+      detail: status
+        ? "Go isn't installed on this Mac, so Run sends the project to the Go Playground. Install Go to run locally."
+        : "Run sends the project to the Go Playground. The Mac app runs it locally when Go is installed.",
+    };
+  return {
+    available: false,
+    local: false,
+    label: `${name} · not installed`,
+    detail: status
+      ? `Install ${local?.missing.join(", ") || name} to run this project. It runs on this Mac inside a sandbox.`
+      : `${name} projects run in the Mac app with your installed toolchain.`,
+  };
+}
 
 const SAVE_DELAY_MS = 350;
 
@@ -24,6 +79,9 @@ export type ProjectSaveStatus = "saved" | "saving" | "memory";
 export interface ProjectTab {
   path: string;
   readOnly: boolean;
+  /** Step tests: "Step 2 · Append-only log". */
+  label?: string;
+  stage?: number;
 }
 export interface StagePreparation {
   unitId: string;
@@ -52,6 +110,10 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
   const [status, setStatus] = useState<ProjectSaveStatus>("saved");
   const [preparation, setPreparation] = useState<StagePreparation | null>(null);
   const [lastSummary, setLastSummary] = useState<SuiteSummary | null>(null);
+  const [lastHeadline, setLastHeadline] = useState<Headline | null>(null);
+  const [languages, setLanguages] = useState<LanguageStatus[] | null | undefined>(undefined);
+  /** A location to show after go-to-definition switches files. */
+  const [reveal, setReveal] = useState<{ path: string; line: number; column: number; at: number } | null>(null);
   const latest = useRef<ProjectWorkspace | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const preparing = useRef<AbortController | null>(null);
@@ -81,6 +143,18 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     [flush]
   );
 
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    void loadLanguageStatus().then((list) => {
+      if (!cancelled) setLanguages(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled]);
+  const runtime = projectRuntime(track?.language || "go", languages);
+
   // Load (or start) the workspace when the topic changes.
   useEffect(() => {
     setWorkspace(null);
@@ -92,10 +166,10 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     let cancelled = false;
     void loadProject(trackId).then((saved) => {
       if (cancelled) return;
-      const ws = saved ?? emptyWorkspace(trackId);
+      const ws = saved ?? emptyWorkspace(trackId, track?.language || "go");
       latest.current = ws;
       setWorkspace(ws);
-      setActivePath(ws.files[0]?.path ?? "");
+      setActivePath(initialFile(ws, track?.language || "go"));
     });
     return () => {
       cancelled = true;
@@ -113,7 +187,10 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     };
   }, [flush]);
 
-  useEffect(() => setLastSummary(null), [unitId]);
+  useEffect(() => {
+    setLastSummary(null);
+    setLastHeadline(null);
+  }, [unitId]);
 
   const prepareStage = useCallback(async () => {
     if (!track || !unitId || !unit?.projectStep?.trim() || !latest.current) return;
@@ -149,13 +226,22 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
 
   useEffect(() => () => preparing.current?.abort(), []);
 
+  const unitTitles = useMemo(
+    () => new Map((plan ? curriculumUnits(plan) : []).map((u) => [u.id, u.title])),
+    [plan]
+  );
   const tabs: ProjectTab[] = useMemo(() => {
     if (!workspace) return [];
     return [
       ...workspace.files.map((f) => ({ path: f.path, readOnly: false })),
-      ...[...workspace.stages].sort((a, b) => a.number - b.number).map((s) => ({ path: s.testPath, readOnly: true })),
+      ...[...workspace.stages].sort((a, b) => a.number - b.number).map((s) => ({
+        path: s.testPath,
+        readOnly: true,
+        stage: s.number,
+        label: `Step ${s.number} · ${unitTitles.get(s.unitId) ?? "tests"}`,
+      })),
     ];
-  }, [workspace]);
+  }, [workspace, unitTitles]);
 
   /** Changes whenever any learner file changes (not on tab switches or recorded passes). */
   const revision = useMemo(() => {
@@ -165,6 +251,17 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
         for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619) >>> 0;
     return hash.toString(36);
   }, [workspace?.files]);
+
+  const allFiles = useMemo(
+    () =>
+      !workspace
+        ? []
+        : [
+            ...workspace.files.map((f) => ({ path: f.path, content: f.content, readOnly: false })),
+            ...workspace.stages.map((st) => ({ path: st.testPath, content: st.tests, readOnly: true })),
+          ],
+    [workspace]
+  );
 
   const activeTab = tabs.find((t) => t.path === activePath) ?? tabs[0];
   const activeContent = !workspace || !activeTab
@@ -178,15 +275,63 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     const ws = latest.current;
     if (!ws) throw new Error("The project is still loading.");
     if (!ws.files.length) throw new Error("The project has no files yet. Its first step adds them.");
-    const { executeGoProject } = await import("../../services/sandbox/api");
-    const result = await executeGoProject(goPlaygroundBody(ws), ws.stages.length > 0);
+    let result: ExecutionResult;
+    if (runtime.local) {
+      const { runLocalProject } = await import("../../services/sandbox/local");
+      result = await runLocalProject(ws);
+    } else if (ws.language === "go") {
+      const { executeGoProject } = await import("../../services/sandbox/api");
+      result = await executeGoProject(goPlaygroundBody(ws), ws.stages.length > 0);
+    } else throw new Error(runtime.detail);
     const current = unitId ? ws.stages.find((s) => s.unitId === unitId) : undefined;
+    // The Go Playground reports test functions; group them into steps like local runs.
+    if (!result.stepRuns && ws.stages.length && result.testResults?.length) {
+      const tests = result.testResults;
+      result = {
+        ...result,
+        stepRuns: [...ws.stages].sort((a, b) => a.number - b.number).map((st) => {
+          const own = tests.filter((t) => stageOfTest(t.name.split("/")[0]) === st.number);
+          return {
+            number: st.number,
+            label: st.testPath,
+            passed: own.length > 0 && own.every((t) => t.passed),
+            timedOut: false,
+            durationMs: 0,
+            command: "go test",
+            output: own.map((t) => (t.passed ? `--- PASS: ${t.name}` : `--- FAIL: ${t.name}\n${t.error ?? ""}`)).join("\n"),
+          };
+        }),
+      };
+    }
+    if (result.stepRuns)
+      result = {
+        ...result,
+        stepRuns: result.stepRuns.map((r) => {
+          const st = ws.stages.find((x) => x.number === r.number);
+          return st ? { ...r, label: unitTitles.get(st.unitId) ?? r.label } : r;
+        }),
+      };
     const summary = summarizeSuite(result.testResults, current?.number, result.exitCode);
+    // Show results by step ("Step 2 · Append-only log") rather than raw test names.
+    if (result.testResults)
+      result = {
+        ...result,
+        testResults: result.testResults.map((r) => {
+          const n = stageOfTest(r.name.split("/")[0]);
+          const stage = n === null ? undefined : ws.stages.find((s) => s.number === n);
+          if (!stage) return r;
+          const title = unitTitles.get(stage.unitId) ?? stage.testPath;
+          const local = / · /.test(r.name);
+          const fn = r.name.replace(/^TestStage\d{2}/, "");
+          return { ...r, name: `Step ${n} · ${title}${!local && fn ? ` · ${fn}` : ""}` };
+        }),
+      };
     setLastSummary(summary);
+    setLastHeadline(runHeadline(result, current?.number));
     const stageJustPassed = !!current && summary.allPassed && !current.passedAt;
     if (stageJustPassed && latest.current) commit(markStagePassed(latest.current, unitId!), true);
     return { result, summary, stageJustPassed, stageNumber: current?.number };
-  }, [flush, unitId, commit]);
+  }, [flush, unitId, commit, runtime.local, runtime.detail, unitTitles]);
 
   return {
     enabled,
@@ -197,8 +342,33 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     totalSteps,
     preparation: preparation?.unitId === unitId ? preparation : null,
     lastSummary,
+    lastHeadline,
     status,
     revision,
+    runtime,
+    language: track?.language || "go",
+    trackId,
+    allFiles,
+    reveal,
+    /** Switch to a file and show a position (go-to-definition into another file). */
+    openAt(path: string, line: number, column: number) {
+      setActivePath(path);
+      setReveal({ path, line, column, at: Date.now() });
+    },
+    /** Update any learner file by path (edits made outside the active tab, such as rename). */
+    updatePath(path: string, content: string) {
+      const current = latest.current?.files.find((f) => f.path === path);
+      if (!latest.current || !current || current.content === content) return;
+      commit(updateFile(latest.current, path, content));
+    },
+    /** Write the project to its local folder (language servers read files there). */
+    async syncToDisk() {
+      await flush();
+      if (!latest.current || !runtime.local) return;
+      const { syncLocalProject } = await import("../../services/sandbox/local");
+      await syncLocalProject(latest.current);
+    },
+    languageReady: languages !== undefined,
     tabs,
     activePath: activeTab?.path ?? "",
     activeReadOnly: !!activeTab?.readOnly,
@@ -215,6 +385,13 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
       commit(next, true);
       setActivePath(path);
       return true;
+    },
+    removeFile(path: string) {
+      if (!latest.current) return;
+      const next = removeFile(latest.current, path);
+      if (next === latest.current) return;
+      commit(next, true);
+      setActivePath((current) => (current === path ? next.files[0]?.path ?? "" : current));
     },
     /** Reset the active file to how it was when this step began. */
     resetActive() {

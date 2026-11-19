@@ -1,0 +1,380 @@
+//! Local project folders and sandboxed run/test commands (docs/project-mode.md).
+//!
+//! The webview names a profile and an action; it never supplies a program
+//! or arguments. Files are written only at paths the profile allows.
+
+use crate::languages::{self, Profile, ProfileStatus};
+use crate::sandbox;
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashMap};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+use tauri::{AppHandle, Manager, Runtime, State};
+
+const MANIFEST: &str = ".learnforge-files";
+const MAX_FILES: usize = 64;
+const MAX_FILE_BYTES: usize = 200 * 1024;
+const STEP_TIMEOUT: Duration = Duration::from_secs(60);
+const TOTAL_TIMEOUT: Duration = Duration::from_secs(120);
+
+#[derive(Default)]
+pub struct Runs(Mutex<HashMap<String, Arc<AtomicBool>>>);
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProjectFile {
+    pub path: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StageRef {
+    pub number: u32,
+    pub test_file: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecResult {
+    pub steps: Vec<sandbox::StepOutput>,
+    pub exit_code: i32,
+    pub timed_out: bool,
+    pub duration_ms: u64,
+}
+
+fn valid_id(value: &str) -> bool {
+    !value.is_empty() && value.len() <= 100 && value.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-')
+}
+
+fn profiles<R: Runtime>(app: &AppHandle<R>) -> Vec<Profile> {
+    languages::load_profiles(app.path().app_config_dir().ok().as_deref()).0
+}
+
+pub fn profile<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<Profile, String> {
+    profiles(app).into_iter().find(|p| p.id == id).ok_or_else(|| format!("Unknown language {id:?}."))
+}
+
+pub fn project_dir<R: Runtime>(app: &AppHandle<R>, track_id: &str) -> Result<PathBuf, String> {
+    if !valid_id(track_id) {
+        return Err("Invalid topic id.".into());
+    }
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?.join("projects").join(track_id);
+    std::fs::create_dir_all(&dir).map_err(|e| format!("Could not create the project folder: {e}"))?;
+    Ok(dir)
+}
+
+pub fn cache_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    let dir = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("toolchains");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
+}
+
+/// Write the learner's files and the profile's config files; remove files
+/// this app wrote earlier that are no longer in the project.
+pub fn sync_files(dir: &Path, profile: &Profile, files: &[ProjectFile]) -> Result<(), String> {
+    if files.len() > MAX_FILES {
+        return Err("The project has too many files.".into());
+    }
+    let mut written: Vec<String> = Vec::new();
+    for f in files {
+        if !(profile.is_source(&f.path) || profile.is_test(&f.path)) {
+            return Err(format!("{:?} is not a {} project file.", f.path, profile.name));
+        }
+        if f.content.len() > MAX_FILE_BYTES {
+            return Err(format!("{} is too large.", f.path));
+        }
+        written.push(f.path.clone());
+    }
+    // Config files (Cargo.toml…) are always the profile's; a starter source the
+    // workspace lacks (go.mod in a project saved before it was editable) is added.
+    let config: Vec<&languages::ScaffoldFile> = profile
+        .scaffold
+        .iter()
+        .filter(|s| !profile.is_source(&s.path) || !files.iter().any(|f| f.path == s.path))
+        .collect();
+    let all = files
+        .iter()
+        .map(|f| (f.path.as_str(), f.content.as_str()))
+        .chain(config.iter().map(|s| (s.path.as_str(), s.content.as_str())));
+    for (path, content) in all {
+        let target = dir.join(path);
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        if std::fs::symlink_metadata(&target).is_ok_and(|m| m.file_type().is_symlink()) {
+            return Err(format!("{path} is a link; refusing to write through it."));
+        }
+        if std::fs::read_to_string(&target).ok().as_deref() != Some(content) {
+            std::fs::write(&target, content).map_err(|e| format!("Could not write {path}: {e}"))?;
+        }
+    }
+    let previous = std::fs::read_to_string(dir.join(MANIFEST)).unwrap_or_default();
+    for old in previous.lines().filter(|p| languages::safe_relative_path(p)) {
+        if !written.iter().any(|w| w == old) {
+            let _ = std::fs::remove_file(dir.join(old));
+        }
+    }
+    std::fs::write(dir.join(MANIFEST), written.join("\n")).map_err(|e| e.to_string())
+}
+
+fn sources(dir: &Path, profile: &Profile, spec: &str) -> Vec<String> {
+    // {sources:.c,.h!main.c} -> learner sources with those extensions, minus excluded names.
+    let (exts, exclude) = spec.split_once('!').unwrap_or((spec, ""));
+    let exts: Vec<&str> = exts.split(',').filter(|e| !e.is_empty()).collect();
+    let exclude: Vec<&str> = exclude.split(',').filter(|e| !e.is_empty()).collect();
+    let listed = std::fs::read_to_string(dir.join(MANIFEST)).unwrap_or_default();
+    let mut out: Vec<String> = listed
+        .lines()
+        .filter(|p| profile.is_source(p) && exts.iter().any(|e| p.ends_with(e)) && !exclude.contains(p))
+        .map(String::from)
+        .collect();
+    out.sort();
+    out
+}
+
+pub struct Context<'a> {
+    pub dir: &'a Path,
+    pub cache: &'a Path,
+    pub profile: &'a Profile,
+    pub stage: Option<&'a StageRef>,
+}
+
+/// Expand an argv template. Unknown placeholders are an error, never passed through.
+pub fn expand(argv: &[String], ctx: &Context) -> Result<Vec<String>, String> {
+    let tmp = ctx.dir.join(".lf-tmp");
+    let nn = ctx.stage.map(|s| format!("{:02}", s.number)).unwrap_or_default();
+    let test_file = ctx.stage.map(|s| s.test_file.clone()).unwrap_or_default();
+    let test_stem = Path::new(&test_file).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let mut out = Vec::new();
+    for (i, arg) in argv.iter().enumerate() {
+        if let Some(spec) = arg.strip_prefix("{sources:").and_then(|s| s.strip_suffix('}')) {
+            out.extend(sources(ctx.dir, ctx.profile, spec));
+            continue;
+        }
+        if let Some(name) = arg.strip_prefix('{').and_then(|s| s.strip_suffix('}')).filter(|n| ctx.profile.binaries.contains_key(*n)) {
+            let path = languages::resolve_binary(&ctx.profile.binaries[name])
+                .ok_or_else(|| format!("{} is not installed.", ctx.profile.binaries[name].join(" or ")))?;
+            out.push(path.display().to_string());
+            continue;
+        }
+        let expanded = arg
+            .replace("{nn}", &nn)
+            .replace("{testFile}", &test_file)
+            .replace("{testStem}", &test_stem)
+            .replace("{tmp}", &tmp.display().to_string())
+            .replace("{project}", &ctx.dir.display().to_string())
+            .replace("{cache}", &ctx.cache.display().to_string());
+        if expanded.contains('{') && expanded.contains('}') {
+            return Err(format!("Unknown placeholder in {:?}.", arg));
+        }
+        if i == 0 && !(expanded.starts_with(&tmp.display().to_string())) {
+            return Err("A command must start with an installed program.".into());
+        }
+        out.push(expanded);
+    }
+    Ok(out)
+}
+
+pub fn environment(ctx: &Context) -> BTreeMap<String, String> {
+    let path = languages::search_dirs().iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(":");
+    let tmp = ctx.dir.join(".lf-tmp");
+    let mut env = BTreeMap::from([
+        ("PATH".to_string(), path),
+        ("HOME".to_string(), std::env::var("HOME").unwrap_or_else(|_| "/".into())),
+        ("TMPDIR".to_string(), format!("{}/", tmp.display())),
+        ("LANG".to_string(), "en_US.UTF-8".to_string()),
+        ("TERM".to_string(), "dumb".to_string()),
+        ("NO_COLOR".to_string(), "1".to_string()),
+    ]);
+    for (k, v) in &ctx.profile.env {
+        env.insert(k.clone(), v.replace("{project}", &ctx.dir.display().to_string()).replace("{cache}", &ctx.cache.display().to_string()));
+    }
+    env
+}
+
+pub fn policy(ctx: &Context) -> sandbox::Policy {
+    let mut readable: Vec<PathBuf> = ctx.profile.read_paths.iter().map(|p| languages::expand_home(p)).collect();
+    for candidates in ctx.profile.binaries.values() {
+        if let Some(root) = languages::resolve_binary(candidates).and_then(|b| languages::toolchain_root(&b)) {
+            readable.push(root);
+        }
+    }
+    sandbox::Policy { writable: vec![ctx.dir.to_path_buf(), ctx.cache.to_path_buf()], readable }
+}
+
+pub fn execute(ctx: &Context, commands: &[Vec<String>], cancel: Arc<AtomicBool>) -> Result<ExecResult, String> {
+    std::fs::create_dir_all(ctx.dir.join(".lf-tmp")).map_err(|e| e.to_string())?;
+    let home = PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/".into()));
+    let sandbox_profile = sandbox::profile(&policy(ctx), &home);
+    let env = environment(ctx);
+    let start = Instant::now();
+    let mut steps = Vec::new();
+    for template in commands {
+        let argv = expand(template, ctx)?;
+        let left = TOTAL_TIMEOUT.saturating_sub(start.elapsed());
+        let step = sandbox::run(sandbox::Spec {
+            argv: &argv,
+            cwd: ctx.dir,
+            env: &env,
+            sandbox: &sandbox_profile,
+            timeout: STEP_TIMEOUT.min(left),
+            cancel: cancel.clone(),
+        })?;
+        let failed = step.exit_code != 0;
+        steps.push(step);
+        if failed {
+            break;
+        }
+    }
+    let last = steps.last();
+    Ok(ExecResult {
+        exit_code: last.map(|s| s.exit_code).unwrap_or(-1),
+        timed_out: steps.iter().any(|s| s.timed_out),
+        duration_ms: start.elapsed().as_millis() as u64,
+        steps,
+    })
+}
+
+#[tauri::command]
+pub async fn language_profiles<R: Runtime>(app: AppHandle<R>) -> Result<Vec<ProfileStatus>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if !Path::new(sandbox::SANDBOX_EXEC).exists() {
+            return Err("Local runs need macOS sandbox-exec, which was not found.".to_string());
+        }
+        Ok(profiles(&app).iter().map(languages::status).collect())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn project_sync<R: Runtime>(app: AppHandle<R>, track_id: String, profile_id: String, files: Vec<ProjectFile>) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let profile = profile(&app, &profile_id)?;
+        let dir = project_dir(&app, &track_id)?;
+        sync_files(&dir, &profile, &files)?;
+        Ok(dir.display().to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn project_exec<R: Runtime>(
+    app: AppHandle<R>,
+    runs: State<'_, Runs>,
+    track_id: String,
+    profile_id: String,
+    action: String,
+    stage: Option<StageRef>,
+    request_id: String,
+) -> Result<ExecResult, String> {
+    if !valid_id(&request_id) {
+        return Err("Invalid request id.".into());
+    }
+    let cancel = Arc::new(AtomicBool::new(false));
+    runs.0.lock().map_err(|_| "busy")?.insert(request_id.clone(), cancel.clone());
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let profile = profile(&app, &profile_id)?;
+        let dir = project_dir(&app, &track_id)?;
+        let cache = cache_dir(&app)?;
+        let commands = match action.as_str() {
+            "run" => profile.run.clone(),
+            "test" => {
+                let s = stage.as_ref().ok_or("A test run needs a step.")?;
+                if !profile.is_test(&s.test_file) || !dir.join(&s.test_file).is_file() || s.number == 0 || s.number > 99 {
+                    return Err("That step's test file is not in the project.".to_string());
+                }
+                profile.test.clone()
+            }
+            _ => return Err("Unknown action.".into()),
+        };
+        if commands.is_empty() {
+            return Err(format!("{} has no {action} command.", profile.name));
+        }
+        execute(&Context { dir: &dir, cache: &cache, profile: &profile, stage: stage.as_ref() }, &commands, cancel)
+    })
+    .await
+    .map_err(|e| e.to_string());
+    if let Ok(mut map) = runs.0.lock() {
+        map.remove(&request_id);
+    }
+    result?
+}
+
+#[tauri::command]
+pub fn project_cancel(runs: State<'_, Runs>, request_id: String) {
+    if let Some(flag) = runs.0.lock().ok().and_then(|m| m.get(&request_id).cloned()) {
+        flag.store(true, Ordering::Relaxed);
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::*;
+
+    fn get(id: &str) -> Profile {
+        languages::load_profiles(None).0.into_iter().find(|p| p.id == id).unwrap()
+    }
+
+    fn fixture(name: &str) -> (PathBuf, PathBuf) {
+        let base = std::env::temp_dir().join(format!("lf-proj-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let (dir, cache) = (base.join("project"), base.join("cache"));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::create_dir_all(&cache).unwrap();
+        (dir, cache)
+    }
+
+    fn file(path: &str, content: &str) -> ProjectFile {
+        ProjectFile { path: path.into(), content: content.into() }
+    }
+
+    #[test]
+    fn sync_rejects_foreign_paths_and_removes_stale_files() {
+        let (dir, _) = fixture("sync");
+        let go = get("go");
+        assert!(sync_files(&dir, &go, &[file("../escape.go", "")]).is_err());
+        assert!(sync_files(&dir, &go, &[file("notes.txt", "")]).is_err());
+        sync_files(&dir, &go, &[file("a.go", "package main"), file("b.go", "package main")]).unwrap();
+        assert!(dir.join("go.mod").is_file());
+        sync_files(&dir, &go, &[file("a.go", "package main")]).unwrap();
+        assert!(dir.join("a.go").is_file() && !dir.join("b.go").exists());
+    }
+
+    #[test]
+    fn templates_cannot_smuggle_programs_or_placeholders() {
+        let (dir, cache) = fixture("expand");
+        let go = get("go");
+        let ctx = Context { dir: &dir, cache: &cache, profile: &go, stage: None };
+        assert!(expand(&["/bin/sh".into()], &ctx).is_err());
+        assert!(expand(&["{go}".into(), "{secret}".into()], &ctx).is_err() || languages::resolve_binary(&go.binaries["go"]).is_none());
+    }
+
+    /// Runs only where Go is installed; proves a step-by-step test cycle locally.
+    #[test]
+    fn go_stage_tests_run_locally_and_report_by_exit_code() {
+        let go = get("go");
+        if languages::resolve_binary(&go.binaries["go"]).is_none() {
+            return;
+        }
+        let (dir, cache) = fixture("go");
+        let store = "package main\n\nfunc Add(a, b int) int { return a - b }\n";
+        let test = "package main\n\nimport \"testing\"\n\nfunc TestStage01Add(t *testing.T) {\n\tif Add(2, 2) != 4 {\n\t\tt.Fatal(\"Add(2, 2) != 4\")\n\t}\n}\n";
+        let main = "package main\n\nimport \"fmt\"\n\nfunc main() { fmt.Println(Add(1, 2)) }\n";
+        let stage = StageRef { number: 1, test_file: "stage01_add_test.go".into() };
+        let run = |files: &[ProjectFile]| {
+            sync_files(&dir, &go, files).unwrap();
+            execute(&Context { dir: &dir, cache: &cache, profile: &go, stage: Some(&stage) }, &go.test, Arc::default()).unwrap()
+        };
+        let failing = run(&[file("main.go", main), file("store.go", store), file(&stage.test_file, test)]);
+        assert_ne!(failing.exit_code, 0, "{failing:?}");
+        assert!(failing.steps[0].stdout.contains("Add(2, 2) != 4"), "{failing:?}");
+        let passing = run(&[file("main.go", main), file("store.go", &store.replace("a - b", "a + b")), file(&stage.test_file, test)]);
+        assert_eq!(passing.exit_code, 0, "{passing:?}");
+        let program = execute(&Context { dir: &dir, cache: &cache, profile: &go, stage: None }, &go.run, Arc::default()).unwrap();
+        assert_eq!(program.steps[0].stdout.trim(), "3", "{program:?}");
+    }
+}

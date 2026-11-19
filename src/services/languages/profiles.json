@@ -1,0 +1,533 @@
+[
+  {
+    "id": "go",
+    "name": "Go",
+    "monaco": "go",
+    "binaries": {
+      "go": [
+        "go"
+      ],
+      "gopls": [
+        "gopls"
+      ]
+    },
+    "readPaths": [
+      "~/go"
+    ],
+    "env": {
+      "GOCACHE": "{cache}/go-build",
+      "GOPATH": "{cache}/gopath",
+      "GOTOOLCHAIN": "local",
+      "GOFLAGS": "-mod=mod",
+      "CGO_ENABLED": "0",
+      "GOTELEMETRY": "off"
+    },
+    "scaffold": [
+      {
+        "path": "go.mod",
+        "content": "module learnforge\n\ngo 1.21\n"
+      }
+    ],
+    "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}([a-z][a-z0-9_]{0,40}\\.go|go\\.mod|go\\.sum)$",
+    "testPattern": "_test\\.go$",
+    "testFile": "stage{nn}_{slug}_test.go",
+    "testNamePrefix": true,
+    "entry": "main.go",
+    "run": [
+      [
+        "{go}",
+        "run",
+        "."
+      ]
+    ],
+    "test": [
+      [
+        "{go}",
+        "test",
+        "-count=1",
+        "-run",
+        "^TestStage{nn}",
+        "./..."
+      ]
+    ],
+    "lsp": [
+      [
+        "{gopls}"
+      ]
+    ],
+    "lspInstall": "go install golang.org/x/tools/gopls@latest",
+    "sourceGuide": "One Go module named learnforge (go.mod at the root, editable). The root package is package main; subfolders are packages imported as \"learnforge/<folder>\". Standard library only.",
+    "testGuide": "One Go test file: package main, import \"testing\". Every top-level function is named TestStage{nn}… or stage{nn}… (helpers). No top-level types, variables or constants.",
+    "lspProbe": [
+      "version"
+    ]
+  },
+  {
+    "id": "python",
+    "name": "Python",
+    "monaco": "python",
+    "binaries": {
+      "python": [
+        "python3"
+      ],
+      "pyright": [
+        "pyright-langserver",
+        "basedpyright-langserver"
+      ],
+      "pylsp": [
+        "pylsp"
+      ]
+    },
+    "readPaths": [
+      "~/Library/Python"
+    ],
+    "env": {
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "PYTHONPATH": "{project}"
+    },
+    "scaffold": [],
+    "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}([a-z][a-z0-9_]{0,40}|__init__)\\.py$",
+    "testPattern": "^test_stage\\d{2}_[a-z0-9_]+\\.py$",
+    "testFile": "test_stage{nn}_{slug}.py",
+    "testNamePrefix": false,
+    "entry": "main.py",
+    "run": [
+      [
+        "{python}",
+        "main.py"
+      ]
+    ],
+    "test": [
+      [
+        "{python}",
+        "-m",
+        "unittest",
+        "-v",
+        "{testStem}"
+      ]
+    ],
+    "lsp": [
+      [
+        "{pyright}",
+        "--stdio"
+      ],
+      [
+        "{pylsp}"
+      ]
+    ],
+    "lspInstall": "npm install -g pyright",
+    "sourceGuide": "Modules in the project root, standard library only. Import with `from store import Store`.",
+    "testGuide": "One unittest file: `import unittest`, test classes subclass unittest.TestCase, test methods start with test_. Import the learner's modules by name.",
+    "lspProbe": [
+      "--version"
+    ]
+  },
+  {
+    "id": "rust",
+    "name": "Rust",
+    "monaco": "rust",
+    "binaries": {
+      "cargo": [
+        "cargo"
+      ],
+      "rust-analyzer": [
+        "rust-analyzer"
+      ]
+    },
+    "readPaths": [
+      "~/.cargo",
+      "~/.rustup"
+    ],
+    "env": {
+      "CARGO_TARGET_DIR": "{project}/target",
+      "CARGO_NET_OFFLINE": "true"
+    },
+    "scaffold": [
+      {
+        "path": "Cargo.toml",
+        "content": "[package]\nname = \"learnforge_project\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\n"
+      },
+      {
+        "path": "src/lib.rs",
+        "content": "// Library code goes here. Declare new modules with `pub mod name;`.\n"
+      },
+      {
+        "path": "src/main.rs",
+        "content": "fn main() {\n    println!(\"learnforge project\");\n}\n"
+      }
+    ],
+    "sourcePattern": "^src/([a-z][a-z0-9_]{0,40}/){0,2}[a-z][a-z0-9_]{0,40}\\.rs$",
+    "testPattern": "^tests/stage\\d{2}_[a-z0-9_]+\\.rs$",
+    "testFile": "tests/stage{nn}_{slug}.rs",
+    "testNamePrefix": false,
+    "entry": "src/main.rs",
+    "run": [
+      [
+        "{cargo}",
+        "run",
+        "--offline",
+        "--quiet"
+      ]
+    ],
+    "test": [
+      [
+        "{cargo}",
+        "test",
+        "--offline",
+        "--quiet",
+        "--test",
+        "{testStem}"
+      ]
+    ],
+    "lsp": [
+      [
+        "{rust-analyzer}"
+      ]
+    ],
+    "lspInstall": "rustup component add rust-analyzer",
+    "sourceGuide": "A Cargo package named learnforge_project, standard library only. Library code lives in src/lib.rs and modules under src/; a new module file needs `pub mod name;` in src/lib.rs, which the task must tell the learner to add.",
+    "testGuide": "One integration test file: `use learnforge_project::*;` (or specific module paths), then #[test] functions.",
+    "lspProbe": [
+      "--version"
+    ]
+  },
+  {
+    "id": "typescript",
+    "name": "TypeScript",
+    "monaco": "typescript",
+    "binaries": {
+      "node": [
+        "node"
+      ],
+      "tsserver": [
+        "typescript-language-server"
+      ]
+    },
+    "readPaths": [],
+    "env": {},
+    "scaffold": [
+      {
+        "path": "package.json",
+        "content": "{\n  \"type\": \"module\",\n  \"private\": true\n}\n"
+      },
+      {
+        "path": "tsconfig.json",
+        "content": "{\n  \"compilerOptions\": {\n    \"target\": \"ES2023\",\n    \"module\": \"NodeNext\",\n    \"strict\": true,\n    \"allowImportingTsExtensions\": true,\n    \"noEmit\": true,\n    \"types\": [\"node\"]\n  }\n}\n"
+      }
+    ],
+    "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}[a-z][a-z0-9_]{0,40}\\.ts$",
+    "testPattern": "^stage\\d{2}_[a-z0-9_]+\\.test\\.ts$",
+    "testFile": "stage{nn}_{slug}.test.ts",
+    "testNamePrefix": false,
+    "entry": "main.ts",
+    "run": [
+      [
+        "{node}",
+        "main.ts"
+      ]
+    ],
+    "test": [
+      [
+        "{node}",
+        "--test",
+        "{testFile}"
+      ]
+    ],
+    "lsp": [
+      [
+        "{tsserver}",
+        "--stdio"
+      ]
+    ],
+    "lspInstall": "npm install -g typescript typescript-language-server",
+    "sourceGuide": "ES modules run directly by Node (type stripping): erasable TypeScript only (no enums or namespaces), and imports include the .ts extension, e.g. `import { Store } from \"./store.ts\";`. No npm packages.",
+    "testGuide": "One node:test file: `import { test } from \"node:test\"; import assert from \"node:assert/strict\";` and import the learner's modules with .ts extensions.",
+    "lspProbe": [
+      "--version"
+    ]
+  },
+  {
+    "id": "javascript",
+    "name": "JavaScript",
+    "monaco": "javascript",
+    "binaries": {
+      "node": [
+        "node"
+      ],
+      "tsserver": [
+        "typescript-language-server"
+      ]
+    },
+    "readPaths": [],
+    "env": {},
+    "scaffold": [
+      {
+        "path": "package.json",
+        "content": "{\n  \"type\": \"module\",\n  \"private\": true\n}\n"
+      }
+    ],
+    "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}[a-z][a-z0-9_]{0,40}\\.js$",
+    "testPattern": "^stage\\d{2}_[a-z0-9_]+\\.test\\.js$",
+    "testFile": "stage{nn}_{slug}.test.js",
+    "testNamePrefix": false,
+    "entry": "main.js",
+    "run": [
+      [
+        "{node}",
+        "main.js"
+      ]
+    ],
+    "test": [
+      [
+        "{node}",
+        "--test",
+        "{testFile}"
+      ]
+    ],
+    "lsp": [
+      [
+        "{tsserver}",
+        "--stdio"
+      ]
+    ],
+    "lspInstall": "npm install -g typescript typescript-language-server",
+    "sourceGuide": "ES modules run by Node; imports include the .js extension. No npm packages.",
+    "testGuide": "One node:test file: `import { test } from \"node:test\"; import assert from \"node:assert/strict\";`.",
+    "lspProbe": [
+      "--version"
+    ]
+  },
+  {
+    "id": "c",
+    "name": "C",
+    "monaco": "c",
+    "binaries": {
+      "cc": [
+        "clang",
+        "cc",
+        "gcc"
+      ],
+      "clangd": [
+        "clangd"
+      ]
+    },
+    "readPaths": [],
+    "env": {},
+    "scaffold": [],
+    "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}[a-z][a-z0-9_]{0,40}\\.[ch]$",
+    "testPattern": "^stage\\d{2}_[a-z0-9_]+_test\\.c$",
+    "testFile": "stage{nn}_{slug}_test.c",
+    "testNamePrefix": false,
+    "entry": "main.c",
+    "run": [
+      [
+        "{cc}",
+        "-std=c17",
+        "-Wall",
+        "-o",
+        "{tmp}/program",
+        "{sources:.c}"
+      ],
+      [
+        "{tmp}/program"
+      ]
+    ],
+    "test": [
+      [
+        "{cc}",
+        "-std=c17",
+        "-Wall",
+        "-o",
+        "{tmp}/stage{nn}",
+        "{testFile}",
+        "{sources:.c!main.c}"
+      ],
+      [
+        "{tmp}/stage{nn}"
+      ]
+    ],
+    "lsp": [
+      [
+        "{clangd}"
+      ]
+    ],
+    "lspInstall": "xcode-select --install",
+    "sourceGuide": "C17, standard library only. main() lives only in main.c; other code in separate .c files with matching .h headers.",
+    "testGuide": "One C file with its own main() that includes the learner's headers, checks behavior with assert or explicit checks, prints what failed, and returns nonzero on failure. It is compiled with every .c file except main.c.",
+    "lspProbe": [
+      "--version"
+    ]
+  },
+  {
+    "id": "cpp",
+    "name": "C++",
+    "monaco": "cpp",
+    "binaries": {
+      "cxx": [
+        "clang++",
+        "c++",
+        "g++"
+      ],
+      "clangd": [
+        "clangd"
+      ]
+    },
+    "readPaths": [],
+    "env": {},
+    "scaffold": [],
+    "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}[a-z][a-z0-9_]{0,40}\\.(cpp|hpp|h)$",
+    "testPattern": "^stage\\d{2}_[a-z0-9_]+_test\\.cpp$",
+    "testFile": "stage{nn}_{slug}_test.cpp",
+    "testNamePrefix": false,
+    "entry": "main.cpp",
+    "run": [
+      [
+        "{cxx}",
+        "-std=c++20",
+        "-Wall",
+        "-o",
+        "{tmp}/program",
+        "{sources:.cpp}"
+      ],
+      [
+        "{tmp}/program"
+      ]
+    ],
+    "test": [
+      [
+        "{cxx}",
+        "-std=c++20",
+        "-Wall",
+        "-o",
+        "{tmp}/stage{nn}",
+        "{testFile}",
+        "{sources:.cpp!main.cpp}"
+      ],
+      [
+        "{tmp}/stage{nn}"
+      ]
+    ],
+    "lsp": [
+      [
+        "{clangd}"
+      ]
+    ],
+    "lspInstall": "xcode-select --install",
+    "sourceGuide": "C++20, standard library only. main() lives only in main.cpp; other code in separate .cpp files with matching .hpp headers.",
+    "testGuide": "One C++ file with its own main() that includes the learner's headers, checks behavior, prints what failed, and returns nonzero on failure. It is compiled with every .cpp file except main.cpp.",
+    "lspProbe": [
+      "--version"
+    ]
+  },
+  {
+    "id": "java",
+    "name": "Java",
+    "monaco": "java",
+    "binaries": {
+      "javac": [
+        "javac"
+      ],
+      "java": [
+        "java"
+      ]
+    },
+    "readPaths": [],
+    "env": {},
+    "scaffold": [],
+    "sourcePattern": "^[A-Z][A-Za-z0-9]{0,40}\\.java$",
+    "testPattern": "^Stage\\d{2}Test\\.java$",
+    "testFile": "Stage{nn}Test.java",
+    "testNamePrefix": false,
+    "entry": "Main.java",
+    "run": [
+      [
+        "{javac}",
+        "-d",
+        "{tmp}/classes",
+        "{sources:.java}"
+      ],
+      [
+        "{java}",
+        "-cp",
+        "{tmp}/classes",
+        "Main"
+      ]
+    ],
+    "test": [
+      [
+        "{javac}",
+        "-d",
+        "{tmp}/classes",
+        "{testFile}",
+        "{sources:.java!Main.java}"
+      ],
+      [
+        "{java}",
+        "-ea",
+        "-cp",
+        "{tmp}/classes",
+        "Stage{nn}Test"
+      ]
+    ],
+    "lsp": [],
+    "lspInstall": "",
+    "sourceGuide": "Java 17, default package, standard library only. One public class per file named after the file. Main.java holds main().",
+    "testGuide": "One class Stage{nn}Test with public static void main(String[] args) that checks behavior, prints what failed, and calls System.exit(1) on failure. No JUnit.",
+    "lspProbe": [
+      "--version"
+    ]
+  },
+  {
+    "id": "ruby",
+    "name": "Ruby",
+    "monaco": "ruby",
+    "binaries": {
+      "ruby": [
+        "ruby"
+      ],
+      "rubylsp": [
+        "ruby-lsp",
+        "solargraph"
+      ]
+    },
+    "readPaths": [
+      "~/.gem",
+      "~/.rbenv",
+      "~/.rubies"
+    ],
+    "env": {},
+    "scaffold": [],
+    "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}[a-z][a-z0-9_]{0,40}\\.rb$",
+    "testPattern": "^test_stage\\d{2}_[a-z0-9_]+\\.rb$",
+    "testFile": "test_stage{nn}_{slug}.rb",
+    "testNamePrefix": false,
+    "entry": "main.rb",
+    "run": [
+      [
+        "{ruby}",
+        "-I",
+        ".",
+        "main.rb"
+      ]
+    ],
+    "test": [
+      [
+        "{ruby}",
+        "-I",
+        ".",
+        "{testFile}"
+      ]
+    ],
+    "lsp": [
+      [
+        "{rubylsp}"
+      ]
+    ],
+    "lspInstall": "gem install ruby-lsp",
+    "sourceGuide": "Plain Ruby files in the project root, standard library only. Load with require_relative.",
+    "testGuide": "One Minitest file: `require \"minitest/autorun\"`, require_relative the learner's files, and a class inheriting Minitest::Test with test_ methods.",
+    "lspProbe": [
+      "--version"
+    ]
+  }
+]

@@ -18,6 +18,20 @@ export interface ExecutionResult {
   durationMs: number;
   error?: string;
   testResults?: TestResult[];
+  /** Project runs: one entry per step test file, in step order. */
+  stepRuns?: StepRun[];
+  /** Project runs: true when any command hit its time limit. */
+  timedOut?: boolean;
+}
+
+export interface StepRun {
+  number: number;
+  label: string;
+  passed: boolean;
+  timedOut: boolean;
+  durationMs: number;
+  command: string;
+  output: string;
 }
 
 export type SupportedLanguage =

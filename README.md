@@ -59,7 +59,8 @@ LearnForge is a local-first learning app for technical and nontechnical subjects
 | Study notes | Export study material as Markdown or Anki-compatible data. |
 | Optional revisits | Offer an earlier idea within the same topic. Off by default, integrated into learning rather than a daily-review modal. |
 | Optional coding | Syntax-highlighted examples and an editor with explicit execution providers. |
-| Project mode (Go) | Choose a programming language when you set a goal, and optionally build one project across the whole curriculum. Each unit adds a tested step to the same codebase; earlier steps’ tests keep running. [How it works and its limits](docs/project-mode.md). |
+| Project mode | Choose a programming language when you set a goal, and optionally build one project across the whole curriculum. Each unit adds a tested step to the same codebase; earlier steps’ tests keep running. Built in: Go, Python, Rust, TypeScript, JavaScript, C, C++, Java, Ruby; add any other language with a profile. [How it works and its limits](docs/project-mode.md). |
+| Code workspace | File explorer with folders, completion, live errors, hover, go to definition, rename and formatting from your installed language servers (gopls, pyright, rust-analyzer, clangd…). Code runs on your Mac with your toolchain inside a sandbox: no internet, and it writes only to the project folder. |
 
 ![Worked percentage tutoring with a comparison table](docs/images/question-review.jpg)
 
@@ -101,7 +102,7 @@ The optional editor identifies the execution provider before Run:
 | Other available compiler languages | Wandbox’s discovered runtime catalog |
 | JavaScript / TypeScript | Local browser worker with lightweight TypeScript stripping |
 
-Remote execution sends code and tests to its provider. Runtime, package, network, and service limits apply; unavailable languages remain editor-only. The browser worker is not a Node.js or full TypeScript project runtime. See [execution behavior and limits](docs/code-execution.md).
+In project mode, the Mac app instead runs code with the toolchain installed on your Mac, inside a macOS sandbox with no internet access that can write only to the project folder; Go falls back to the Go Playground when Go isn't installed. Remote execution sends code and tests to its provider. Runtime, package, network, and service limits apply; unavailable languages remain editor-only. The browser worker is not a Node.js or full TypeScript project runtime. See [execution behavior and limits](docs/code-execution.md).
 
 ## Data and privacy
 

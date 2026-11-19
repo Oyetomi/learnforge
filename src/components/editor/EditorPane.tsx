@@ -12,6 +12,8 @@ import {
   Check,
   X,
   AlertCircle,
+  ChevronRight,
+  PanelLeft,
 } from "lucide-react";
 import { SupportedLanguage, ExecutionResult } from "../../types";
 import { OutputConsole } from "./OutputConsole";
@@ -24,6 +26,11 @@ import {
 import { handleTabNavigation } from "../layout/keyboard";
 import { editorShortcutApplies } from "./keyboard";
 import { ProjectStepPanel } from "./ProjectStepPanel";
+import { ProjectExplorer } from "./ProjectExplorer";
+import { ProjectRunLog, ProjectRunReport, runHeadline } from "./ProjectRunReport";
+import { profileFor, suggestPath } from "../../services/languages";
+import { parseDiagnostics } from "../../services/sandbox/diagnostics";
+import { attachLanguageServer, modelPath as projectModelPath, modelUri, type AttachedServer, type ServerStatus } from "./languageServer";
 import type { ProjectWorkspaceController } from "./useProjectWorkspace";
 
 interface EditorPaneProps {
@@ -174,8 +181,35 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   project,
 }) => {
   const projectMode = !!project?.enabled;
-  const [newFile, setNewFile] = useState<string | null>(null);
-  const [newFileError, setNewFileError] = useState("");
+  const runLabel = projectMode && project!.tabs.some((t) => t.readOnly) ? "Run tests" : projectMode ? "Run" : "Run code";
+  // The explorer follows the learner's choice; until they choose, it shows
+  // only when the pane is wide enough to keep a usable editor beside it.
+  const [explorerPref, setExplorerPref] = useState<boolean | null>(() => {
+    try {
+      const v = localStorage.getItem("learnforge:explorer-open");
+      return v === null ? null : v === "true";
+    } catch {
+      return null;
+    }
+  });
+  const [paneWidth, setPaneWidth] = useState(1000);
+  useEffect(() => {
+    const el = paneRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => setPaneWidth(entry.contentRect.width));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const explorerOpen = explorerPref ?? paneWidth >= 600;
+  const setExplorerOpen = (update: (open: boolean) => boolean) => {
+    const next = update(explorerOpen);
+    setExplorerPref(next);
+    try {
+      localStorage.setItem("learnforge:explorer-open", String(next));
+    } catch {
+      /* Preference only. */
+    }
+  };
   const paneRef = useRef<HTMLElement>(null);
   const executedCode = useRef<string | null>(null);
   // In project mode a run covers every file, so compare the whole project.
@@ -221,7 +255,12 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     label: "Checking runtime…",
     detail: "Checking execution service availability.",
   });
+  const projectRuntime = project?.enabled ? project.runtime : undefined;
   useEffect(() => {
+    if (projectRuntime) {
+      setRuntime({ language, available: projectRuntime.available, label: projectRuntime.label, detail: projectRuntime.detail });
+      return;
+    }
     let active = true;
     setRuntime({
       language,
@@ -247,9 +286,159 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     return () => {
       active = false;
     };
-  }, [language]);
+  }, [language, projectRuntime?.available, projectRuntime?.label, projectRuntime?.detail]);
   const runtimeAvailable = runtime.language === language && runtime.available;
   const runCommand = useRef<() => void>(() => {});
+  const monacoRef = useRef<typeof import("monaco-editor") | null>(null);
+  const editorRef = useRef<import("monaco-editor").editor.IStandaloneCodeEditor | null>(null);
+  const [editorReady, setEditorReady] = useState(0);
+  // Underline errors from the last run in the files they point to.
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    if (!monaco) return;
+    const owner = "learnforge-run";
+    const singleFile = fileNames[language] ?? `main.${language}`;
+    const known = projectMode ? project!.tabs.map((t) => t.path) : [singleFile, "learner.go", "prog.go", "main.go"];
+    const output = executionResult
+      ? [executionResult.stdout, executionResult.stderr, ...(executionResult.testResults || []).map((t) => t.error || "")].join("\n")
+      : "";
+    const diagnostics = output ? parseDiagnostics(output, known) : [];
+    const modelPathOf = (model: import("monaco-editor").editor.ITextModel) =>
+      projectMode
+        ? projectModelPath(model.uri, project!.trackId)
+        : model === editorRef.current?.getModel() ? singleFile : undefined;
+    for (const model of monaco.editor.getModels()) {
+      const path = modelPathOf(model);
+      const own = diagnostics.filter((d) =>
+        projectMode ? d.path === path : path !== undefined && d.path !== "prog.go"
+      );
+      monaco.editor.setModelMarkers(
+        model,
+        owner,
+        own.map((d) => {
+          const line = Math.min(d.line, model.getLineCount());
+          return {
+            severity: d.severity === "warning" ? monaco.MarkerSeverity.Warning : monaco.MarkerSeverity.Error,
+            message: d.message,
+            startLineNumber: line,
+            startColumn: d.column ?? model.getLineFirstNonWhitespaceColumn(line) ?? 1,
+            endLineNumber: line,
+            endColumn: model.getLineMaxColumn(line),
+            source: "Run",
+          };
+        })
+      );
+    }
+  }, [executionResult, project?.activePath, editorReady, language, projectMode]);
+
+  // Project mode: one Monaco model per file, so rename, go-to-definition and
+  // diagnostics work across files. The active model is driven by `code`; the
+  // others follow the workspace, and edits made to them (rename) flow back.
+  const profile = projectMode ? profileFor(project!.language) : undefined;
+  const modelListeners = useRef(new Map<string, { dispose(): void }>());
+  const projectRef = useRef(project);
+  projectRef.current = project;
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    if (!monaco || !projectMode || !profile) return;
+    const trackId = project!.trackId;
+    const wanted = new Set<string>();
+    for (const f of project!.allFiles) {
+      const uri = modelUri(monaco as any, trackId, f.path);
+      wanted.add(uri.toString());
+      let model = monaco.editor.getModel(uri as any);
+      if (!model) model = monaco.editor.createModel(f.content, profile.monaco, uri as any);
+      else if (model !== editorRef.current?.getModel() && model.getValue() !== f.content) model.setValue(f.content);
+      if (!f.readOnly && !modelListeners.current.has(uri.toString())) {
+        const m = model;
+        modelListeners.current.set(
+          uri.toString(),
+          m.onDidChangeContent(() => {
+            if (m !== editorRef.current?.getModel()) projectRef.current?.updatePath(f.path, m.getValue());
+          })
+        );
+      }
+    }
+    for (const model of monaco.editor.getModels()) {
+      const key = model.uri.toString();
+      if (projectModelPath(model.uri as any, trackId) && !wanted.has(key) && model !== editorRef.current?.getModel()) {
+        modelListeners.current.get(key)?.dispose();
+        modelListeners.current.delete(key);
+        model.dispose();
+      }
+    }
+  }, [project?.allFiles, project?.trackId, editorReady, projectMode, profile]);
+  useEffect(
+    () => () => {
+      for (const l of modelListeners.current.values()) l.dispose();
+      modelListeners.current.clear();
+    },
+    []
+  );
+
+  // Language server (completion, live errors, hover, definition, rename,
+  // formatting) when the project runs locally and a server is installed.
+  const [server, setServer] = useState<ServerStatus>({ state: "off" });
+  const [serverInfoOpen, setServerInfoOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => setCopied(false), [serverInfoOpen]);
+  const serverInfoRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!serverInfoOpen) return;
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !serverInfoRef.current?.contains(e.target as Node))
+        setServerInfoOpen(false);
+    };
+    document.addEventListener("keydown", close);
+    document.addEventListener("pointerdown", close);
+    return () => {
+      document.removeEventListener("keydown", close);
+      document.removeEventListener("pointerdown", close);
+    };
+  }, [serverInfoOpen]);
+  const installCommand = server.state === "unavailable" ? profile?.lspInstall || "" : "";
+  const serverRef = useRef<AttachedServer | null>(null);
+  const localRuntime = projectMode && !!project!.runtime.local;
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    if (!monaco || !localRuntime || !profile || !project!.loaded) {
+      setServer({ state: "off" });
+      return;
+    }
+    if (!profile.lsp.length) {
+      setServer({ state: "unavailable", message: `No language server is set up for ${profile.name}.` });
+      return;
+    }
+    const attached = attachLanguageServer(monaco as any, {
+      trackId: project!.trackId,
+      profile,
+      files: project!.allFiles,
+      prepare: () => projectRef.current!.syncToDisk(),
+      onOpenFile: (path, line, column) => projectRef.current?.openAt(path, line, column),
+      onStatus: setServer,
+    });
+    serverRef.current = attached;
+    return () => {
+      attached.dispose();
+      if (serverRef.current === attached) serverRef.current = null;
+    };
+  }, [localRuntime, profile, project?.trackId, project?.loaded, editorReady]);
+  useEffect(() => {
+    if (projectMode) serverRef.current?.sync(project!.allFiles);
+  }, [project?.allFiles, projectMode]);
+
+  // Show the location go-to-definition asked for once its file is active.
+  useEffect(() => {
+    const target = project?.reveal;
+    const editor = editorRef.current;
+    if (!target || !editor || target.path !== project?.activePath) return;
+    const id = requestAnimationFrame(() => {
+      editor.revealLineInCenter(target.line);
+      editor.setPosition({ lineNumber: target.line, column: target.column });
+      editor.focus();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [project?.reveal, project?.activePath]);
   runCommand.current = () => {
     if (
       !isRunning &&
@@ -282,7 +471,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     if (executionResult) {
       setOutputOpen(true);
       setActiveBottomTab(
-        executionResult.testResults?.length && !failed ? "tests" : "console"
+        projectMode || (executionResult.testResults?.length && !failed) ? "tests" : "console"
       );
     }
   }, [executionResult, isRunning]);
@@ -387,61 +576,34 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             ) : (
               <Play size={12} fill="currentColor" />
             )}
-            <span>{isRunning ? "Running…" : "Run code"}</span>
+            <span>{isRunning ? "Running…" : runLabel}</span>
             <kbd>⌘ ↵</kbd>
           </button>
         </div>
       </div>
-      {projectMode && <ProjectStepPanel project={project!} />}
+      {projectMode && <ProjectStepPanel project={project!} isRunning={isRunning} />}
       <div className="editor-filebar">
         {projectMode ? (
-          <div className="project-file-tabs" role="tablist" aria-label="Project files">
-            {project!.tabs.map((tab) => (
-              <button
-                key={tab.path}
-                type="button"
-                role="tab"
-                aria-selected={tab.path === project!.activePath}
-                className={`project-file-tab ${tab.readOnly ? "is-test" : ""}`}
-                title={tab.readOnly ? `${tab.path} · step tests (read-only)` : tab.path}
-                onClick={() => project!.selectFile(tab.path)}
-              >
-                {tab.path}
-              </button>
-            ))}
-            {newFile === null ? (
-              <button
-                type="button"
-                className="project-file-tab"
-                aria-label="Add a file"
-                title="Add a file"
-                disabled={!project!.loaded}
-                onClick={() => { setNewFile(""); setNewFileError(""); }}
-              >
-                +
-              </button>
-            ) : (
-              <form
-                className="project-file-add"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const path = newFile.trim().replace(/(\.go)?$/, ".go");
-                  if (project!.addFile(path)) setNewFile(null);
-                  else setNewFileError("Use a new lowercase name such as replication.go (not a test file).");
-                }}
-              >
-                <input
-                  autoFocus
-                  value={newFile}
-                  aria-label="New file name"
-                  aria-invalid={!!newFileError}
-                  title={newFileError || "Lowercase Go file name"}
-                  placeholder="replication.go"
-                  onChange={(e) => { setNewFile(e.target.value); setNewFileError(""); }}
-                  onKeyDown={(e) => { if (e.key === "Escape") setNewFile(null); }}
-                />
-              </form>
-            )}
+          <div className="project-breadcrumb">
+            <button
+              type="button"
+              className="explorer-toggle"
+              aria-label={explorerOpen ? "Hide project files" : "Show project files"}
+              aria-pressed={explorerOpen}
+              title={explorerOpen ? "Hide project files" : "Show project files"}
+              onClick={() => setExplorerOpen((v) => !v)}
+            >
+              <PanelLeft size={14} />
+            </button>
+            <span className="project-breadcrumb-path" title={project!.activePath}>
+              {(project!.activePath || "No files yet").split("/").map((part, i, all) => (
+                <React.Fragment key={i}>
+                  {i > 0 && <ChevronRight size={11} aria-hidden="true" />}
+                  <span className={i === all.length - 1 ? "is-file" : ""}>{part}</span>
+                </React.Fragment>
+              ))}
+              {project!.activeReadOnly && <em> · step tests, read-only</em>}
+            </span>
           </div>
         ) : (
         <span className="editor-file">
@@ -483,11 +645,32 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           {languageNames[language] || language}
         </span>
       </div>
+      <div className="editor-body">
+      {projectMode && explorerOpen && (
+        <ProjectExplorer
+          files={project!.tabs}
+          activePath={project!.activePath}
+          onSelect={project!.selectFile}
+          onAdd={(typed) => {
+            const p = profileFor(project!.language);
+            return project!.addFile(p ? suggestPath(p, typed) : typed);
+          }}
+          onDelete={project!.removeFile}
+          placeholder={(() => {
+            const p = profileFor(project!.language);
+            return p ? suggestPath(p, p.id === "java" ? "Replication" : "wordcount/main") : "folder/file";
+          })()}
+          addError={(() => {
+            const p = profileFor(project!.language);
+            return `Use a new ${p?.name ?? ""} file name, optionally in a folder, such as ${p ? suggestPath(p, p.id === "java" ? "Replication" : "wordcount/main") : "folder/file"}. Test file names are reserved.`;
+          })()}
+        />
+      )}
       <div className="monaco-container">
         <Editor
           height="100%"
           language={getMonacoLanguage(language)}
-          {...(projectMode ? { path: `project/${project!.activePath || "empty.go"}` } : {})}
+          {...(projectMode ? { path: `project/${project!.trackId}/${project!.activePath || "empty"}`, keepCurrentModel: true } : {})}
           value={code}
           onChange={(value) => {
             resetFocus.current = false;
@@ -496,6 +679,9 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           }}
           theme="learnforge"
           onMount={(editor, monaco) => {
+            monacoRef.current = monaco as unknown as typeof import("monaco-editor");
+            editorRef.current = editor as unknown as import("monaco-editor").editor.IStandaloneCodeEditor;
+            setEditorReady((n) => n + 1);
             editor.addCommand(
               monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
               () => runCommand.current()
@@ -565,26 +751,71 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           }
         />
       </div>
+      </div>
       <div className="editor-statusbar">
-        <span role="status" aria-live="polite">
+        <span role="status" aria-live="polite" className="editor-status-save">
           <span
             className={`tiny-dot ${
               isRunning || draftStatus === "saving" ? "running-dot" : ""
             }`}
           />
           {isRunning
-            ? "Executing code"
+            ? projectMode ? "Running" : "Executing code"
             : draftStatus === "saving"
-            ? "Saving changes…"
+            ? "Saving…"
             : draftStatus === "saved"
-            ? "Saved on this device"
-            : "Device storage unavailable"}
+            ? projectMode ? "Saved" : "Saved on this device"
+            : "Not saved: device storage unavailable"}
         </span>
-        <span title={runtime.detail} aria-live="polite">
-          {runtime.language === language ? runtime.label : "Checking runtime…"}
+        <span className="editor-status-right">
+          <span className="editor-status-runtime" title={runtime.detail} aria-live="polite">
+            {runtime.language === language ? runtime.label : "Checking runtime…"}
+          </span>
+          {server.state !== "off" && (
+            <span className="editor-intellisense-wrap" ref={serverInfoRef}>
+              <button
+                type="button"
+                className={`editor-intellisense is-${server.state}`}
+                aria-expanded={serverInfoOpen}
+                aria-controls="editor-intellisense-info"
+                onClick={() => setServerInfoOpen((v) => !v)}
+              >
+                <span className="editor-intellisense-dot" aria-hidden="true" />
+                {server.state === "ready" ? server.program : server.state === "starting" ? "Starting IntelliSense…" : "IntelliSense off"}
+              </button>
+              {serverInfoOpen && (
+                <span className="editor-intellisense-info" id="editor-intellisense-info" role="dialog" aria-label="IntelliSense">
+                  {server.state === "ready" ? (
+                    <>
+                      <strong>IntelliSense is on</strong>
+                      <small>
+                        {server.program} provides completion, live errors and hover. F12 goes to a definition, F2 renames, and
+                        ⇧⌥F formats the file.
+                      </small>
+                    </>
+                  ) : server.state === "starting" ? (
+                    <strong>Starting the language server…</strong>
+                  ) : (
+                    <>
+                      <strong>No language server</strong>
+                      <small>{installCommand ? `Install one for completion, live errors and go to definition, then reopen the code workspace:` : server.message}</small>
+                      {installCommand && (
+                        <span className="editor-install">
+                          <code>{installCommand}</code>
+                          <button type="button" onClick={() => { void navigator.clipboard?.writeText(installCommand).then(() => setCopied(true), () => {}); }}>
+                            {copied ? "Copied" : "Copy"}
+                          </button>
+                        </span>
+                      )}
+                    </>
+                  )}
+                </span>
+              )}
+            </span>
+          )}
         </span>
       </div>
-      <p className="editor-runtime-note">{runtime.detail}</p>
+      {(!projectMode || !runtime.available) && <p className="editor-runtime-note">{runtime.detail}</p>}
       <div className={`output-section ${outputOpen ? "is-open" : ""}`}>
         <div className="output-tabs">
           <div
@@ -604,7 +835,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
               }}
             >
               <Terminal size={14} />
-              Output{failed && <span className="output-error-dot" />}
+              {projectMode ? "Log" : "Output"}{failed && !projectMode && <span className="output-error-dot" />}
             </button>
             <button
               role="tab"
@@ -618,8 +849,15 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
               }}
             >
               <CheckCircle2 size={14} />
-              Tests
-              {testsCount > 0 && (
+              {projectMode ? "Results" : "Tests"}
+              {projectMode && executionResult?.stepRuns?.length ? (
+                <span className={`test-count ${executionResult.stepRuns.every((r) => r.passed) ? "passing" : ""}`}>
+                  {executionResult.stepRuns.filter((r) => r.passed).length}/{executionResult.stepRuns.length}
+                </span>
+              ) : projectMode && failed ? (
+                <span className="output-error-dot" />
+              ) : null}
+              {!projectMode && testsCount > 0 && (
                 <span
                   className={`test-count ${
                     passedTests === testsCount ? "passing" : ""
@@ -654,7 +892,22 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
               activeBottomTab === "console" ? "console-tab" : "tests-tab"
             }
           >
-            {activeBottomTab === "console" ? (
+            {projectMode ? (
+              activeBottomTab === "console" ? (
+                <ProjectRunLog result={executionResult} isRunning={isRunning} />
+              ) : (
+                <ProjectRunReport
+                  result={executionResult}
+                  isRunning={isRunning}
+                  canRun={runtimeAvailable}
+                  currentStep={project!.stage?.number}
+                  known={project!.tabs.map((t) => t.path)}
+                  runLabel={runLabel}
+                  onOpen={(path, line, column) => project!.openAt(path, line, column ?? 1)}
+                  onClear={onClearConsole}
+                />
+              )
+            ) : activeBottomTab === "console" ? (
               <OutputConsole
                 stdout={executionResult?.stdout || ""}
                 stderr={executionResult?.stderr || executionResult?.error || ""}
@@ -693,6 +946,8 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       <span className="sr-only" role="status">
         {isRunning
           ? "Running code"
+          : executionResult && projectMode
+          ? (({ title, detail }) => `${title}. ${detail ?? ""}`)(runHeadline(executionResult, project!.stage?.number))
           : executionResult
           ? failed
             ? "Execution failed. See output for details."

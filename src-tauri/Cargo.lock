@@ -1796,6 +1796,8 @@ name = "learnforge"
 version = "0.3.0"
 dependencies = [
  "cc",
+ "libc",
+ "regex",
  "serde",
  "serde_json",
  "tauri",

@@ -7,6 +7,7 @@ import {
   markStagePassed,
   parsePreparedStage,
   projectPromptContext,
+  removeFile,
   resetFileToStageStart,
   stageTestPath,
   stageTestProblem,
@@ -56,10 +57,13 @@ describe("project stage rules", () => {
   it("accepts only lowercase non-test Go paths", () => {
     expect(validLearnerPath("store.go")).toBe(true);
     expect(validLearnerPath("raft_log.go")).toBe(true);
-    for (const bad of ["prog.go", "store_test.go", "Store.go", "../x.go", "dir/x.go", "x.txt"])
+    expect(validLearnerPath("wordcount/main.go")).toBe(true);
+    expect(validLearnerPath("go.mod")).toBe(true);
+    for (const bad of ["prog.go", "store_test.go", "Store.go", "../x.go", "a/b/c/x.go", "x.txt"])
       expect(validLearnerPath(bad)).toBe(false);
     expect(supportsProjectMode("go")).toBe(true);
-    expect(supportsProjectMode("python")).toBe(false);
+    expect(supportsProjectMode("python")).toBe(true);
+    expect(supportsProjectMode("lua")).toBe(false);
   });
 
   it("requires stage-prefixed tests and helpers, and no top-level declarations", () => {
@@ -105,7 +109,7 @@ describe("workspace carry-forward", () => {
     ws = updateFile(ws, "store.go", "package main\n// learner's work\n", 2);
     ws = applyStage(ws, "u2", "Length", { task: "Add Len", tests: stage2Tests, files: [{ path: "store.go", content: "package main\n// model rewrite" }, { path: "len.go", content: "package main\n" }] }, 3);
     expect(ws.files.find((f) => f.path === "store.go")?.content).toContain("learner's work");
-    expect(ws.files.map((f) => f.path)).toEqual(["store.go", "len.go"]);
+    expect(ws.files.map((f) => f.path)).toEqual(["go.mod", "store.go", "len.go"]);
     expect(ws.stages.map((s) => s.number)).toEqual([1, 2]);
     expect(ws.stages[1].startFiles.find((f) => f.path === "store.go")?.content).toContain("learner's work");
     expect(validWorkspace(ws)).toBe(true);
@@ -122,15 +126,19 @@ describe("workspace carry-forward", () => {
   it("resets a file to its state at the start of the step, or to the step's stub", () => {
     let ws = first();
     ws = updateFile(ws, "store.go", "package main\n// edited", 2);
-    expect(resetFileToStageStart(ws, "u1", "store.go").files[0].content).toBe(storeStub);
+    const store = (w: typeof ws) => w.files.find((f) => f.path === "store.go")!.content;
+    expect(store(resetFileToStageStart(ws, "u1", "store.go"))).toBe(storeStub);
     ws = applyStage(ws, "u2", "Length", { task: "x", tests: stage2Tests, files: [] }, 3);
     ws = updateFile(ws, "store.go", "package main\n// later", 4);
-    expect(resetFileToStageStart(ws, "u2", "store.go").files[0].content).toBe("package main\n// edited");
+    expect(store(resetFileToStageStart(ws, "u2", "store.go"))).toBe("package main\n// edited");
   });
 
   it("adds learner files only with valid new names", () => {
     const ws = first();
-    expect(addFile(ws, "replication.go").files).toHaveLength(2);
+    expect(addFile(ws, "replication.go").files).toHaveLength(3);
+    const withPackage = addFile(ws, "wordcount/count.go").files;
+    expect(withPackage[withPackage.length - 1]).toEqual({ path: "wordcount/count.go", content: "package wordcount\n" });
+    expect(removeFile(addFile(ws, "replication.go"), "replication.go").files).toHaveLength(2);
     expect(addFile(ws, "store.go")).toBe(ws);
     expect(addFile(ws, "x_test.go")).toBe(ws);
   });
@@ -226,7 +234,7 @@ describe("project plans", () => {
 
   it("ignores project fields unless project mode was requested for a supported language", () => {
     expect(trackFromOutline(outline(), { ...base, language: "go" }).curriculum?.project).toBeUndefined();
-    expect(trackFromOutline(outline(), { ...base, language: "python", project: true }).curriculum?.project).toBeUndefined();
+    expect(trackFromOutline(outline(), { ...base, language: "lua", project: true }).curriculum?.project).toBeUndefined();
   });
 
   it("rejects a requested project with no steps", () => {

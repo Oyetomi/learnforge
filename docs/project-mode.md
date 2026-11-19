@@ -1,66 +1,65 @@
-# Project mode: one project built across a curriculum
+# Project mode and the code workspace
 
-Status: phase 1 implemented (Go, Go Playground). Phase 2 (local toolchain) is a proposal and is not built.
+One project built across a curriculum, in the learner's chosen language, with an IDE-style workspace.
 
-## Problem
+## What the learner gets
 
-A curriculum lesson can include a coding exercise, but each exercise is separate. Its starter code is generated fresh, its draft is saved per lesson, and its tests check only that lesson. A learner working through a book such as *Designing Data-Intensive Applications*, which has no code of its own, gets snippets rather than a system that grows chapter by chapter.
+1. **An explicit language.** The goal form has a *Code practice* language menu. A chosen language makes the plan a coding plan in that language; the model's own `practice_mode` or `language` cannot override it.
+2. **One project across the course.** With *Build one project across the course*, the outline also defines a project and a `project_step` per unit (or none for a concepts-only unit). Steps are shown, and editable, before approval.
+3. **Code that carries forward.** One workspace per topic, with folders (for example `wordcount/main.go`, `src/raft/log.rs`, `store/__init__.py`).
+4. **Tests that accumulate.** Each step is prepared from the current files: a task, one new step test file, optional new stub files. Every run executes every step's tests; a later change that breaks an earlier step is reported as a regression.
+5. **Pacing.** When the whole suite passes, the tutor reviews the implementation and asks one applied question. Passing tests does not approve readiness.
+6. **An IDE.** File explorer with folders, breadcrumb, completion, live errors, hover documentation, go to definition across files (F12), rename (F2), formatting, signature help, find, folding. Errors from a run are also underlined at their file and line.
 
-## What project mode does
+## Languages
 
-1. **Language choice is explicit.** The goal form has a programming-language picker. A chosen language makes the plan a coding plan in that language; the model's own `practice_mode` or `language` cannot override it.
-2. **One project spans the plan.** With *Build one project across the course* selected (Go only in phase 1), the outline also returns a project (`title`, `summary`) and, for each unit, a `project_step`: what this unit adds to the project, or `null` for a concept-only unit (for example ethics). The approval screen shows the project and each step, and the learner can edit them before approving.
-3. **Code carries forward.** The project is one workspace per topic, not per lesson. Moving to the next unit keeps the learner's files exactly as they are.
-4. **Each step adds tests; earlier tests keep running.** When a unit with a step becomes active, LearnForge prepares that step from the current files: a task description, one new test file, and optional new stub files. Every run executes **all** stage test files, so a later change that breaks an earlier stage is visible.
-5. **Pacing.** Lesson first, then the step. When the whole suite passes, the tutor reviews the implementation against the unit's ideas and asks one applied question. Passing tests is recorded on the stage; it does not approve readiness. Readiness still comes from independent checks and tutor review.
+Languages are data: `src/services/languages/profiles.json`, shared by the frontend and the native runner. A profile names its programs, file rules, run and step-test commands (argv templates, never shell strings), starter and config files, language server and the guides given to the tutor.
 
-## Data model
+Built in: Go, Python, Rust, TypeScript, JavaScript, C, C++, Java, Ruby.
 
-`CurriculumPlan.project?: { title, summary }` and `CurriculumUnit.projectStep?: string` (`src/services/learning/curriculumPlan.ts`). Both are optional, so existing plans are unchanged.
+**Any other language:** add a profile to `languages.json` in the app's configuration folder (`~/Library/Application Support/com.oyetomi.learnforge/`). It uses the same schema; a custom id may not replace a built-in one. The webview cannot write that file, so a compromised page cannot add commands.
 
-`ProjectWorkspace` (`src/services/learning/project.ts`), one per track, stored in IndexedDB database `learnforge-projects`:
+Step tests run one file at a time, so pass/fail per step comes from the exit code in every language. Go compiles all test files in a package together, so Go step tests must use `TestStageNN…`/`stageNN…` names and no top-level declarations; other languages have no naming rule.
 
-| Field | Meaning |
-| --- | --- |
-| `files` | Learner-owned source files (`path`, `content`). |
-| `stages` | One per prepared step, in order: `unitId`, `number`, `task`, `testPath`, `tests`, `addedPaths`, `startFiles` (snapshot for Reset), `passedAt`. |
+## Where code runs
 
-Deleting the topic deletes its workspace.
+| | Mac app, toolchain installed | Mac app, not installed | Browser development build |
+| --- | --- | --- | --- |
+| Go | Locally, sandboxed | Go Playground | Go Playground |
+| Other languages | Locally, sandboxed | Not runnable; Settings explains what to install | Not runnable |
 
-## Rules that keep stages composable
+The toolchain is found on the login shell's `PATH` plus common install folders. A language server counts as installed only if it answers `--version` (a rustup stub without the component does not).
 
-Model output is validated before it reaches the workspace; a stage that fails validation is not saved and the learner can retry.
+### Sandbox (`src-tauri/src/sandbox.rs`)
 
-- Learner paths match `^[a-z][a-z0-9_]{0,40}\.go$`, are not `prog.go`, and are not test files. At most 24 files, 60,000 characters each.
-- A stage may only **add** files. A suggested file at an existing path is dropped; the learner's file is never overwritten.
-- Stage *N* owns `stageNN_<slug>_test.go`. Its top-level functions must be named `TestStageNN…` or `stageNN…`, and it may not declare top-level types, variables or constants. Stages therefore never collide.
-- All files use `package main` (one package, so the Playground can build them together).
+Every run and every language server is started through `/usr/bin/sandbox-exec` with a generated profile:
 
-## Execution (phase 1)
+- **No internet.** Network is denied except localhost (so multi-process exercises work).
+- **Writes** only to the project folder (which holds `TMPDIR`) and the shared toolchain cache.
+- **No reading** file contents under the home folder except the project, the cache, and each toolchain's own install folder (plus profile `readPaths` such as `~/.rustup`).
+- **Clean environment.** The child gets a rebuilt environment (`PATH`, `HOME`, `TMPDIR`, profile variables); app secrets in the environment are not inherited.
+- **Limits.** 60 s per command, 120 s per run, 256 KB output per stream; the whole process group is killed on timeout or Stop.
+- **No arbitrary commands.** The webview sends a profile id and an action. Commands come only from profiles, and placeholders are expanded natively. An unknown placeholder or a program that is not an installed binary is refused. File paths must match the profile's patterns (relative, at most four segments, no dot segments) and are never written through symlinks.
 
-The Go Playground accepts a txtar body. When the first, unnamed file (`prog.go`) contains tests, it runs every `_test.go` file in the bundle and ignores `main()`. LearnForge sends the first stage's tests as `prog.go`, the other stage tests and all learner files as named sections. Without stages it runs the program normally. Verified against play.golang.org on 19 November 2026.
+`sandbox-exec` is deprecated by Apple but present and working on macOS 26.3. Step tests are model-written code; the sandbox limits what they can do, it does not make them trustworthy.
 
-Playground limits apply: one process, no outside network, a short time limit, simulated time and an in-memory filesystem. For chapters on replication, sharding, faults and consensus, nodes are goroutines connected by an in-process network. This makes fault injection repeatable. Real disk durability (`fsync`) and real processes need phase 2.
+### Language servers (`src-tauri/src/lsp.rs`, `src/services/lsp/client.ts`, `src/components/editor/languageServer.ts`)
 
-## Tutor context
+The server runs in the same sandbox, in the project folder. Messages are relayed between its stdio and the webview. A small LSP client keeps every project file open, sends edits in order before each request, and maps diagnostics, completion, hover, definition (switching files through the explorer), signature help, formatting and rename onto Monaco. Every project file has its own Monaco model, so cross-file features work. Servers stop when the workspace closes or the app quits.
 
-In project mode, chat requests receive the workspace (all learner files, path-labelled, capped at 24,000 characters) instead of a single editor buffer, plus the active stage task.
+## Data
 
-## Phase 2 proposal: local toolchain (not built)
+`CurriculumPlan.project` and `CurriculumUnit.projectStep` are optional; older plans are unchanged. The workspace (`ProjectWorkspace`, `src/services/learning/project.ts`) is stored per topic in IndexedDB (`learnforge-projects`) and mirrored to `~/Library/Application Support/com.oyetomi.learnforge/projects/<topic>` when it runs locally. Deleting the topic deletes the workspace.
 
-Run `go test -race ./...` with the learner's installed Go in a per-topic directory, so the project can use packages, `go.mod`, real files and several processes.
+## Rules that keep steps composable
 
-This executes code on the learner's computer, including model-written tests. Before building it:
+- A step may only add files; a proposed file at an existing path is dropped.
+- Step test files follow the profile's name (`stage03_leader_election_test.go`, `tests/stage03_leader_election.rs`, `test_stage03_leader_election.py`, `Stage03Test.java`) and are read-only in the editor.
+- Learners can add and delete their own files, in folders. Reset restores a file to how it was when the step began.
 
-- An explicit per-topic opt-in, showing the directory and the exact command.
-- Run only the installed `go` binary with a fixed argument list; no shell, no model-chosen commands.
-- A working directory under the app's data folder; refuse symlinks and paths outside it.
-- A wall-clock limit and output cap; kill the process group on cancel.
-- Network access is not blocked by `go test`; disclose this, or run inside `sandbox-exec` on macOS.
-- Stage tests remain model-written code. Show them before the first local run of each stage.
+## Verification · 19 November 2026
 
-## Limits
-
-- Phase 1 supports Go only. Other languages keep per-lesson exercises.
-- Steps and tests are AI-generated and can be wrong or too large. The learner can edit steps at approval and retry a stage's preparation.
-- Test passing shows the code meets those tests, not that the design is production-quality or that the learner has mastered the chapter.
+- Native (`cargo test`, 18 tests): sandbox denies home reads, outside writes, internet and inherited environment; kills runaway process groups; a Go step fails then passes locally; a sandboxed clangd completes struct fields and reports errors; the full IPC round trip (camelCase arguments, a Go module with a subfolder package, step test and program output) through Tauri's mock runtime.
+- Frontend (`npm test`): profiles, file rules, runtime choice, local-run aggregation and regressions, diagnostics parsing for Go/Rust/Python/C/Java/Ruby/Node, the LSP client, the explorer and step panel.
+- Browser, real editor and project hook, with the Mac bridge replaced by a mock forwarding to a real sandboxed clangd: `s->` offers the struct's fields, a type error is underlined live, hover shows the signature, F12 opens the definition in another folder, new files in folders and delete work.
+- Not yet exercised: the packaged Mac app end to end, and gopls (not installed on the test Mac).

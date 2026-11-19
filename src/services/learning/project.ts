@@ -2,8 +2,19 @@
  * Project mode: one codebase built across a curriculum (see docs/project-mode.md).
  *
  * Pure workspace logic. Stages only add files and tests; the learner's files
- * are never overwritten, and every run executes every stage's tests.
+ * are never overwritten, and every run executes every stage's tests. File
+ * rules come from the language profile (src/services/languages/profiles.json).
  */
+import {
+  isSourcePath,
+  profileFor,
+  stageTestFile,
+  starterSources,
+  supportsProjectMode,
+  type LanguageProfile,
+} from "../languages";
+
+export { supportsProjectMode };
 
 export interface ProjectPlan {
   title: string;
@@ -32,43 +43,49 @@ export interface ProjectStage {
 export interface ProjectWorkspace {
   schemaVersion: 1;
   trackId: string;
-  language: "go";
+  /** Language profile id. */
+  language: string;
   files: ProjectFile[];
   stages: ProjectStage[];
   updatedAt: number;
 }
 
-/** Phase 1 runs on the Go Playground, so project mode is Go-only. */
-export const PROJECT_LANGUAGES = ["go"] as const;
-export const supportsProjectMode = (language: string | null | undefined) =>
-  !!language && (PROJECT_LANGUAGES as readonly string[]).includes(language);
-
 export const MAX_PROJECT_FILES = 24;
 export const MAX_FILE_CHARS = 60_000;
 export const PROMPT_CONTEXT_CHARS = 24_000;
 
-const LEARNER_PATH = /^[a-z][a-z0-9_]{0,40}\.go$/;
+const profile = (language: string): LanguageProfile => {
+  const found = profileFor(language);
+  if (!found) throw new Error(`No language profile for ${language}.`);
+  return found;
+};
 
-/** A learner-owned source path: lowercase Go file, not a test, not prog.go. */
-export function validLearnerPath(path: string): boolean {
-  return LEARNER_PATH.test(path) && path !== "prog.go" && !path.endsWith("_test.go");
+/**
+ * A learner-owned source path for this language, never a step test.
+ * Go also reserves prog.go, the Playground's unnamed first file.
+ */
+export function validLearnerPath(path: string, language = "go"): boolean {
+  const p = profileFor(language);
+  return !!p && isSourcePath(p, path) && !(language === "go" && path === "prog.go");
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-export function stageTestPath(number: number, title: string): string {
-  const slug =
-    title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "")
-      .slice(0, 24)
-      .replace(/_+$/, "") || "step";
-  return `stage${pad(number)}_${slug}_test.go`;
+export function stageTestPath(number: number, title: string, language = "go"): string {
+  return stageTestFile(profile(language), number, title);
 }
 
-export function emptyWorkspace(trackId: string): ProjectWorkspace {
-  return { schemaVersion: 1, trackId, language: "go", files: [], stages: [], updatedAt: Date.now() };
+/** A new workspace starts with the language's starter sources (for example Rust's src/lib.rs). */
+export function emptyWorkspace(trackId: string, language = "go"): ProjectWorkspace {
+  const p = profileFor(language);
+  return {
+    schemaVersion: 1,
+    trackId,
+    language,
+    files: p ? starterSources(p).map((f) => ({ ...f })) : [],
+    stages: [],
+    updatedAt: Date.now(),
+  };
 }
 
 const goPackage = (source: string) => /^\s*(?:\/\/[^\n]*\n|\s)*package\s+(\w+)/.exec(source)?.[1];
@@ -77,9 +94,12 @@ const goPackage = (source: string) => /^\s*(?:\/\/[^\n]*\n|\s)*package\s+(\w+)/.
  * Check one stage's test file so stages compose without name collisions.
  * Returns a learner-readable problem, or null when the file is acceptable.
  */
-export function stageTestProblem(tests: string, number: number): string | null {
+export function stageTestProblem(tests: string, number: number, language = "go"): string | null {
   if (!tests.trim()) return "The step has no tests.";
   if (tests.length > MAX_FILE_CHARS) return "The step's tests are too long.";
+  // Go compiles every test file in the package together, so its stages need
+  // unique names. Other languages run each step's file on its own.
+  if (!profileFor(language)?.testNamePrefix) return null;
   if (goPackage(tests) !== "main") return "Step tests must use package main.";
   if (!/import\s*(?:\(\s*[^)]*"testing"[^)]*\)|"testing")/.test(tests))
     return "Step tests must import the testing package.";
@@ -101,19 +121,21 @@ export interface PreparedStage {
 }
 
 /** Validate a model's stage proposal. Throws with a retryable message. */
-export function parsePreparedStage(value: unknown, number: number): PreparedStage {
+export function parsePreparedStage(value: unknown, number: number, language = "go"): PreparedStage {
   const v = value as { task?: unknown; test_file?: unknown; new_files?: unknown };
   const text = (s: unknown, max: number): s is string =>
     typeof s === "string" && !!s.trim() && s.length <= max;
   if (!v || !text(v.task, 4000)) throw new Error("The project step had no task description. Retry.");
   if (typeof v.test_file !== "string") throw new Error("The project step had no tests. Retry.");
-  const problem = stageTestProblem(v.test_file, number);
+  const problem = stageTestProblem(v.test_file, number, language);
   if (problem) throw new Error(`${problem} Retry.`);
   const files: ProjectFile[] = [];
   for (const f of Array.isArray(v.new_files) ? v.new_files : []) {
     const path = typeof f?.path === "string" ? f.path.trim() : "";
     const content = typeof f?.content === "string" ? f.content : "";
-    if (!validLearnerPath(path) || content.length > MAX_FILE_CHARS || goPackage(content) !== "main") continue;
+    if (!validLearnerPath(path, language) || content.length > MAX_FILE_CHARS) continue;
+    // Root Go files share the tests' package; files in folders are other packages.
+    if (language === "go" && path.endsWith(".go") && !path.includes("/") && goPackage(content) !== "main") continue;
     if (!files.some((x) => x.path === path)) files.push({ path, content });
   }
   return { task: v.task.trim(), tests: v.test_file, files };
@@ -140,7 +162,7 @@ export function applyStage(
     unitId,
     number,
     task: prepared.task,
-    testPath: existing?.testPath ?? stageTestPath(number, unitTitle),
+    testPath: existing?.testPath ?? stageTestPath(number, unitTitle, ws.language),
     tests: prepared.tests,
     addedFiles: [...(existing?.addedFiles || []), ...added],
     startFiles: existing?.startFiles ?? ws.files,
@@ -161,9 +183,23 @@ export function updateFile(ws: ProjectWorkspace, path: string, content: string, 
 }
 
 export function addFile(ws: ProjectWorkspace, path: string, now = Date.now()): ProjectWorkspace {
-  if (!validLearnerPath(path) || ws.files.some((f) => f.path === path) || ws.files.length >= MAX_PROJECT_FILES)
+  if (!validLearnerPath(path, ws.language) || ws.files.some((f) => f.path === path) || ws.files.length >= MAX_PROJECT_FILES)
     return ws;
-  return { ...ws, files: [...ws.files, { path, content: "package main\n" }], updatedAt: now };
+  return { ...ws, files: [...ws.files, { path, content: starterContent(ws.language, path) }], updatedAt: now };
+}
+
+/** A new file's first line where the language needs one (Go's package clause). */
+function starterContent(language: string, path: string): string {
+  if (language !== "go" || !path.endsWith(".go")) return "";
+  const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+  const pkg = dir ? dir.slice(dir.lastIndexOf("/") + 1).replace(/[^a-z0-9_]/g, "") || "main" : "main";
+  return `package ${pkg}\n`;
+}
+
+/** Remove a file the learner created (never a step's test file). */
+export function removeFile(ws: ProjectWorkspace, path: string, now = Date.now()): ProjectWorkspace {
+  if (!ws.files.some((f) => f.path === path)) return ws;
+  return { ...ws, files: ws.files.filter((f) => f.path !== path), updatedAt: now };
 }
 
 /** Restore one file to how it was when the stage began, or to the stub the stage added. */
@@ -279,9 +315,10 @@ export function validWorkspace(value: unknown): value is ProjectWorkspace {
     !!w &&
     w.schemaVersion === 1 &&
     typeof w.trackId === "string" &&
-    w.language === "go" &&
+    typeof w.language === "string" &&
+    !!profileFor(w.language) &&
     Array.isArray(w.files) &&
-    w.files.every((f) => f && validLearnerPath(f.path) && typeof f.content === "string") &&
+    w.files.every((f) => f && validLearnerPath(f.path, w.language) && typeof f.content === "string") &&
     Array.isArray(w.stages) &&
     w.stages.every(
       (s) =>

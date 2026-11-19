@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
+mod languages;
+mod lsp;
 mod narration;
+mod project;
+mod sandbox;
 mod secrets;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -164,11 +168,13 @@ fn speech_is_speaking() -> bool {
     }
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-    tauri::Builder::default()
+/// Add the app's plugins, state and commands to a builder (tests pass Tauri's mock builder).
+pub fn configure<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
+    builder
         .plugin(tauri_plugin_http::init())
         .manage(narration::NarrationRequests::default())
+        .manage(project::Runs::default())
+        .manage(lsp::Servers::default())
         .invoke_handler(tauri::generate_handler![
             voice_start_recording,
             voice_poll_recording,
@@ -184,7 +190,93 @@ pub fn run() {
             secrets::secret_store_available,
             secrets::secret_get,
             secrets::secret_set,
+            project::language_profiles,
+            project::project_sync,
+            project::project_exec,
+            project::project_cancel,
+            lsp::lsp_start,
+            lsp::lsp_send,
+            lsp::lsp_stop,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running learnforge tauri application");
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    configure(tauri::Builder::default())
+        .build(tauri::generate_context!())
+        .expect("error while building learnforge tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                lsp::stop_all(&tauri::Manager::state::<lsp::Servers>(app));
+            }
+        });
+}
+
+/// End-to-end through Tauri's IPC layer: command names, camelCase arguments
+/// and response shapes exactly as the webview sends and receives them.
+#[cfg(test)]
+mod ipc_tests {
+    use serde_json::{json, Value};
+    use tauri::ipc::{CallbackFn, InvokeBody};
+    use tauri::test::{get_ipc_response, mock_context, noop_assets, MockRuntime, INVOKE_KEY};
+    use tauri::webview::InvokeRequest;
+    use tauri::Manager;
+
+    fn invoke(webview: &tauri::WebviewWindow<MockRuntime>, cmd: &str, args: Value) -> Result<Value, Value> {
+        get_ipc_response(
+            webview,
+            InvokeRequest {
+                cmd: cmd.into(),
+                callback: CallbackFn(0),
+                error: CallbackFn(1),
+                url: "tauri://localhost".parse().unwrap(),
+                body: InvokeBody::Json(args),
+                headers: Default::default(),
+                invoke_key: INVOKE_KEY.to_string(),
+            },
+        )
+        .map(|body| body.deserialize::<Value>().unwrap())
+    }
+
+    #[test]
+    fn project_commands_round_trip_through_ipc() {
+        let mut context = mock_context(noop_assets());
+        context.config_mut().identifier = format!("com.oyetomi.learnforge.ipctest{}", std::process::id());
+        let app = super::configure(tauri::test::mock_builder()).build(context).unwrap();
+        let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default()).build().unwrap();
+        let data_dir = app.path().app_data_dir().unwrap();
+        assert!(data_dir.ends_with(format!("com.oyetomi.learnforge.ipctest{}", std::process::id())));
+
+        assert_eq!(invoke(&webview, "secret_store_available", json!({})), Ok(json!(cfg!(target_os = "macos"))));
+        let profiles = invoke(&webview, "language_profiles", json!({})).unwrap();
+        let go = profiles.as_array().unwrap().iter().find(|p| p["id"] == "go").cloned().unwrap();
+        assert!(go["runnable"].is_boolean() && go["testFile"].is_string());
+
+        let files = json!([
+            { "path": "go.mod", "content": "module learnforge\n\ngo 1.21\n" },
+            { "path": "main.go", "content": "package main\n\nimport (\n\t\"fmt\"\n\t\"learnforge/wordcount\"\n)\n\nfunc main() { fmt.Println(wordcount.Count(\"a b c\")) }\n" },
+            { "path": "wordcount/count.go", "content": "package wordcount\n\nimport \"strings\"\n\nfunc Count(s string) int { return len(strings.Fields(s)) }\n" },
+            { "path": "stage01_count_test.go", "content": "package main\n\nimport (\n\t\"testing\"\n\t\"learnforge/wordcount\"\n)\n\nfunc TestStage01Count(t *testing.T) {\n\tif wordcount.Count(\"a b\") != 2 {\n\t\tt.Fatal(\"want 2\")\n\t}\n}\n" }
+        ]);
+        let dir = invoke(&webview, "project_sync", json!({ "trackId": "ipc-test", "profileId": "go", "files": files })).unwrap();
+        assert!(dir.as_str().unwrap().ends_with("projects/ipc-test"));
+        let refused = invoke(&webview, "project_sync", json!({ "trackId": "ipc-test", "profileId": "go", "files": [{ "path": "../x.go", "content": "" }] }));
+        assert!(refused.is_err());
+
+        if go["runnable"] == true {
+            let test = invoke(&webview, "project_exec", json!({
+                "trackId": "ipc-test", "profileId": "go", "action": "test",
+                "stage": { "number": 1, "testFile": "stage01_count_test.go" }, "requestId": "r1"
+            }))
+            .unwrap();
+            assert_eq!(test["exitCode"], 0, "{test}");
+            let run = invoke(&webview, "project_exec", json!({
+                "trackId": "ipc-test", "profileId": "go", "action": "run", "stage": null, "requestId": "r2"
+            }))
+            .unwrap();
+            assert_eq!(run["steps"][0]["stdout"].as_str().unwrap().trim(), "3", "{run}");
+        }
+        let _ = std::fs::remove_dir_all(&data_dir);
+        let _ = std::fs::remove_dir_all(app.path().app_cache_dir().unwrap());
+    }
 }

@@ -12,6 +12,7 @@ import {
   recordPlacementAttempt,
 } from "../../services/learning/placement";
 import { prepareCurriculumUnit } from "../../services/ai/curriculumOutline";
+import { profileFor } from "../../services/languages";
 import type { PlacementAttempt } from "../../types";
 import { MarkdownView } from "../chat/MarkdownView";
 import "./curriculum.css";
@@ -356,7 +357,7 @@ export function CurriculumApproval({
                       <strong>{module.title}</strong>
                       <small>{module.outcome}</small>
                     </div>
-                    <em>{module.units.length} outcomes</em>
+                    <em>{module.units.length} {module.units.length === 1 ? "outcome" : "outcomes"}</em>
                     <ChevronDown
                       className="curriculum-disclosure-icon"
                       size={15}
@@ -461,8 +462,9 @@ export function CurriculumApproval({
                             <p>{unit.outcome}</p>
                             <small>Evidence: {unit.assessment}</small>
                             {plan.project && (
-                              <small className="curriculum-project-step">
-                                {unit.projectStep ? `Project step: ${unit.projectStep}` : "No project step (concepts only)"}
+                              <small className={`curriculum-project-step ${unit.projectStep ? "" : "is-none"}`}>
+                                <span>Project</span>
+                                {unit.projectStep || "No code in this unit: concepts only"}
                               </small>
                             )}
                           </>
@@ -489,11 +491,14 @@ export function CurriculumApproval({
             <aside className="curriculum-scope-card">
               {plan.project && (
                 <>
-                  <h4>The project · {draft.language}</h4>
-                  <p><strong>{plan.project.title}</strong></p>
+                  <h4>The project</h4>
+                  <p className="curriculum-project-title">
+                    {plan.project.title}
+                    <span>{profileFor(draft.language)?.name ?? draft.language}</span>
+                  </p>
                   <p>{plan.project.summary}</p>
                   <p className="curriculum-project-note">
-                    One codebase grows across the units. Each step adds tests; earlier steps’ tests keep running. Runs on the Go Playground.
+                    One codebase grows across the units. Each step adds tests; earlier steps’ tests keep running. Runs on this Mac with your installed toolchain, inside a sandbox{draft.language === "go" ? " (or on the Go Playground if Go isn’t installed)" : ""}.
                   </p>
                 </>
               )}
