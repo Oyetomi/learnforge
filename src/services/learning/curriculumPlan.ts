@@ -11,6 +11,8 @@ export interface CurriculumUnit {
   assessment: string;
   prerequisiteIds: string[];
   sourceSectionIds?: string[];
+  /** Project mode: what this unit adds to the shared project; absent for concept-only units. */
+  projectStep?: string;
 }
 export interface CurriculumModule {
   id: string;
@@ -28,6 +30,8 @@ export interface CurriculumPlan {
   exclusions: string[];
   modules: CurriculumModule[];
   sourceDocument?: import("./pdfContents").CurriculumSource;
+  /** Project mode: one project built across the units (docs/project-mode.md). */
+  project?: import("./project").ProjectPlan;
   approvedAt?: number;
   /** Legacy tracks are wrapped without rewriting their lessons or evidence. */
   legacy?: boolean;
@@ -84,6 +88,13 @@ export function validCurriculumPlan(value: unknown): value is CurriculumPlan {
       units.length
   )
     return false;
+  if (p.project !== undefined) {
+    if (!p.project || !text(p.project.title) || !text(p.project.summary)) return false;
+    // An emptied step means a concepts-only unit; at least one step must remain.
+    if (units.some((u) => u.projectStep !== undefined && (typeof u.projectStep !== "string" || u.projectStep.length > 1200)))
+      return false;
+    if (!units.some((u) => u.projectStep?.trim())) return false;
+  } else if (units.some((u) => u.projectStep !== undefined)) return false;
   if (p.sourceDocument) {
     const source = p.sourceDocument;
     if (!text(source.name) || (source.pageCount !== undefined && (!Number.isInteger(source.pageCount) || source.pageCount < 1)) ||

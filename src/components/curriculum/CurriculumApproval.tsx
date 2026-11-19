@@ -411,6 +411,29 @@ export function CurriculumApproval({
                                 }
                               />
                             </label>
+                            {unit.projectStep !== undefined && (
+                              <label>
+                                Project step
+                                <textarea
+                                  value={unit.projectStep}
+                                  aria-label={`Project step for ${unit.title}`}
+                                  maxLength={1200}
+                                  onChange={(e) =>
+                                    changePlan({
+                                      ...plan,
+                                      modules: plan.modules.map((m) => ({
+                                        ...m,
+                                        units: m.units.map((u) =>
+                                          u.id === unit.id
+                                            ? { ...u, projectStep: e.target.value }
+                                            : u
+                                        ),
+                                      })),
+                                    })
+                                  }
+                                />
+                              </label>
+                            )}
                             <label>
                               How understanding is checked
                               <textarea
@@ -437,6 +460,11 @@ export function CurriculumApproval({
                           <>
                             <p>{unit.outcome}</p>
                             <small>Evidence: {unit.assessment}</small>
+                            {plan.project && (
+                              <small className="curriculum-project-step">
+                                {unit.projectStep ? `Project step: ${unit.projectStep}` : "No project step (concepts only)"}
+                              </small>
+                            )}
                           </>
                         )}
                         <small>
@@ -459,6 +487,16 @@ export function CurriculumApproval({
               ))}
             </section>
             <aside className="curriculum-scope-card">
+              {plan.project && (
+                <>
+                  <h4>The project · {draft.language}</h4>
+                  <p><strong>{plan.project.title}</strong></p>
+                  <p>{plan.project.summary}</p>
+                  <p className="curriculum-project-note">
+                    One codebase grows across the units. Each step adds tests; earlier steps’ tests keep running. Runs on the Go Playground.
+                  </p>
+                </>
+              )}
               <h4>The destination</h4>
               {editing ? (
                 <label>

@@ -43,6 +43,12 @@
   cursor: pointer;
   color-scheme: dark;
 }
+.curriculum-brief .goal-field-help {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+  margin-top: -2px;
+}
 @media (forced-colors: active) {
   .curriculum-brief select { appearance: auto; -webkit-appearance: auto; background-image: none; padding-right: 14px; }
 }
@@ -1118,4 +1124,12 @@
 .curriculum-next-read:focus-visible { outline: 2px solid rgb(var(--color-accent) / .55); outline-offset: 2px; }
 @media (max-width: 720px) {
   .curriculum-next { flex-direction: column; align-items: stretch; }
+}
+.curriculum-project-step {
+  display: block;
+  color: var(--c-accent-text);
+}
+.curriculum-project-note {
+  color: var(--muted);
+  font-size: 11px;
 }

@@ -1,0 +1,298 @@
+/**
+ * Project mode: one codebase built across a curriculum (see docs/project-mode.md).
+ *
+ * Pure workspace logic. Stages only add files and tests; the learner's files
+ * are never overwritten, and every run executes every stage's tests.
+ */
+
+export interface ProjectPlan {
+  title: string;
+  summary: string;
+}
+
+export interface ProjectFile {
+  path: string;
+  content: string;
+}
+
+export interface ProjectStage {
+  unitId: string;
+  /** 1-based, in preparation order. */
+  number: number;
+  task: string;
+  testPath: string;
+  tests: string;
+  /** Stub files this stage added, as first added (paths that did not exist before). */
+  addedFiles: ProjectFile[];
+  /** The learner's files when the stage started, for Reset. */
+  startFiles: ProjectFile[];
+  passedAt?: number;
+}
+
+export interface ProjectWorkspace {
+  schemaVersion: 1;
+  trackId: string;
+  language: "go";
+  files: ProjectFile[];
+  stages: ProjectStage[];
+  updatedAt: number;
+}
+
+/** Phase 1 runs on the Go Playground, so project mode is Go-only. */
+export const PROJECT_LANGUAGES = ["go"] as const;
+export const supportsProjectMode = (language: string | null | undefined) =>
+  !!language && (PROJECT_LANGUAGES as readonly string[]).includes(language);
+
+export const MAX_PROJECT_FILES = 24;
+export const MAX_FILE_CHARS = 60_000;
+export const PROMPT_CONTEXT_CHARS = 24_000;
+
+const LEARNER_PATH = /^[a-z][a-z0-9_]{0,40}\.go$/;
+
+/** A learner-owned source path: lowercase Go file, not a test, not prog.go. */
+export function validLearnerPath(path: string): boolean {
+  return LEARNER_PATH.test(path) && path !== "prog.go" && !path.endsWith("_test.go");
+}
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+export function stageTestPath(number: number, title: string): string {
+  const slug =
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 24)
+      .replace(/_+$/, "") || "step";
+  return `stage${pad(number)}_${slug}_test.go`;
+}
+
+export function emptyWorkspace(trackId: string): ProjectWorkspace {
+  return { schemaVersion: 1, trackId, language: "go", files: [], stages: [], updatedAt: Date.now() };
+}
+
+const goPackage = (source: string) => /^\s*(?:\/\/[^\n]*\n|\s)*package\s+(\w+)/.exec(source)?.[1];
+
+/**
+ * Check one stage's test file so stages compose without name collisions.
+ * Returns a learner-readable problem, or null when the file is acceptable.
+ */
+export function stageTestProblem(tests: string, number: number): string | null {
+  if (!tests.trim()) return "The step has no tests.";
+  if (tests.length > MAX_FILE_CHARS) return "The step's tests are too long.";
+  if (goPackage(tests) !== "main") return "Step tests must use package main.";
+  if (!/import\s*(?:\(\s*[^)]*"testing"[^)]*\)|"testing")/.test(tests))
+    return "Step tests must import the testing package.";
+  const stage = `Stage${pad(number)}`;
+  const names = [...tests.matchAll(/^func\s+(?:\([^)]*\)\s*)?(\w+)/gm)].map((m) => m[1]);
+  if (!names.some((n) => n.startsWith(`Test${stage}`)))
+    return `Step tests must include at least one Test${stage}… function.`;
+  const bad = names.find((n) => !n.startsWith(`Test${stage}`) && !n.startsWith(`stage${pad(number)}`));
+  if (bad) return `Test helper "${bad}" must be prefixed stage${pad(number)} so steps do not collide.`;
+  if (/^(?:type|var|const)\b/m.test(tests))
+    return "Step tests may not declare top-level types, variables or constants.";
+  return null;
+}
+
+export interface PreparedStage {
+  task: string;
+  tests: string;
+  files: ProjectFile[];
+}
+
+/** Validate a model's stage proposal. Throws with a retryable message. */
+export function parsePreparedStage(value: unknown, number: number): PreparedStage {
+  const v = value as { task?: unknown; test_file?: unknown; new_files?: unknown };
+  const text = (s: unknown, max: number): s is string =>
+    typeof s === "string" && !!s.trim() && s.length <= max;
+  if (!v || !text(v.task, 4000)) throw new Error("The project step had no task description. Retry.");
+  if (typeof v.test_file !== "string") throw new Error("The project step had no tests. Retry.");
+  const problem = stageTestProblem(v.test_file, number);
+  if (problem) throw new Error(`${problem} Retry.`);
+  const files: ProjectFile[] = [];
+  for (const f of Array.isArray(v.new_files) ? v.new_files : []) {
+    const path = typeof f?.path === "string" ? f.path.trim() : "";
+    const content = typeof f?.content === "string" ? f.content : "";
+    if (!validLearnerPath(path) || content.length > MAX_FILE_CHARS || goPackage(content) !== "main") continue;
+    if (!files.some((x) => x.path === path)) files.push({ path, content });
+  }
+  return { task: v.task.trim(), tests: v.test_file, files };
+}
+
+/**
+ * Add a prepared stage. New files are added only at unused paths; an existing
+ * learner file always wins. Re-preparing a unit's stage replaces that stage's
+ * tests but keeps its number.
+ */
+export function applyStage(
+  ws: ProjectWorkspace,
+  unitId: string,
+  unitTitle: string,
+  prepared: PreparedStage,
+  now = Date.now()
+): ProjectWorkspace {
+  const existing = ws.stages.find((s) => s.unitId === unitId);
+  const number = existing?.number ?? ws.stages.length + 1;
+  const taken = new Set(ws.files.map((f) => f.path));
+  const room = Math.max(0, MAX_PROJECT_FILES - ws.files.length);
+  const added = prepared.files.filter((f) => !taken.has(f.path)).slice(0, room);
+  const stage: ProjectStage = {
+    unitId,
+    number,
+    task: prepared.task,
+    testPath: existing?.testPath ?? stageTestPath(number, unitTitle),
+    tests: prepared.tests,
+    addedFiles: [...(existing?.addedFiles || []), ...added],
+    startFiles: existing?.startFiles ?? ws.files,
+  };
+  return {
+    ...ws,
+    files: [...ws.files, ...added],
+    stages: existing
+      ? ws.stages.map((s) => (s.unitId === unitId ? stage : s))
+      : [...ws.stages, stage],
+    updatedAt: now,
+  };
+}
+
+export function updateFile(ws: ProjectWorkspace, path: string, content: string, now = Date.now()): ProjectWorkspace {
+  if (!ws.files.some((f) => f.path === path)) return ws;
+  return { ...ws, files: ws.files.map((f) => (f.path === path ? { ...f, content } : f)), updatedAt: now };
+}
+
+export function addFile(ws: ProjectWorkspace, path: string, now = Date.now()): ProjectWorkspace {
+  if (!validLearnerPath(path) || ws.files.some((f) => f.path === path) || ws.files.length >= MAX_PROJECT_FILES)
+    return ws;
+  return { ...ws, files: [...ws.files, { path, content: "package main\n" }], updatedAt: now };
+}
+
+/** Restore one file to how it was when the stage began, or to the stub the stage added. */
+export function resetFileToStageStart(ws: ProjectWorkspace, unitId: string, path: string, now = Date.now()): ProjectWorkspace {
+  const stage = ws.stages.find((s) => s.unitId === unitId);
+  const original =
+    stage?.startFiles.find((f) => f.path === path) ?? stage?.addedFiles.find((f) => f.path === path);
+  return original ? updateFile(ws, path, original.content, now) : ws;
+}
+
+/** Record a fully passing run for the active unit's stage. */
+export function markStagePassed(ws: ProjectWorkspace, unitId: string, now = Date.now()): ProjectWorkspace {
+  if (!ws.stages.some((s) => s.unitId === unitId)) return ws;
+  return {
+    ...ws,
+    stages: ws.stages.map((s) => (s.unitId === unitId ? { ...s, passedAt: s.passedAt ?? now } : s)),
+    updatedAt: now,
+  };
+}
+
+/**
+ * Go Playground txtar body. With stages, the first stage's tests are the
+ * unnamed prog.go, which puts the Playground in test mode: it then runs every
+ * _test.go file and ignores main(). Without stages, the program runs normally.
+ */
+export function goPlaygroundBody(ws: ProjectWorkspace): string {
+  const section = (path: string, content: string) => `-- ${path} --\n${content.replace(/\n?$/, "\n")}`;
+  const sources = ws.files.map((f) => section(f.path, f.content));
+  if (!ws.stages.length) return sources.join("");
+  const [first, ...others] = [...ws.stages].sort((a, b) => a.number - b.number);
+  return [
+    first.tests.replace(/\n?$/, "\n"),
+    ...others.map((s) => section(s.testPath, s.tests)),
+    ...sources,
+  ].join("");
+}
+
+/** Which stage a Go test belongs to, from its required TestStageNN prefix. */
+export function stageOfTest(name: string): number | null {
+  const m = /^TestStage(\d{2})/.exec(name);
+  return m ? Number(m[1]) : null;
+}
+
+export interface SuiteSummary {
+  total: number;
+  passed: number;
+  /** Earlier stages whose tests fail: a regression. */
+  brokenEarlier: number[];
+  currentPassed: boolean;
+  allPassed: boolean;
+}
+
+export function summarizeSuite(
+  results: { name: string; passed: boolean }[] | undefined,
+  currentStage: number | undefined,
+  exitCode: number
+): SuiteSummary {
+  const list = results || [];
+  const broken = new Set<number>();
+  let currentSeen = false,
+    currentFailed = false;
+  for (const r of list) {
+    const stage = stageOfTest(r.name.split("/")[0]);
+    if (stage === null) continue;
+    if (stage === currentStage) {
+      currentSeen = true;
+      if (!r.passed) currentFailed = true;
+    } else if (!r.passed && currentStage !== undefined && stage < currentStage) broken.add(stage);
+  }
+  const passed = list.filter((r) => r.passed).length;
+  return {
+    total: list.length,
+    passed,
+    brokenEarlier: [...broken].sort((a, b) => a - b),
+    currentPassed: currentSeen && !currentFailed,
+    allPassed: exitCode === 0 && list.length > 0 && passed === list.length,
+  };
+}
+
+/** Path-labelled files for the tutor, bounded so large projects stay within context. */
+export function projectPromptContext(ws: ProjectWorkspace, activeUnitId?: string, max = PROMPT_CONTEXT_CHARS): string {
+  const stage = ws.stages.find((s) => s.unitId === activeUnitId);
+  const parts: string[] = [];
+  if (stage) parts.push(`Current project step ${stage.number}: ${stage.task}\nTests for this step are in ${stage.testPath}.`);
+  let used = parts.join("").length;
+  let omitted = 0;
+  for (const f of ws.files) {
+    const block = `// ==== ${f.path} ====\n${f.content}`;
+    if (used + block.length > max) {
+      omitted++;
+      continue;
+    }
+    parts.push(block);
+    used += block.length;
+  }
+  if (omitted) parts.push(`// ${omitted} more file(s) omitted for length.`);
+  return parts.join("\n\n");
+}
+
+/** Bounded file listing for preparing the next step. */
+export function filesForPrompt(ws: ProjectWorkspace, max = PROMPT_CONTEXT_CHARS): { path: string; content: string; truncated?: boolean }[] {
+  let used = 0;
+  return ws.files.map((f) => {
+    const room = Math.max(0, max - used);
+    used += Math.min(room, f.content.length);
+    return f.content.length > room ? { path: f.path, content: f.content.slice(0, room), truncated: true } : f;
+  });
+}
+
+export function validWorkspace(value: unknown): value is ProjectWorkspace {
+  const w = value as ProjectWorkspace;
+  return (
+    !!w &&
+    w.schemaVersion === 1 &&
+    typeof w.trackId === "string" &&
+    w.language === "go" &&
+    Array.isArray(w.files) &&
+    w.files.every((f) => f && validLearnerPath(f.path) && typeof f.content === "string") &&
+    Array.isArray(w.stages) &&
+    w.stages.every(
+      (s) =>
+        s &&
+        typeof s.unitId === "string" &&
+        Number.isInteger(s.number) &&
+        typeof s.task === "string" &&
+        typeof s.tests === "string" &&
+        typeof s.testPath === "string" &&
+        Array.isArray(s.addedFiles) &&
+        Array.isArray(s.startFiles)
+    )
+  );
+}

@@ -93,6 +93,18 @@ export async function executeGoPlayground(code: string, tests?: string, timeoutM
   const body = tests?.trim()
     ? `${withGoPackage(tests)}\n-- learner.go --\n${withGoPackage(code)}`
     : withGoPackage(code);
+  return runGoPlaygroundBody(body, !!tests?.trim(), timeoutMs, start);
+}
+
+/**
+ * Run a project workspace (several files, every stage's tests) on the Go
+ * Playground. See goPlaygroundBody for how test mode is selected.
+ */
+export async function executeGoProject(body: string, hasTests: boolean, timeoutMs = 20000): Promise<ExecutionResult> {
+  return runGoPlaygroundBody(body, hasTests, timeoutMs, performance.now());
+}
+
+async function runGoPlaygroundBody(body: string, hasTests: boolean, timeoutMs: number, start: number): Promise<ExecutionResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -106,7 +118,7 @@ export async function executeGoPlayground(code: string, tests?: string, timeoutM
     const events: { Kind: string; Message: string }[] = Array.isArray(data.Events) ? data.Events : [];
     const stdout = events.filter(e => e.Kind === 'stdout').map(e => e.Message).join('').trim();
     let stderr = [data.Errors, events.filter(e => e.Kind === 'stderr').map(e => e.Message).join(''), data.VetErrors].filter(Boolean).join('\n').trim();
-    const testResults = tests ? parseGoTestOutput(stdout, stderr) : undefined;
+    const testResults = hasTests ? parseGoTestOutput(stdout, stderr) : undefined;
     const exitCode = data.Errors || data.TestsFailed > 0 || testResults?.some(t => !t.passed) ? 1 : data.Status;
     if (exitCode !== 0 && !stderr && !stdout) stderr = `Program exited with status ${exitCode}.`;
     return {

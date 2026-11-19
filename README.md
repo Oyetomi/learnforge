@@ -59,6 +59,7 @@ LearnForge is a local-first learning app for technical and nontechnical subjects
 | Study notes | Export study material as Markdown or Anki-compatible data. |
 | Optional revisits | Offer an earlier idea within the same topic. Off by default, integrated into learning rather than a daily-review modal. |
 | Optional coding | Syntax-highlighted examples and an editor with explicit execution providers. |
+| Project mode (Go) | Choose a programming language when you set a goal, and optionally build one project across the whole curriculum. Each unit adds a tested step to the same codebase; earlier steps’ tests keep running. [How it works and its limits](docs/project-mode.md). |
 
 ![Worked percentage tutoring with a comparison table](docs/images/question-review.jpg)
 

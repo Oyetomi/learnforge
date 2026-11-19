@@ -55,6 +55,7 @@ import "./curriculum.css";
 import "./new-topic-layout.css";
 
 import { requestsDiagnosticFirst } from "../../services/learning/diagnosticIntent";
+import { supportsProjectMode } from "../../services/learning/project";
 import { loadGoalDraft as savedDraft, saveGoalDraft, GOAL_DRAFT_KEY as draftKey, STARTING_POINTS as startingPoints, STARTING_POINT_LABELS } from "../../services/learning/goalDraft";
 
 interface Props {
@@ -67,6 +68,22 @@ interface Props {
   /** The goal was already written on the start screen: begin scoping immediately. */
   autoScope?: boolean;
 }
+const CODE_LANGUAGES: [string, string][] = [
+  ["", "Decide from my goal"],
+  ["go", "Go"],
+  ["python", "Python"],
+  ["rust", "Rust"],
+  ["typescript", "TypeScript"],
+  ["javascript", "JavaScript"],
+  ["java", "Java"],
+  ["cpp", "C++"],
+  ["csharp", "C#"],
+  ["c", "C"],
+  ["ruby", "Ruby"],
+  ["swift", "Swift"],
+  ["sql", "SQL"],
+];
+
 export const NewTopicModal: React.FC<Props> = ({
   isOpen,
   onClose,
@@ -86,6 +103,10 @@ export const NewTopicModal: React.FC<Props> = ({
       "I’m not sure — help me find my starting point"
   );
   const [diagnosticChoice, setDiagnosticChoice] = useState<boolean | null>(null);
+  // An explicit language makes the plan a coding plan in that language.
+  const [codeLanguage, setCodeLanguage] = useState("");
+  const [buildProject, setBuildProject] = useState(false);
+  const projectAvailable = supportsProjectMode(codeLanguage);
   const diagnosticFirst = diagnosticChoice ?? requestsDiagnosticFirst(`${interest} ${destination}`);
   const [referenceName, setReferenceName] = useState(""),
     [referenceContent, setReferenceContent] = useState("");
@@ -514,6 +535,7 @@ export const NewTopicModal: React.FC<Props> = ({
           topic: goal,
           interest: goal,
           signal: controller.signal,
+          ...(codeLanguage ? { language: codeLanguage } : {}),
           references: [...(pdfSelection?.references || []), ...activeExaSources.map(s => s.reference)],
           referenceMaterial: !pdfSelection && referenceContent.trim()
             ? {
@@ -536,6 +558,7 @@ export const NewTopicModal: React.FC<Props> = ({
                   priorConcepts: matchedPrior,
                   boundaryEvidence,
                   sourceDocument: pdfSelection?.source,
+                  project: buildProject && projectAvailable,
                 },
                 updateStatus
               )
@@ -869,6 +892,38 @@ export const NewTopicModal: React.FC<Props> = ({
                     <option key={point} value={point}>{STARTING_POINT_LABELS[index]}</option>
                   ))}
                 </select>
+                <label htmlFor="goal-code-language">
+                  Code practice
+                </label>
+                <select
+                  id="goal-code-language"
+                  value={codeLanguage}
+                  onChange={(e) => setCodeLanguage(e.target.value)}
+                  disabled={busy}
+                  aria-describedby="goal-code-language-help"
+                >
+                  {CODE_LANGUAGES.map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+                <small id="goal-code-language-help" className="goal-field-help">
+                  {codeLanguage ? "Coding practice uses this language." : "LearnForge adds code only when your goal asks for it."}
+                </small>
+                {scope === "curriculum" && codeLanguage && (
+                  <label className="diagnostic-first-choice">
+                    <input type="checkbox" checked={buildProject && projectAvailable} disabled={busy || !projectAvailable}
+                      aria-label="Build one project across the course" aria-describedby="goal-project-help"
+                      onChange={e => setBuildProject(e.target.checked)} />
+                    <span>
+                      <strong>Build one project across the course</strong>
+                      <small id="goal-project-help">
+                        {projectAvailable
+                          ? "Each unit adds a tested step to the same codebase. Earlier steps’ tests keep running."
+                          : "Available for Go for now. Other languages get an exercise per lesson."}
+                      </small>
+                    </span>
+                  </label>
+                )}
                 <label className="diagnostic-first-choice">
                   <input type="checkbox" checked={diagnosticFirst} disabled={busy}
                     aria-label="Check my starting point before teaching" aria-describedby="starting-point-check-help"

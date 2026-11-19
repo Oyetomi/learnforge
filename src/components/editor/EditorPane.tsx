@@ -23,6 +23,8 @@ import {
 } from "../../services/sandbox/api";
 import { handleTabNavigation } from "../layout/keyboard";
 import { editorShortcutApplies } from "./keyboard";
+import { ProjectStepPanel } from "./ProjectStepPanel";
+import type { ProjectWorkspaceController } from "./useProjectWorkspace";
 
 interface EditorPaneProps {
   code: string;
@@ -38,6 +40,8 @@ interface EditorPaneProps {
   onNextMilestone?: () => void;
   canAdvance?: boolean;
   onClose?: () => void;
+  /** Project mode: several files carried across lessons, plus the step panel. */
+  project?: ProjectWorkspaceController;
 }
 
 const fileNames: Record<string, string> = {
@@ -167,13 +171,19 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   onNextMilestone,
   canAdvance = false,
   onClose,
+  project,
 }) => {
+  const projectMode = !!project?.enabled;
+  const [newFile, setNewFile] = useState<string | null>(null);
+  const [newFileError, setNewFileError] = useState("");
   const paneRef = useRef<HTMLElement>(null);
   const executedCode = useRef<string | null>(null);
+  // In project mode a run covers every file, so compare the whole project.
+  const runKey = project?.enabled ? `project:${project.revision}` : code;
   const resultIsStale =
     executionResult !== null &&
     executedCode.current !== null &&
-    code !== executedCode.current;
+    runKey !== executedCode.current;
   const [reducedMotion, setReducedMotion] = useState(
     () => window.matchMedia("(prefers-reduced-motion: reduce)").matches
   );
@@ -265,7 +275,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   }, [milestoneId, language]);
   useEffect(() => {
     if (isRunning) {
-      executedCode.current = code;
+      executedCode.current = runKey;
       setOutputOpen(true);
       setActiveBottomTab("console");
     }
@@ -323,7 +333,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                   setConfirmReset(false);
                 }}
                 ref={confirmRef}
-                aria-label="Confirm reset to starter code"
+                aria-label={projectMode ? "Confirm reset of this file" : "Confirm reset to starter code"}
               >
                 <Check size={15} />
               </button>
@@ -351,12 +361,12 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             <button
               ref={resetRef}
               className="reset-button"
-              disabled={isRunning}
+              disabled={isRunning || (projectMode && !project!.canResetActive)}
               onClick={() => {
                 resetFocus.current = true;
                 setConfirmReset(true);
               }}
-              title="Reset to starter code"
+              title={projectMode ? "Reset this file to how it was when this step began" : "Reset to starter code"}
             >
               <RotateCcw size={14} />
               <span>Reset</span>
@@ -382,7 +392,58 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           </button>
         </div>
       </div>
+      {projectMode && <ProjectStepPanel project={project!} />}
       <div className="editor-filebar">
+        {projectMode ? (
+          <div className="project-file-tabs" role="tablist" aria-label="Project files">
+            {project!.tabs.map((tab) => (
+              <button
+                key={tab.path}
+                type="button"
+                role="tab"
+                aria-selected={tab.path === project!.activePath}
+                className={`project-file-tab ${tab.readOnly ? "is-test" : ""}`}
+                title={tab.readOnly ? `${tab.path} · step tests (read-only)` : tab.path}
+                onClick={() => project!.selectFile(tab.path)}
+              >
+                {tab.path}
+              </button>
+            ))}
+            {newFile === null ? (
+              <button
+                type="button"
+                className="project-file-tab"
+                aria-label="Add a file"
+                title="Add a file"
+                disabled={!project!.loaded}
+                onClick={() => { setNewFile(""); setNewFileError(""); }}
+              >
+                +
+              </button>
+            ) : (
+              <form
+                className="project-file-add"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const path = newFile.trim().replace(/(\.go)?$/, ".go");
+                  if (project!.addFile(path)) setNewFile(null);
+                  else setNewFileError("Use a new lowercase name such as replication.go (not a test file).");
+                }}
+              >
+                <input
+                  autoFocus
+                  value={newFile}
+                  aria-label="New file name"
+                  aria-invalid={!!newFileError}
+                  title={newFileError || "Lowercase Go file name"}
+                  placeholder="replication.go"
+                  onChange={(e) => { setNewFile(e.target.value); setNewFileError(""); }}
+                  onKeyDown={(e) => { if (e.key === "Escape") setNewFile(null); }}
+                />
+              </form>
+            )}
+          </div>
+        ) : (
         <span className="editor-file">
           <span className="file-language-icon">
             {(
@@ -417,6 +478,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             }
           />
         </span>
+        )}
         <span className="file-language-label">
           {languageNames[language] || language}
         </span>
@@ -425,6 +487,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
         <Editor
           height="100%"
           language={getMonacoLanguage(language)}
+          {...(projectMode ? { path: `project/${project!.activePath || "empty.go"}` } : {})}
           value={code}
           onChange={(value) => {
             resetFocus.current = false;
@@ -489,7 +552,10 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             lineNumbersMinChars: 3,
             folding: true,
             contextmenu: true,
-            ariaLabel: `${languageNames[language] || language} code editor`,
+            ariaLabel: projectMode
+              ? `${project!.activePath || "Project"} ${project!.activeReadOnly ? "(read-only tests)" : ""}`.trim()
+              : `${languageNames[language] || language} code editor`,
+            readOnly: projectMode && (project!.activeReadOnly || !project!.tabs.length),
           }}
           loading={
             <div className="editor-loading">

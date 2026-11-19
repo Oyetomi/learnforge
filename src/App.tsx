@@ -31,11 +31,13 @@ import { CurriculumWorkspace } from "./components/curriculum/CurriculumWorkspace
 import { PdfReadingCompanion } from "./components/reading/PdfReadingCompanion";
 import { PdfBookRail } from "./components/reading/PdfBookRail";
 import { deleteReadingData } from "./services/learning/readingStore";
+import { deleteProject } from "./services/learning/projectStore";
 import { prepareCurriculumUnit } from "./services/ai/curriculumOutline";
 import { NewTopicModal } from "./components/curriculum/NewTopicModal";
 import { LearningStart } from "./components/curriculum/LearningStart";
 import { openTrackSession } from "./services/learning/sessionLoader";
 import { useCodeDrafts } from "./components/editor/useCodeDrafts";
+import { useProjectWorkspace } from "./components/editor/useProjectWorkspace";
 import { useTopics } from "./components/curriculum/useTopics";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { interpretAssistantReply, readinessCard } from "./services/learning/assistantReply";
@@ -134,6 +136,10 @@ export default function App() {
     () => window.innerWidth < 1200
   );
   const codeDrafts = useCodeDrafts();
+  const project = useProjectWorkspace(selectedTrack, activeMilestone);
+  /** What the tutor sees of the learner's code: the whole project in project mode. */
+  const codeForTutor = () =>
+    !isCodeWorkspaceOpen ? "" : project.enabled ? project.promptContext() : editorCode;
   const executionId = useRef(0);
   const milestoneIndex = Math.max(
     0,
@@ -204,6 +210,10 @@ export default function App() {
   }, [isSidebarOpen, isCompactLayout]);
 
   const handleChangeCode = (code: string) => {
+    if (project.enabled) {
+      project.updateActive(code);
+      return;
+    }
     setEditorCode(code);
     if (activeMilestone) codeDrafts.update(activeMilestone.id, code);
   };
@@ -289,6 +299,7 @@ export default function App() {
     if (deleting.has(currentTrackId)) { handleStopStreaming(); setWorkspaceView("curriculum"); }
     // Await removal of original PDFs and bookmarks before reporting permanent deletion.
     for (const id of ids) if (tracks.find(t=>t.id===id)?.curriculum?.sourceDocument) await deleteReadingData(id);
+    for (const id of ids) if (tracks.find(t=>t.id===id)?.curriculum?.project) await deleteProject(id);
     const erased = ids.flatMap((id) =>
       deleteTopicData(db, tracks.find((t) => t.id === id) || { id, title: "" })
     );
@@ -353,8 +364,7 @@ export default function App() {
       internal: options?.internal,
       tutoring_for_check_id: options?.answerTutoringFor,
       tutoring_attempt_key: options?.tutoringAttemptKey,
-      code_snippet:
-        isCodeWorkspaceOpen && editorCode.trim() ? editorCode : undefined,
+      code_snippet: codeForTutor().trim() ? codeForTutor() : undefined,
     });
 
     const updatedMessages = [...(options?.history || messages), userMsg];
@@ -433,7 +443,7 @@ export default function App() {
             ]
           : updatedMessages,
         activeMilestone || undefined,
-        isCodeWorkspaceOpen ? editorCode : "",
+        codeForTutor(),
         {
           activeCheck: activeCheck || undefined,
           abortSignal: controller.signal,
@@ -809,6 +819,24 @@ export default function App() {
     if (isRunningCode || !currentSession?.language) return;
     const runId = ++executionId.current;
     setIsRunningCode(true);
+    if (project.enabled) {
+      try {
+        const run = await project.run();
+        if (runId !== executionId.current) return;
+        setExecutionResult(run.result);
+        if (run.stageJustPassed && !isStreaming)
+          void handleSendMessage(
+            `All project tests pass for step ${run.stageNumber} and every earlier step. Review the learner's implementation in the project files against this unit's ideas: name one thing the design does well and one trade-off or failure mode the tests do not cover, then check understanding with one applied question. Passing tests alone does not approve readiness.`,
+            { internal: true }
+          );
+      } catch (err: any) {
+        if (runId !== executionId.current) return;
+        setExecutionResult({ stdout: "", stderr: err?.message || "Execution error occurred", exitCode: 1, durationMs: 0, error: err?.message });
+      } finally {
+        if (runId === executionId.current) setIsRunningCode(false);
+      }
+      return;
+    }
     try {
       const { executeCode } = await import("./services/sandbox");
       const res = await executeCode(
@@ -846,6 +874,11 @@ export default function App() {
 
   // Reset Code to starter
   const handleResetCode = () => {
+    if (project.enabled) {
+      project.resetActive();
+      setExecutionResult(null);
+      return;
+    }
     if (activeMilestone) {
       handleChangeCode(activeMilestone.starter_code);
       setExecutionResult(null);
@@ -1203,7 +1236,8 @@ export default function App() {
                       }
                     >
                       <EditorPane
-                        code={editorCode}
+                        code={project.enabled ? project.activeContent : editorCode}
+                        project={project.enabled ? project : undefined}
                         onChangeCode={handleChangeCode}
                         language={language}
                         onRunCode={handleRunCode}
@@ -1212,7 +1246,7 @@ export default function App() {
                         canAdvance={activeMilestone?.status === "completed" && approvedLessonIds(messages).has(activeMilestone.id)}
                         executionResult={executionResult}
                         onClearConsole={() => setExecutionResult(null)}
-                        draftStatus={codeDrafts.status}
+                        draftStatus={project.enabled ? project.status : codeDrafts.status}
                         milestoneId={activeMilestone?.id}
                         onNextMilestone={
                           nextMilestone ? handleNextMilestone : undefined
