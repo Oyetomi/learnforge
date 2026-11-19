@@ -3,10 +3,12 @@ fn main() {
     {
         println!("cargo:rerun-if-changed=src/macos_speech.m");
         println!("cargo:rerun-if-changed=src/macos_narration_key.m");
+        println!("cargo:rerun-if-changed=src/macos_secrets.m");
         println!("cargo:rerun-if-changed=Info.plist");
         cc::Build::new()
             .file("src/macos_speech.m")
             .file("src/macos_narration_key.m")
+            .file("src/macos_secrets.m")
             .flag("-fobjc-arc")
             .flag("-mmacosx-version-min=11.0")
             .flag("-Wno-deprecated-declarations")

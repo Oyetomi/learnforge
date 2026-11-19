@@ -89,7 +89,7 @@ ElevenLabs keys are stored in macOS Keychain. Device narration is available with
 
 ## AI connections and code execution
 
-Settings includes presets for OpenAI, Gemini, Anthropic, OpenRouter, Ollama, a local proxy, and custom OpenAI-compatible endpoints. Endpoint compatibility, available models, context limits, and account access depend on the service. Model presets are editable; a listed model is not a guarantee that your account can use it. The ChatGPT/Codex subscription bridge is a **development-server integration**, not packaged Mac authentication.
+Settings includes presets for OpenAI, Gemini, Anthropic, OpenRouter, Ollama, a local proxy, and custom OpenAI-compatible endpoints. Endpoint compatibility, available models, context limits, and account access depend on the service. Model presets are editable; a listed model is not a guarantee that your account can use it. The ChatGPT/Codex subscription bridge is a **development-server integration**, not packaged Mac authentication. In the Mac app, built-in providers are called through the native HTTP client; a custom endpoint on another host is called from the web view, so it must allow cross-origin (CORS) requests.
 
 The optional editor identifies the execution provider before Run:
 
@@ -104,7 +104,7 @@ Remote execution sends code and tests to its provider. Runtime, package, network
 
 ## Data and privacy
 
-Topics, lessons, answers and review cards are stored in a local database (IndexedDB) on this device; records from earlier versions move there automatically the first time the app opens. Saved PDFs and reading places use a separate local database. Smaller preferences use local storage. AI connection keys and Exa settings are stored locally; ElevenLabs uses macOS Keychain. Do not assume all credentials have OS-backed encryption or that local-first means offline.
+Topics, lessons, answers and review cards are stored in a local database (IndexedDB) on this device; records from earlier versions move there automatically the first time the app opens. Saved PDFs and reading places use a separate local database. Smaller preferences use local storage. In the Mac app, the AI connection key, the Exa key and the ElevenLabs key are stored in macOS Keychain; keys saved by earlier versions move there the first time the app opens. The AI and Exa keys are loaded into the app while it runs, because requests to those services come from the app itself. In the browser development build, and if Keychain access is refused, the AI and Exa keys stay in local storage. Local-first does not mean offline.
 
 Requests to a configured AI service send the context needed for the activity, which can include your answers and supplied source excerpts. Exa grounding, cloud code execution, and cloud narration contact their respective services when used. No user API key is included with the app.
 

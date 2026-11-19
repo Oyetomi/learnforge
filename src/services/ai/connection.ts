@@ -6,6 +6,7 @@
  * so prompts and parsing are unchanged. The local proxy stays the default.
  */
 import { AI_CONFIG } from "./types";
+import { cachedSecret, hydrateSecret, keychainHolds, storeSecret } from "../secrets";
 
 export type ProviderId =
   | "proxy"
@@ -215,7 +216,11 @@ export function loadAIConnection(): AIConnection {
     return {
       provider: base.provider,
       url: (typeof saved.url === "string" && saved.url.trim()) || base.url,
-      apiKey: typeof saved.apiKey === "string" ? saved.apiKey : "",
+      // A plaintext key only remains here before the move to Keychain, or
+      // after a failed Keychain write; it is the newer value in both cases.
+      apiKey:
+        (typeof saved.apiKey === "string" && saved.apiKey) ||
+        (keychainHolds("ai-connection") ? cachedSecret("ai-connection") : ""),
       model,
       fallbackModel,
     };
@@ -225,8 +230,42 @@ export function loadAIConnection(): AIConnection {
 }
 
 export function saveAIConnection(connection: AIConnection) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(connection));
+  if (!keychainHolds("ai-connection")) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(connection));
+  } else {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...connection, apiKey: "" }));
+    storeSecret("ai-connection", connection.apiKey, () => {
+      const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+      if (current && typeof current === "object")
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...current, apiKey: connection.apiKey }));
+    });
+  }
   if (typeof window !== "undefined")
+    window.dispatchEvent(new CustomEvent(AI_CONNECTION_EVENT));
+}
+
+/** Move the AI key out of local storage into macOS Keychain (Mac app). */
+export async function hydrateAIKey(): Promise<void> {
+  if (typeof localStorage === "undefined") return;
+  const readSaved = () => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+      return saved && typeof saved === "object" ? (saved as Record<string, unknown>) : null;
+    } catch {
+      return null;
+    }
+  };
+  const moved = await hydrateSecret("ai-connection", {
+    read: () => {
+      const key = readSaved()?.apiKey;
+      return typeof key === "string" ? key : "";
+    },
+    strip: () => {
+      const saved = readSaved();
+      if (saved) localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...saved, apiKey: "" }));
+    },
+  });
+  if (moved && typeof window !== "undefined")
     window.dispatchEvent(new CustomEvent(AI_CONNECTION_EVENT));
 }
 
@@ -250,6 +289,32 @@ export function buildHeaders(
 
 const isTauri = () =>
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+// Hosts of the built-in presets; they match the native HTTP allow-list in
+// src-tauri/capabilities/default.json. Other hosts are custom endpoints.
+const PRESET_HOSTS = new Set(
+  PROVIDER_PRESETS.flatMap((p) => {
+    try {
+      return /^https?:/.test(p.url) ? [new URL(p.url).hostname] : [];
+    } catch {
+      return [];
+    }
+  }).concat(["localhost", "127.0.0.1"])
+);
+
+/**
+ * True when a native request failure should be retried with the webview's
+ * fetch: only for custom hosts the native allow-list cannot include. Those
+ * endpoints must allow CORS. A built-in provider that fails natively is a real
+ * network error and is not sent a second time.
+ */
+export function needsWebviewFetch(url: string): boolean {
+  try {
+    return !PRESET_HOSTS.has(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
 
 let tauriFetch: typeof fetch | null = null;
 async function resolveFetch(): Promise<typeof fetch> {
@@ -309,7 +374,12 @@ export async function aiFetch(
       response = await doFetch(connection.url, request);
     } catch (err) {
       // Custom URLs outside the desktop allow-list: retry with the webview's fetch.
-      if (doFetch === fetch || (err as Error)?.name === "AbortError") throw err;
+      if (
+        doFetch === fetch ||
+        (err as Error)?.name === "AbortError" ||
+        !needsWebviewFetch(connection.url)
+      )
+        throw err;
       response = await fetch(connection.url, request);
     }
   } catch (err) {
@@ -496,10 +566,14 @@ export async function fetchProviderModels(
 
   try {
     const doFetch = await resolveFetch();
-    const res = await doFetch(modelsUrl, {
-      method: "GET",
-      headers: buildHeaders(connection),
-    });
+    const init: RequestInit = { method: "GET", headers: buildHeaders(connection) };
+    let res: Response;
+    try {
+      res = await doFetch(modelsUrl, init);
+    } catch (err) {
+      if (doFetch === fetch || !needsWebviewFetch(modelsUrl)) throw err;
+      res = await fetch(modelsUrl, init);
+    }
     if (!res.ok) return baseModels;
     const data = await res.json();
     const list: Array<{
@@ -557,6 +631,9 @@ export interface ChatGptCodexStatus {
   source?: string;
 }
 
+// The dev bridge accepts POSTs only as JSON (see isSameOriginRequest in vite.config.ts).
+const BRIDGE_JSON = { "Content-Type": "application/json" };
+
 export async function getChatGptCodexStatus(): Promise<ChatGptCodexStatus> {
   if (!subscriptionBridgeAvailable()) return { authenticated: false };
   try {
@@ -572,7 +649,7 @@ export async function startChatGptCodexLogin(): Promise<{
   authUrl: string;
 }> {
   requireSubscriptionBridge();
-  const res = await fetch("/api/chatgpt-codex/login", { method: "POST" });
+  const res = await fetch("/api/chatgpt-codex/login", { method: "POST", headers: BRIDGE_JSON });
   if (!res.ok) {
     throw new Error("Could not start ChatGPT OAuth flow.");
   }
@@ -597,7 +674,7 @@ export async function submitChatGptCodexCallback(
 
 export async function logoutChatGptCodex(): Promise<void> {
   if (!subscriptionBridgeAvailable()) return;
-  await fetch("/api/chatgpt-codex/logout", { method: "POST" }).catch(() => {});
+  await fetch("/api/chatgpt-codex/logout", { method: "POST", headers: BRIDGE_JSON }).catch(() => {});
 }
 
 // ── Context window sizes (for the session telemetry ring) ──

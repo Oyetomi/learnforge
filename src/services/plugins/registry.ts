@@ -2,10 +2,12 @@
  * LearnForge Extensible Plugin Registry.
  *
  * Manages local-first learning plugins (starting with Exa Neural Search & Web
- * Reader). All plugin states and API keys live strictly in device-local storage
- * (`learnforge:plugins-v1`) and are never hardcoded or exposed to zero-origin
+ * Reader). Plugin settings live in device-local storage (`learnforge:plugins-v1`).
+ * In the Mac app the Exa key moves to macOS Keychain; elsewhere it stays in
+ * local storage. Keys are never hardcoded or exposed to zero-origin
  * simulation sandboxes.
  */
+import { cachedSecret, hydrateSecret, keychainHolds, storeSecret } from "../secrets";
 
 export type PluginId = "exa";
 
@@ -96,8 +98,13 @@ export function loadPluginsState(): PluginsState {
     const raw = localStorage.getItem(PLUGINS_STORAGE_KEY);
     if (!raw) return { exa: { ...DEFAULT_EXA_CONFIG } };
     const parsed = JSON.parse(raw) as Record<string, unknown>;
+    let exa = parsed?.exa;
+    // A plaintext key remains only before the Keychain move or after a failed
+    // Keychain write; it is the newer value in both cases.
+    if (keychainHolds("exa") && exa && typeof exa === "object" && !(exa as { apiKey?: unknown }).apiKey)
+      exa = { ...(exa as object), apiKey: cachedSecret("exa") };
     return {
-      exa: validateExaConfig(parsed?.exa),
+      exa: validateExaConfig(exa),
     };
   } catch {
     return { exa: { ...DEFAULT_EXA_CONFIG } };
@@ -108,7 +115,15 @@ export function savePluginsState(next: PluginsState): PluginsState {
   const validated: PluginsState = {
     exa: validateExaConfig(next.exa),
   };
-  localStorage.setItem(PLUGINS_STORAGE_KEY, JSON.stringify(validated));
+  if (!keychainHolds("exa")) {
+    localStorage.setItem(PLUGINS_STORAGE_KEY, JSON.stringify(validated));
+  } else {
+    localStorage.setItem(
+      PLUGINS_STORAGE_KEY,
+      JSON.stringify({ ...validated, exa: { ...validated.exa, apiKey: "" } })
+    );
+    storeSecret("exa", validated.exa.apiKey, () => writeStoredExaKey(validated.exa.apiKey));
+  }
   if (typeof window !== "undefined") {
     window.dispatchEvent(
       new CustomEvent<PluginsState>(PLUGINS_CHANGED_EVENT, {
@@ -117,6 +132,38 @@ export function savePluginsState(next: PluginsState): PluginsState {
     );
   }
   return validated;
+}
+
+function readStoredPlugins(): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PLUGINS_STORAGE_KEY) || "null");
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredExaKey(apiKey: string): void {
+  const stored = readStoredPlugins();
+  const exa = stored?.exa;
+  if (!stored || !exa || typeof exa !== "object") return;
+  localStorage.setItem(PLUGINS_STORAGE_KEY, JSON.stringify({ ...stored, exa: { ...exa, apiKey } }));
+}
+
+/** Move the Exa key out of local storage into macOS Keychain (Mac app). */
+export async function hydrateExaKey(): Promise<void> {
+  if (typeof localStorage === "undefined") return;
+  const moved = await hydrateSecret("exa", {
+    read: () => {
+      const exa = readStoredPlugins()?.exa as { apiKey?: unknown } | undefined;
+      return typeof exa?.apiKey === "string" ? exa.apiKey : "";
+    },
+    strip: () => writeStoredExaKey(""),
+  });
+  if (moved && typeof window !== "undefined")
+    window.dispatchEvent(
+      new CustomEvent<PluginsState>(PLUGINS_CHANGED_EVENT, { detail: loadPluginsState() })
+    );
 }
 
 export function getExaPluginConfig(): ExaPluginConfig {

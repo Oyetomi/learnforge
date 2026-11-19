@@ -1,11 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "LearnForge main window. HTTP is limited to the supported AI providers code execution services, and local services.",
+  "description": "LearnForge main window. The native HTTP client is limited to the built-in AI providers, code execution services, Exa, and local services. A custom AI endpoint outside this list is called with the webview fetch instead, so it must allow CORS; the CSP connect-src stays open to https for that reason.",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "shell:default",
     {
       "identifier": "http:default",
       "allow": [

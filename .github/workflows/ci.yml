@@ -29,3 +29,36 @@ jobs:
 
       - name: Verify TypeScript and production build
         run: npm run build
+
+  native:
+    name: Native (Rust) tests and lint
+    # The native shell links macOS frameworks (Speech, AVFoundation, Security)
+    # through Objective-C bridges, so it is checked on macOS.
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache Cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # tauri::generate_context! needs frontendDist to exist at compile time.
+      # The web build is verified by the other job; a placeholder is enough here.
+      - name: Create placeholder frontend bundle
+        run: mkdir -p dist && echo '<!doctype html><title>LearnForge</title>' > dist/index.html
+
+      - name: Lint
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Test
+        working-directory: src-tauri
+        run: cargo test

@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import http from 'http';
 import crypto from 'crypto';
+import { isSameOriginRequest } from './src/services/ai/devBridgeGuard';
 
 const CODEX_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
 const CODEX_AUTH_URL = 'https://auth.openai.com/oauth/authorize';
@@ -177,6 +178,14 @@ function chatgptCodexOAuthPlugin(): Plugin {
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify(payload));
         };
+
+        // Only the app's own page may use the stored ChatGPT session. Other
+        // sites open in the browser while the dev server runs could otherwise
+        // send "simple" cross-site requests here (no CORS preflight) and spend
+        // the signed-in account.
+        if (!isSameOriginRequest(req)) {
+          return sendJson(403, { error: 'Cross-origin requests are not allowed.' });
+        }
 
         const readJsonBody = (): Promise<Record<string, unknown>> =>
           new Promise((resolve) => {

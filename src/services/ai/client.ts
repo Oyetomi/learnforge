@@ -1,11 +1,13 @@
 /**
  * LearnForge Resilient AI Streaming Client
  *
- * Connects to the local proxy at http://127.0.0.1:10532/v1/chat/completions (OpenAI SSE format).
+ * Streams OpenAI-compatible chat completions (SSE) from the provider chosen in
+ * Settings. Every request goes through `aiFetch()` in ./connection.
  * Features:
  * - Real-time Server-Sent Events (SSE) parsing with chunk-boundary buffering.
  * - Native AbortController support for instant cancellation.
- * - Automatic fallback recovery (gemini-3.8-flash-high -> gemini-4-argon).
+ * - Automatic fallback to the connection's fallback model when the primary
+ *   model fails before emitting tokens.
  * - Socratic prompt injection with active milestone and live editor code awareness.
  * - Zero external dependencies.
  */
@@ -195,12 +197,12 @@ async function streamSingleModelAttempt(
 }
 
 /**
- * Streams a Socratic dialogue turn from the local proxy.
+ * Streams a Socratic dialogue turn from the configured AI provider.
  *
  * Automatically:
  * 1. Constructs the Socratic System Prompt tailored with active milestone & live code.
- * 2. Attempts streaming with the primary model (gemini-3.8-flash-high).
- * 3. If primary model fails before emitting tokens, automatically falls back to secondary model (gemini-4-argon).
+ * 2. Attempts streaming with the connection's primary model.
+ * 3. If the primary model fails before emitting tokens, falls back to the connection's fallback model.
  * 4. Yields incremental tokens through `options.onChunk`.
  * 5. Returns full accumulated text and triggers `options.onComplete`.
  */
