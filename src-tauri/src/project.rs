@@ -282,12 +282,20 @@ pub async fn project_exec<R: Runtime>(
         let cache = cache_dir(&app)?;
         let commands = match action.as_str() {
             "run" => profile.run.clone(),
-            "test" => {
+            "test" | "check" => {
                 let s = stage.as_ref().ok_or("A test run needs a step.")?;
                 if !profile.is_test(&s.test_file) || !dir.join(&s.test_file).is_file() || s.number == 0 || s.number > 99 {
                     return Err("That step's test file is not in the project.".to_string());
                 }
-                profile.test.clone()
+                if action == "check" {
+                    // Languages without a compile step have nothing to check.
+                    if profile.check.is_empty() {
+                        return Ok(ExecResult { steps: vec![], exit_code: 0, timed_out: false, duration_ms: 0 });
+                    }
+                    profile.check.clone()
+                } else {
+                    profile.test.clone()
+                }
             }
             _ => return Err("Unknown action.".into()),
         };

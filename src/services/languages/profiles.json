@@ -60,6 +60,16 @@
     "testGuide": "One Go test file: package main, import \"testing\". Every top-level function is named TestStage{nn}… or stage{nn}… (helpers). No top-level types, variables or constants.",
     "lspProbe": [
       "version"
+    ],
+    "check": [
+      [
+        "{go}",
+        "test",
+        "-count=1",
+        "-run",
+        "^$",
+        "./..."
+      ]
     ]
   },
   {
@@ -120,6 +130,13 @@
     "testGuide": "One unittest file: `import unittest`, test classes subclass unittest.TestCase, test methods start with test_. Import the learner's modules by name.",
     "lspProbe": [
       "--version"
+    ],
+    "check": [
+      [
+        "{python}",
+        "-c",
+        "import {testStem}"
+      ]
     ]
   },
   {
@@ -189,6 +206,17 @@
     "testGuide": "One integration test file: `use learnforge_project::*;` (or specific module paths), then #[test] functions.",
     "lspProbe": [
       "--version"
+    ],
+    "check": [
+      [
+        "{cargo}",
+        "test",
+        "--offline",
+        "--quiet",
+        "--no-run",
+        "--test",
+        "{testStem}"
+      ]
     ]
   },
   {
@@ -244,7 +272,8 @@
     "testGuide": "One node:test file: `import { test } from \"node:test\"; import assert from \"node:assert/strict\";` and import the learner's modules with .ts extensions.",
     "lspProbe": [
       "--version"
-    ]
+    ],
+    "check": []
   },
   {
     "id": "javascript",
@@ -295,6 +324,13 @@
     "testGuide": "One node:test file: `import { test } from \"node:test\"; import assert from \"node:assert/strict\";`.",
     "lspProbe": [
       "--version"
+    ],
+    "check": [
+      [
+        "{node}",
+        "--check",
+        "{testFile}"
+      ]
     ]
   },
   {
@@ -356,6 +392,17 @@
     "testGuide": "One C file with its own main() that includes the learner's headers, checks behavior with assert or explicit checks, prints what failed, and returns nonzero on failure. It is compiled with every .c file except main.c.",
     "lspProbe": [
       "--version"
+    ],
+    "check": [
+      [
+        "{cc}",
+        "-std=c17",
+        "-Wall",
+        "-o",
+        "{tmp}/check{nn}",
+        "{testFile}",
+        "{sources:.c!main.c}"
+      ]
     ]
   },
   {
@@ -417,6 +464,17 @@
     "testGuide": "One C++ file with its own main() that includes the learner's headers, checks behavior, prints what failed, and returns nonzero on failure. It is compiled with every .cpp file except main.cpp.",
     "lspProbe": [
       "--version"
+    ],
+    "check": [
+      [
+        "{cxx}",
+        "-std=c++20",
+        "-Wall",
+        "-o",
+        "{tmp}/check{nn}",
+        "{testFile}",
+        "{sources:.cpp!main.cpp}"
+      ]
     ]
   },
   {
@@ -475,6 +533,15 @@
     "testGuide": "One class Stage{nn}Test with public static void main(String[] args) that checks behavior, prints what failed, and calls System.exit(1) on failure. No JUnit.",
     "lspProbe": [
       "--version"
+    ],
+    "check": [
+      [
+        "{javac}",
+        "-d",
+        "{tmp}/check",
+        "{testFile}",
+        "{sources:.java!Main.java}"
+      ]
     ]
   },
   {
@@ -528,6 +595,13 @@
     "testGuide": "One Minitest file: `require \"minitest/autorun\"`, require_relative the learner's files, and a class inheriting Minitest::Test with test_ methods.",
     "lspProbe": [
       "--version"
+    ],
+    "check": [
+      [
+        "{ruby}",
+        "-c",
+        "{testFile}"
+      ]
     ]
   }
 ]

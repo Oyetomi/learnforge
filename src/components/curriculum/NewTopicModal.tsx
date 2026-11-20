@@ -70,6 +70,30 @@ interface Props {
   /** The goal was already written on the start screen: begin scoping immediately. */
   autoScope?: boolean;
 }
+const PRACTICE_CHOICES = [
+  { id: "auto", title: "Questions", detail: "Explanations and checks; code only if your goal needs it." },
+  { id: "code", title: "Code exercises", detail: "A short tested exercise per lesson." },
+  { id: "project", title: "Build a project", detail: "One codebase grows through the course." },
+] as const;
+
+/** A programming language named in the goal ("…using Go", "in Rust"), if any. */
+function languageInGoal(text: string): string {
+  const t = ` ${text.toLowerCase()} `;
+  const found: [RegExp, string][] = [
+    [/\b(golang|go)\b(?! (to|back|through|over|into|deeper|on)\b)/, "go"],
+    [/\bpython\b/, "python"],
+    [/\brust\b/, "rust"],
+    [/\btypescript\b/, "typescript"],
+    [/\bjavascript\b|\bnode(\.js)?\b/, "javascript"],
+    [/\bjava\b/, "java"],
+    [/\bc\+\+|\bcpp\b/, "cpp"],
+    [/\bc#|\bcsharp\b/, "csharp"],
+    [/\bruby\b/, "ruby"],
+    [/\bswift\b/, "swift"],
+  ];
+  return found.find(([re]) => re.test(t))?.[1] ?? "";
+}
+
 const CODE_LANGUAGES: [string, string][] = [
   ["", "Decide from my goal"],
   ["go", "Go"],
@@ -105,10 +129,28 @@ export const NewTopicModal: React.FC<Props> = ({
       "I’m not sure — help me find my starting point"
   );
   const [diagnosticChoice, setDiagnosticChoice] = useState<boolean | null>(null);
-  // An explicit language makes the plan a coding plan in that language.
-  const [codeLanguage, setCodeLanguage] = useState("");
-  const [buildProject, setBuildProject] = useState(false);
+  // How the learner practises. A chosen language makes the plan a coding plan
+  // in that language; "project" also builds one codebase across the course.
+  const [practice, setPractice] = useState<"auto" | "code" | "project">("auto");
+  const [practiceLanguage, setPracticeLanguage] = useState(() => {
+    try {
+      return localStorage.getItem("learnforge:practice-language") || "";
+    } catch {
+      return "";
+    }
+  });
+  const chosenLanguage = practiceLanguage || languageInGoal(interest) || "python";
+  const codeLanguage = practice === "auto" ? "" : chosenLanguage;
+  const buildProject = practice === "project";
   const projectAvailable = supportsProjectMode(codeLanguage);
+  const choosePracticeLanguage = (id: string) => {
+    setPracticeLanguage(id);
+    try {
+      localStorage.setItem("learnforge:practice-language", id);
+    } catch {
+      /* Preference only. */
+    }
+  };
   const [languageStatus, setLanguageStatus] = useState<LanguageStatus[] | null | undefined>(undefined);
   useEffect(() => {
     if (!codeLanguage) return;
@@ -886,7 +928,7 @@ export const NewTopicModal: React.FC<Props> = ({
                       aria-label={value === "curriculum" ? "Full curriculum" : "Focused lesson"}
                       aria-pressed={scope === value}
                       disabled={busy}
-                      onClick={() => { setScope(value); if (value === "focused") setUsePdfContents(false); }}
+                      onClick={() => { setScope(value); if (value === "focused") { setUsePdfContents(false); if (practice === "project") setPractice("code"); } }}
                     >
                       <strong>{value === "curriculum"
                         ? "Full curriculum"
@@ -895,6 +937,48 @@ export const NewTopicModal: React.FC<Props> = ({
                     </button>
                   ))}
                 </div>
+                <span className="goal-group-label" id="goal-practice-label">How you’ll practise</span>
+                <div className="curriculum-scope-options goal-practice-options" role="group" aria-labelledby="goal-practice-label">
+                  {PRACTICE_CHOICES.map((choice) => {
+                    const unavailable = choice.id === "project" && scope !== "curriculum";
+                    return (
+                      <button
+                        key={choice.id}
+                        type="button"
+                        aria-pressed={practice === choice.id}
+                        disabled={busy || unavailable}
+                        title={unavailable ? "Projects span a full curriculum. Choose Full curriculum first." : undefined}
+                        onClick={() => setPractice(choice.id)}
+                      >
+                        <strong>{choice.title}</strong>
+                        <span>{unavailable ? "Needs a full curriculum." : choice.detail}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {practice !== "auto" && (
+                  <>
+                    <label htmlFor="goal-code-language">Language</label>
+                    <select
+                      id="goal-code-language"
+                      value={chosenLanguage}
+                      onChange={(e) => choosePracticeLanguage(e.target.value)}
+                      disabled={busy}
+                      aria-describedby="goal-code-language-help"
+                    >
+                      {codeLanguages
+                        .filter(([value]) => value && (practice !== "project" || supportsProjectMode(value)))
+                        .map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                    </select>
+                    <small id="goal-code-language-help" className="goal-field-help">
+                      {practice === "project"
+                        ? projectRunHelp
+                        : `Each lesson can include a short ${profileFor(codeLanguage)?.name ?? codeLanguage} exercise with tests.`}
+                    </small>
+                  </>
+                )}
                 <details className="goal-outcome-details">
                   <summary>Add a specific outcome <span>Optional</span></summary>
                 <label htmlFor="goal-destination">
@@ -922,38 +1006,6 @@ export const NewTopicModal: React.FC<Props> = ({
                     <option key={point} value={point}>{STARTING_POINT_LABELS[index]}</option>
                   ))}
                 </select>
-                <label htmlFor="goal-code-language">
-                  Code practice
-                </label>
-                <select
-                  id="goal-code-language"
-                  value={codeLanguage}
-                  onChange={(e) => setCodeLanguage(e.target.value)}
-                  disabled={busy}
-                  aria-describedby="goal-code-language-help"
-                >
-                  {codeLanguages.map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-                <small id="goal-code-language-help" className="goal-field-help">
-                  {codeLanguage
-                    ? `Lessons, exercises and the project use ${profileFor(codeLanguage)?.name ?? codeLanguage}.`
-                    : "LearnForge adds code only when your goal asks for it."}
-                </small>
-                {scope === "curriculum" && codeLanguage && (
-                  <label className="diagnostic-first-choice">
-                    <input type="checkbox" checked={buildProject && projectAvailable} disabled={busy || !projectAvailable}
-                      aria-label="Build one project across the course" aria-describedby="goal-project-help"
-                      onChange={e => setBuildProject(e.target.checked)} />
-                    <span>
-                      <strong>Build one project across the course</strong>
-                      <small id="goal-project-help">
-                        {projectRunHelp}
-                      </small>
-                    </span>
-                  </label>
-                )}
                 <label className="diagnostic-first-choice">
                   <input type="checkbox" checked={diagnosticFirst} disabled={busy}
                     aria-label="Check my starting point before teaching" aria-describedby="starting-point-check-help"

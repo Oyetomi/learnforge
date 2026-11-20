@@ -43,7 +43,17 @@ export async function syncLocalProject(ws: ProjectWorkspace): Promise<string> {
 const transcript = (r: ExecResult) =>
   r.steps.map((s) => [cleanOutput(s.stdout).trim(), cleanOutput(s.stderr).trim()].filter(Boolean).join("\n")).join("\n\n");
 
-async function exec(ws: ProjectWorkspace, action: "run" | "test", stage?: { number: number; testFile: string }) {
+/**
+ * Compile a step's tests against the workspace without running anything.
+ * Returns null when they compile, else the compiler's output.
+ */
+export async function checkLocalStage(ws: ProjectWorkspace, number: number, testFile: string): Promise<string | null> {
+  await syncLocalProject(ws);
+  const r = await exec(ws, "check", { number, testFile });
+  return r.exitCode === 0 ? null : transcript(r).slice(-4000) || `The compile check exited with status ${r.exitCode}.`;
+}
+
+async function exec(ws: ProjectWorkspace, action: "run" | "test" | "check", stage?: { number: number; testFile: string }) {
   const requestId = `run-${Date.now().toString(36)}-${++runCounter}`;
   activeRun = requestId;
   try {

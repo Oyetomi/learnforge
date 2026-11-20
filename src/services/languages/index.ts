@@ -18,6 +18,8 @@ export interface LanguageProfile {
   entry: string;
   run: string[][];
   test: string[][];
+  /** Compile-only check of a step's tests (empty: nothing to compile). */
+  check?: string[][];
   lsp: string[][];
   lspInstall: string;
   sourceGuide: string;

@@ -15,6 +15,7 @@ import {
   summarizeSuite,
   supportsProjectMode,
   updateFile,
+  type PreparedStage,
   type ProjectWorkspace,
   type SuiteSummary,
 } from "../../services/learning/project";
@@ -200,7 +201,17 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     setPreparation({ unitId, state: "loading" });
     try {
       const { prepareProjectStage } = await import("../../services/ai/curriculumOutline");
-      const { stage: prepared } = await prepareProjectStage(track, unitId, latest.current, controller.signal);
+      // In the Mac app, a proposed step must compile against the current files
+      // before it is shown (Go compiles every step's tests together).
+      const check = runtime.local
+        ? async (candidate: PreparedStage, number: number, testPath: string) => {
+            const { checkLocalStage } = await import("../../services/sandbox/local");
+            const base = latest.current!;
+            const trial = applyStage(base, unitId, unit.title, candidate);
+            return checkLocalStage(trial, number, testPath);
+          }
+        : undefined;
+      const { stage: prepared } = await prepareProjectStage(track, unitId, latest.current, controller.signal, check);
       if (controller.signal.aborted || !latest.current) return;
       const next = applyStage(latest.current, unitId, unit.title, prepared);
       commit(next, true);
@@ -215,7 +226,7 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
         message: error instanceof Error ? error.message : "The project step could not be prepared.",
       });
     }
-  }, [track, unitId, unit, commit]);
+  }, [track, unitId, unit, commit, runtime.local]);
 
   // Prepare the step once its lesson is ready, if it has none yet.
   useEffect(() => {

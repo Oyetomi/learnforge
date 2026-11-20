@@ -43,6 +43,10 @@ pub struct Profile {
     pub run: Vec<Vec<String>>,
     #[serde(default)]
     pub test: Vec<Vec<String>>,
+    /// Compile-only check of one step's tests against the current files
+    /// (nothing runs). Used before a prepared step is shown to the learner.
+    #[serde(default)]
+    pub check: Vec<Vec<String>>,
     #[serde(default)]
     pub lsp: Vec<Vec<String>>,
     #[serde(default)]

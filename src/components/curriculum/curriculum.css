@@ -1165,3 +1165,20 @@
   color: var(--muted);
   font-size: 11px;
 }
+.curriculum-brief .goal-group-label {
+  display: block;
+  margin-top: 7px;
+  font-size: 12px;
+  color: var(--heading);
+}
+.curriculum-brief .goal-practice-options { flex-wrap: wrap; }
+.curriculum-brief .goal-practice-options button {
+  flex: 1 1 0;
+  min-width: 140px;
+  text-align: left;
+}
+.curriculum-brief .goal-practice-options button:disabled { opacity: 0.55; cursor: not-allowed; }
+.new-topic-dialog .curriculum-brief .goal-practice-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 560px) {
+  .new-topic-dialog .curriculum-brief .goal-practice-options { grid-template-columns: minmax(0, 1fr); }
+}

@@ -53,6 +53,7 @@ The server runs in the same sandbox, in the project folder. Messages are relayed
 
 ## Rules that keep steps composable
 
+- Before a step is shown, the Mac app compiles its tests against the learner's current files (each profile's `check` command; nothing runs). A step whose tests don't compile is sent back to the model once with the compiler output; if the repair still doesn't compile, preparation fails with Try again rather than saving a step that would break the project (in Go, one uncompilable test file breaks every step's tests).
 - A step may only add files; a proposed file at an existing path is dropped.
 - Step test files follow the profile's name (`stage03_leader_election_test.go`, `tests/stage03_leader_election.rs`, `test_stage03_leader_election.py`, `Stage03Test.java`) and are read-only in the editor.
 - Learners can add and delete their own files, in folders. Reset restores a file to how it was when the step began.
@@ -62,4 +63,5 @@ The server runs in the same sandbox, in the project folder. Messages are relayed
 - Native (`cargo test`, 18 tests): sandbox denies home reads, outside writes, internet and inherited environment; kills runaway process groups; a Go step fails then passes locally; a sandboxed clangd completes struct fields and reports errors; the full IPC round trip (camelCase arguments, a Go module with a subfolder package, step test and program output) through Tauri's mock runtime.
 - Frontend (`npm test`): profiles, file rules, runtime choice, local-run aggregation and regressions, diagnostics parsing for Go/Rust/Python/C/Java/Ruby/Node, the LSP client, the explorer and step panel.
 - Browser, real editor and project hook, with the Mac bridge replaced by a mock forwarding to a real sandboxed clangd: `s->` offers the struct's fields, a type error is underlined live, hover shows the signature, F12 opens the definition in another folder, new files in folders and delete work.
-- Not yet exercised: the packaged Mac app end to end, and gopls (not installed on the test Mac).
+- Real AI, real toolchain (20 November 2026), through the app's own planning and step code against the local proxy, with `go test`: Gemini 3.8 Flash and Gemini 4 Neon each planned a valid DDIA project, prepared a lesson, and prepared step 1 (fails before, passes after implementing) and step 2 on the learner's code (step 1 still passes; step 2 fails, then passes). The first run without the compile check found a step whose tests didn't compile against the learner's code; with the check, Neon's broken step 2 was caught and repaired.
+- Not yet exercised: clicking through the packaged Mac app, and gopls (not installed on the test Mac).

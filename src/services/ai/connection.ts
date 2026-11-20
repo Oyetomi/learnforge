@@ -545,25 +545,77 @@ export function resetUsage() {
   localStorage.removeItem(USAGE_KEY);
 }
 
-/**
- * Fetches live available models from an OpenAI-compatible `/v1/models` endpoint,
- * merging them with the provider preset's curated catalog.
- */
-export async function fetchProviderModels(
-  connection: AIConnection
-): Promise<ModelOption[]> {
-  if (connection.provider === "chatgpt-codex" && !subscriptionBridgeAvailable()) return [];
-  const preset = presetFor(connection.provider);
-  const baseModels = [...preset.models];
-  if (!connection.url.trim() || connection.provider === "anthropic") {
-    return baseModels;
+/** Not chat models: embeddings, speech, images, video, moderation, legacy completions. */
+const NOT_CHAT = /embed|tts|whisper|transcribe|dall-e|imagen|veo|moderation|realtime|davinci|babbage|aqa|image-generation|-audio/i;
+
+const CATALOG_KEY = "learnforge:model-catalog";
+
+export interface ModelCatalog {
+  models: ModelOption[];
+  /** When the list was last read from the provider. */
+  updatedAt: number;
+  /** True when the list came from the provider, false for the built-in names. */
+  live: boolean;
+}
+
+const catalogKey = (c: AIConnection) => `${c.provider} ${c.url.trim()}`;
+
+/** The last model list read from this provider and endpoint, if any. */
+export function cachedProviderModels(connection: AIConnection): ModelCatalog | null {
+  try {
+    const all = JSON.parse(localStorage.getItem(CATALOG_KEY) || "{}");
+    const hit = all?.[catalogKey(connection)];
+    return hit && Array.isArray(hit.models) && hit.models.every((m: ModelOption) => typeof m?.id === "string")
+      ? { models: hit.models, updatedAt: Number(hit.updatedAt) || 0, live: true }
+      : null;
+  } catch {
+    return null;
   }
+}
 
-  const modelsUrl = connection.url
-    .trim()
-    .replace(/\/chat\/completions\/?$/, "/models");
-  if (modelsUrl === connection.url.trim()) return baseModels;
+function rememberCatalog(connection: AIConnection, models: ModelOption[]) {
+  try {
+    const all = JSON.parse(localStorage.getItem(CATALOG_KEY) || "{}") || {};
+    all[catalogKey(connection)] = { models, updatedAt: Date.now() };
+    localStorage.setItem(CATALOG_KEY, JSON.stringify(all));
+  } catch {
+    /* A cache only. */
+  }
+}
 
+/** Turn a provider's model list into options: chat models only, readable labels. */
+export function modelOptionsFrom(data: any, preset: ProviderPreset): ModelOption[] {
+  const list: any[] = Array.isArray(data?.data) ? data.data : Array.isArray(data?.models) ? data.models : [];
+  const options: ModelOption[] = [];
+  const seen = new Set<string>();
+  for (const item of list.slice(0, 400)) {
+    const raw = typeof item?.id === "string" ? item.id : typeof item?.slug === "string" ? item.slug : typeof item?.name === "string" ? item.name : "";
+    // Gemini's OpenAI-compatible list names models "models/gemini-…".
+    const id = raw.trim().replace(/^models\//, "");
+    if (!id || seen.has(id) || NOT_CHAT.test(id)) continue;
+    seen.add(id);
+    const window = item?.context_window ?? item?.context_length ?? item?.inputTokenLimit;
+    if (typeof window === "number" && window > 0) rememberContextWindow(id, window);
+    const known = preset.models.find((m) => m.id === id);
+    const display = typeof item?.display_name === "string" ? item.display_name : typeof item?.displayName === "string" ? item.displayName : "";
+    // The provider's own name is current; built-in labels only fill gaps.
+    options.push({ id, label: display.trim() || known?.label || id });
+  }
+  return options;
+}
+
+/**
+ * The provider's current model list (OpenAI-compatible `GET …/models`; Anthropic's
+ * `GET /v1/models`). When the provider answers, only its models are offered;
+ * the built-in names are a fallback for providers that don't list models.
+ */
+export async function fetchProviderModelCatalog(connection: AIConnection): Promise<ModelCatalog> {
+  const preset = presetFor(connection.provider);
+  const fallback: ModelCatalog = { models: [...preset.models], updatedAt: 0, live: false };
+  if (connection.provider === "chatgpt-codex" && !subscriptionBridgeAvailable()) return { ...fallback, models: [] };
+  if (!connection.url.trim() || (preset.needsKey && !connection.apiKey.trim())) return fallback;
+  const modelsUrl = connection.url.trim().replace(/\/chat\/completions\/?$/, "/models");
+  if (modelsUrl === connection.url.trim()) return fallback;
   try {
     const doFetch = await resolveFetch();
     const init: RequestInit = { method: "GET", headers: buildHeaders(connection) };
@@ -574,54 +626,19 @@ export async function fetchProviderModels(
       if (doFetch === fetch || !needsWebviewFetch(modelsUrl)) throw err;
       res = await fetch(modelsUrl, init);
     }
-    if (!res.ok) return baseModels;
-    const data = await res.json();
-    const list: Array<{
-      id?: string;
-      slug?: string;
-      name?: string;
-      display_name?: string;
-      context_window?: number;
-    }> =
-      Array.isArray(data?.data)
-        ? data.data
-        : Array.isArray(data?.models)
-        ? data.models
-        : [];
-
-    const liveOptions: ModelOption[] = [];
-    const seen = new Set<string>();
-    for (const item of list.slice(0, 60)) {
-      const id =
-        typeof item?.id === "string"
-          ? item.id.trim()
-          : typeof item?.slug === "string"
-          ? item.slug.trim()
-          : "";
-      if (!id || seen.has(id)) continue;
-      seen.add(id);
-      if (typeof item?.context_window === "number" && item.context_window > 0)
-        rememberContextWindow(id, item.context_window);
-      const displayName = item?.name || item?.display_name;
-      liveOptions.push({
-        id,
-        label: displayName && displayName !== id ? `${displayName} (${id})` : id,
-      });
-    }
-    if (liveOptions.length > 0 && connection.provider === "chatgpt-codex") {
-      return liveOptions;
-    }
-    for (const presetModel of baseModels) {
-      if (!seen.has(presetModel.id)) {
-        seen.add(presetModel.id);
-        liveOptions.push(presetModel);
-      }
-    }
-    return liveOptions.length > 0 ? liveOptions : baseModels;
+    if (!res.ok) return fallback;
+    const models = modelOptionsFrom(await res.json(), preset);
+    if (!models.length) return fallback;
+    rememberCatalog(connection, models);
+    return { models, updatedAt: Date.now(), live: true };
   } catch {
-    // Return preset models if endpoint does not expose /models
+    return fallback;
   }
-  return baseModels;
+}
+
+/** Model options for a connection (see fetchProviderModelCatalog). */
+export async function fetchProviderModels(connection: AIConnection): Promise<ModelOption[]> {
+  return (await fetchProviderModelCatalog(connection)).models;
 }
 
 export interface ChatGptCodexStatus {

@@ -388,7 +388,12 @@ export async function prepareProjectStage(
   track: CourseTrack,
   unitId: string,
   workspace: ProjectWorkspace,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  /**
+   * Optional compile check of the proposed step against the current files
+   * (the Mac app compiles locally). Returns a problem to repair, or null.
+   */
+  check?: (stage: PreparedStage, number: number, testPath: string) => Promise<string | null>
 ): Promise<{ stage: PreparedStage; number: number }> {
   const plan = curriculumForTrack(track);
   const unit = curriculumUnits(plan).find((u) => u.id === unitId);
@@ -428,9 +433,19 @@ Return JSON only: {"task":"...","test_file":"...","new_files":[{"path":"...","co
       },
       signal
     );
+  // Validate the proposal; a compile failure counts as a problem to repair.
+  const validate = async (value: unknown): Promise<PreparedStage> => {
+    const stage = parsePreparedStage(value, number, workspace.language);
+    const problem = check ? await check(stage, number, testPath) : null;
+    if (problem)
+      throw new Error(
+        `The step's tests do not compile against the learner's current files. Match the exact names and signatures in currentFiles, or add the missing pieces as stubs in new_files. Compiler output:\n${problem}`
+      );
+    return stage;
+  };
   const first = await ask();
   try {
-    return { stage: parsePreparedStage(first, number, workspace.language), number };
+    return { stage: await validate(first), number };
   } catch (failure) {
     if (signal?.aborted) throw failure;
     // One repair attempt with the exact validation problem.
@@ -438,6 +453,12 @@ Return JSON only: {"task":"...","test_file":"...","new_files":[{"path":"...","co
       previous: first,
       problem: failure instanceof Error ? failure.message : "Invalid step",
     });
-    return { stage: parsePreparedStage(second, number, workspace.language), number };
+    try {
+      return { stage: await validate(second), number };
+    } catch (again) {
+      if (again instanceof Error && again.message.startsWith("The step's tests do not compile"))
+        throw new Error("The step’s tests didn’t compile against your files, even after a repair. Try again.");
+      throw again;
+    }
   }
 }

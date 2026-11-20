@@ -17,7 +17,8 @@ import {
 import {
   PROVIDER_PRESETS,
   connectionFromPreset,
-  fetchProviderModels,
+  cachedProviderModels,
+  fetchProviderModelCatalog,
   getChatGptCodexStatus,
   loadAIConnection,
   logoutChatGptCodex,
@@ -73,6 +74,14 @@ const formatTokens = (n: number) =>
     ? `${(n / 1000).toFixed(1)}k`
     : String(n);
 
+function updatedAgo(at: number): string {
+  const minutes = Math.round((Date.now() - at) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  return hours < 24 ? `${hours} h ago` : `${Math.round(hours / 24)} d ago`;
+}
+
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   initialSection = "learning",
@@ -127,8 +136,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const preset = presetFor(draft.provider);
   const bridgeAvailable = subscriptionBridgeAvailable();
   const [modelOptions, setModelOptions] = useState<ModelOption[]>(
-    () => preset.models
+    () => cachedProviderModels(draft)?.models ?? preset.models
   );
+  /** Where the list came from: the provider (and when), or the built-in names. */
+  const [modelSource, setModelSource] = useState<{ live: boolean; updatedAt: number }>(() => {
+    const cached = cachedProviderModels(draft);
+    return cached ? { live: true, updatedAt: cached.updatedAt } : { live: false, updatedAt: 0 };
+  });
   const [loadingModels, setLoadingModels] = useState(false);
   const [customMainModel, setCustomMainModel] = useState(false);
   const [customFallbackModel, setCustomFallbackModel] = useState(false);
@@ -162,7 +176,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   useEffect(() => {
     let active = true;
     const version = connectionVersion.current;
-    setModelOptions(presetFor(draft.provider).models);
+    const cached = cachedProviderModels(draft);
+    setModelOptions(cached?.models ?? presetFor(draft.provider).models);
+    setModelSource(cached ? { live: true, updatedAt: cached.updatedAt } : { live: false, updatedAt: 0 });
     setCustomMainModel(false);
     setCustomFallbackModel(false);
     setShowKey(false);
@@ -173,9 +189,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           if (!active || version !== connectionVersion.current) return;
           setCodexStatus(status);
           if (status.authenticated) {
-            const list = await fetchProviderModels(draft);
+            const catalog = await fetchProviderModelCatalog(draft);
             if (!active || version !== connectionVersion.current) return;
-            if (list.length) setModelOptions(list);
+            if (catalog.models.length) {
+              setModelOptions(catalog.models);
+              setModelSource({ live: catalog.live, updatedAt: catalog.updatedAt });
+            }
           }
         })
         .catch(() => {
@@ -210,15 +229,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setManualCallbackInput("");
   };
 
-  const refreshModels = async () => {
+  const refreshModels = async (quiet = false) => {
     const request = ++modelRequest.current,
       version = connectionVersion.current;
     setLoadingModels(true);
-    setModelListStatus("");
+    if (!quiet) setModelListStatus("");
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const list = await Promise.race([
-        fetchProviderModels(draft),
+      const catalog = await Promise.race([
+        fetchProviderModelCatalog(draft),
         new Promise<never>((_, reject) => {
           timer = setTimeout(
             () => reject(new Error("Model discovery timed out.")),
@@ -232,17 +251,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         version !== connectionVersion.current
       )
         return;
-      setModelOptions(list);
-      setModelListStatus(
-        list.length
-          ? "Model options are ready. Enter a model ID if yours is missing."
-          : "No model options returned. Enter a model ID below."
-      );
+      if (catalog.models.length) setModelOptions(catalog.models);
+      setModelSource({ live: catalog.live, updatedAt: catalog.updatedAt });
+      if (!quiet || !catalog.live)
+        setModelListStatus(
+          catalog.live
+            ? ""
+            : "This provider didn’t return a model list, so suggested names are shown. Choose “Custom model ID…” to enter any model."
+        );
     } catch {
       if (
         mounted.current &&
         request === modelRequest.current &&
-        version === connectionVersion.current
+        version === connectionVersion.current &&
+        !quiet
       )
         setModelListStatus(
           "Model options could not be refreshed. You can keep the current model or enter its ID."
@@ -253,6 +275,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setLoadingModels(false);
     }
   };
+
+  // Keep the list current: read it from the provider when Settings opens and
+  // whenever the provider, endpoint or key changes (after typing pauses).
+  const autoRefreshKey = `${draft.provider} ${draft.url.trim()} ${draft.apiKey.trim().length > 0}`;
+  useEffect(() => {
+    if (draft.provider === "chatgpt-codex") return;
+    setLoadingModels(true);
+    const timer = setTimeout(() => void refreshModels(true), 500);
+    return () => clearTimeout(timer);
+    // refreshModels reads the latest draft through the closure of this render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRefreshKey]);
 
   const handleStartCodexLogin = async () => {
     const version = connectionVersion.current;
@@ -513,7 +547,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   ) {
     mergedMainOptions.unshift({
       id: draft.model,
-      label: `${draft.model} (current)`,
+      label: modelSource.live ? `${draft.model} (not offered now)` : `${draft.model} (current)`,
     });
   }
   const mergedFallbackOptions: ModelOption[] = [...modelOptions];
@@ -524,9 +558,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   ) {
     mergedFallbackOptions.unshift({
       id: draft.fallbackModel,
-      label: `${draft.fallbackModel} (current)`,
+      label: modelSource.live ? `${draft.fallbackModel} (not offered now)` : `${draft.fallbackModel} (current)`,
     });
   }
+  const staleModels = [...new Set([draft.model, draft.fallbackModel])].filter(
+    (id) => id && !modelOptions.some((m) => m.id === id)
+  );
 
   return (
     <dialog
@@ -1261,11 +1298,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <>
                   <div className="settings-models-header">
                     <span>Model selection</span>
-                    {draft.provider !== "anthropic" && (
+                    {(
                       <button
                         type="button"
                         className="settings-refresh-models"
-                        onClick={refreshModels}
+                        onClick={() => void refreshModels(false)}
                         disabled={loadingModels}
                       >
                         <RefreshCw
@@ -1273,15 +1310,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           className={loadingModels ? "animate-spin" : undefined}
                         />
                         <span>
-                          {loadingModels ? "Fetching…" : "Refresh models"}
+                          {loadingModels ? "Checking…" : "Refresh models"}
                         </span>
                       </button>
                     )}
                   </div>
 
+                  <p className="settings-model-source" aria-live="polite">
+                    {loadingModels && !modelSource.live
+                      ? "Checking which models this provider offers…"
+                      : modelSource.live
+                      ? `${modelOptions.length} model${modelOptions.length === 1 ? "" : "s"} from ${presetFor(draft.provider).label} · updated ${updatedAgo(modelSource.updatedAt)}`
+                      : "Suggested models. Connect the provider to see the models it offers now."}
+                  </p>
                   {modelListStatus && (
                     <p className="settings-model-status" role="status">
                       {modelListStatus}
+                    </p>
+                  )}
+                  {modelSource.live && staleModels.length > 0 && (
+                    <p className="settings-model-status is-warning" role="status">
+                      {staleModels.join(" and ")} {staleModels.length > 1 ? "aren’t" : "isn’t"} offered by this provider any more. Choose another model and save.
                     </p>
                   )}
                   <div className="settings-row">

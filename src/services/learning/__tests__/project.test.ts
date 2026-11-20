@@ -256,6 +256,26 @@ describe("project plans", () => {
     expect(validCurriculumPlan(stray)).toBe(false);
   });
 
+  it("sends compiler errors back for one repair, and gives up clearly if the repair doesn't compile", async () => {
+    const track = trackFromOutline(outline(), { ...base, language: "go", project: true });
+    const unitId = track.curriculum!.modules[0].units[0].id;
+    const ws = { ...emptyWorkspace(track.id), files: [{ path: "main.go", content: "package main\nfunc main() {}\n" }] };
+    vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {}, removeItem: () => {} });
+    const good = { task: "Add a store", test_file: stage1Tests, new_files: [{ path: "store.go", content: storeStub }] };
+    const fetch = vi.fn().mockImplementation(async () => response(good));
+    vi.stubGlobal("fetch", fetch);
+    const check = vi.fn().mockResolvedValueOnce("./x_test.go:9: s.Put(...) (no value) used as value").mockResolvedValueOnce(null);
+    const { stage } = await prepareProjectStage(track, unitId, ws, undefined, check);
+    expect(stage.tests).toBe(stage1Tests);
+    expect(check).toHaveBeenCalledTimes(2);
+    expect(check.mock.calls[0][2]).toMatch(/^stage01_.*_test\.go$/);
+    const repair = JSON.parse(JSON.parse(fetch.mock.calls[1][1].body).messages[1].content);
+    expect(repair.validationFailure).toContain("(no value) used as value");
+
+    const never = vi.fn().mockResolvedValue("does not compile");
+    await expect(prepareProjectStage(track, unitId, ws, undefined, never)).rejects.toThrow(/didn’t compile against your files/);
+  });
+
   it("prepares a step from current files and repairs one invalid proposal", async () => {
     const track = trackFromOutline(outline(), { ...base, language: "go", project: true });
     const unitId = track.curriculum!.modules[0].units[0].id;
