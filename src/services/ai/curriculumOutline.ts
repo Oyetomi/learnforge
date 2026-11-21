@@ -456,7 +456,8 @@ Return JSON only: {"title":"...",${section === 1 ? '"outline":["...","..."],' : 
   // Validate the proposal; a compile failure counts as a problem to repair.
   const validate = async (value: unknown): Promise<PreparedStage> => {
     const stage = parsePreparedStage(value, number, workspace.language);
-    const problem = check ? await check(stage, number, testPath) : null;
+    const actualTestPath = existing?.testPath ?? stageTestFile(profile, number, stage.title || partTitle || unit.title);
+    const problem = check ? await check(stage, number, actualTestPath) : null;
     if (problem)
       throw new Error(
         `The step's tests do not compile against the learner's current files. Match the exact names and signatures in currentFiles, or add the missing pieces as stubs in new_files. Compiler output:\n${problem}`

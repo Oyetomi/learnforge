@@ -123,8 +123,21 @@ export function CurriculumWorkspace({
   const foundation =
     runtime && firstAvailableFoundation(runtime, milestones, approved);
   const activeReference = active?.references?.find((r) => r.pdfPageStart);
+  const activePlanUnit = activeUnit
+    ? plan.modules.flatMap((m) => m.units).find((u) => u.id === activeUnit)
+    : undefined;
+  const unitSections = activePlanUnit?.sourceSectionIds?.length
+    ? (plan.sourceDocument?.sections || []).filter(
+        (s) => activePlanUnit.sourceSectionIds!.includes(s.id) && s.pageStart
+      )
+    : [];
   const activePages = activeReference?.pdfPageStart
     ? { from: activeReference.pdfPageStart, to: activeReference.pdfPageEnd ?? activeReference.pdfPageStart }
+    : unitSections.length
+    ? {
+        from: Math.min(...unitSections.map((s) => s.pageStart!)),
+        to: Math.max(...unitSections.map((s) => s.pageEnd ?? s.pageStart!)),
+      }
     : null;
   return (
     <section

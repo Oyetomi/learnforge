@@ -78,9 +78,19 @@ function chatgptCodexOAuthPlugin(): Plugin {
   };
 
   const writeStoredAuth = (auth: StoredCodexAuth) => {
-    fs.mkdirSync(path.dirname(authFile), { recursive: true });
-    fs.writeFileSync(authFile, JSON.stringify(auth, null, 2), 'utf8');
+    fs.mkdirSync(path.dirname(authFile), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(authFile, JSON.stringify(auth, null, 2), {
+      encoding: 'utf8',
+      mode: 0o600,
+    });
   };
+
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
 
   const exchangeCodeForToken = async (code: string, verifier: string) => {
     const body = new URLSearchParams({
@@ -170,6 +180,15 @@ function chatgptCodexOAuthPlugin(): Plugin {
   return {
     name: 'learnforge-chatgpt-codex-oauth',
     configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url?.startsWith('/api/exa') && !isSameOriginRequest(req)) {
+          res.statusCode = 403;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Cross-origin requests are not allowed.' }));
+          return;
+        }
+        next();
+      });
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith('/api/chatgpt-codex/')) return next();
 
@@ -246,14 +265,17 @@ function chatgptCodexOAuthPlugin(): Plugin {
                   return;
                 }
                 const code = parsedUrl.searchParams.get('code');
-                if (!code || !pendingPkce) {
+                const returnedState = parsedUrl.searchParams.get('state');
+                if (!code || !pendingPkce || returnedState !== pendingPkce.state) {
                   cbRes.writeHead(400, { 'Content-Type': 'text/html' });
                   cbRes.end(
-                    '<h3>Missing authorization code. Return to LearnForge and try again.</h3>'
+                    '<h3>Invalid or expired sign-in state. Return to LearnForge and try again.</h3>'
                   );
                   return;
                 }
-                await exchangeCodeForToken(code, pendingPkce.verifier);
+                const verifier = pendingPkce.verifier;
+                pendingPkce = null;
+                await exchangeCodeForToken(code, verifier);
                 cbRes.writeHead(200, { 'Content-Type': 'text/html' });
                 cbRes.end(
                   '<!doctype html><html><body style="background:#111315;color:#e5ebf3;font-family:monospace;display:grid;place-items:center;height:90vh"><div style="text-align:center;border:1px solid #353c46;padding:28px;border-radius:10px;background:#191b1e"><h2 style="color:#4ade80;margin:0 0 10px">Signed in to LearnForge</h2><p>Your ChatGPT / Codex subscription is now connected. You can close this window.</p><script>setTimeout(()=>window.close(),1200)</script></div></body></html>'
@@ -261,7 +283,7 @@ function chatgptCodexOAuthPlugin(): Plugin {
               } catch (err) {
                 cbRes.writeHead(500, { 'Content-Type': 'text/html' });
                 cbRes.end(
-                  `<h3>Sign-in failed: ${(err as Error).message}</h3>`
+                  `<h3>Sign-in failed: ${escapeHtml((err as Error).message || 'Unknown error')}</h3>`
                 );
               } finally {
                 setTimeout(() => {
@@ -318,16 +340,22 @@ function chatgptCodexOAuthPlugin(): Plugin {
                   : `http://localhost:1455/auth/callback?${raw.replace(/^\?/, '')}`
               );
               const code = urlObj.searchParams.get('code');
+              const returnedState = urlObj.searchParams.get('state');
               if (!code || !pendingPkce) {
                 return sendJson(400, {
                   error:
                     'Click "Sign in with ChatGPT" first, then paste the redirected callback URL.',
                 });
               }
-              const stored = await exchangeCodeForToken(
-                code,
-                pendingPkce.verifier
-              );
+              if (returnedState && returnedState !== pendingPkce.state) {
+                return sendJson(400, {
+                  error:
+                    'This sign-in callback did not match the active login session. Start sign-in again.',
+                });
+              }
+              const verifier = pendingPkce.verifier;
+              pendingPkce = null;
+              const stored = await exchangeCodeForToken(code, verifier);
               return sendJson(200, {
                 authenticated: true,
                 email: stored.email,
@@ -547,50 +575,56 @@ function chatgptCodexOAuthPlugin(): Plugin {
             let fullText = '';
             let usage: { prompt_tokens: number; completion_tokens: number } | null = null;
 
+            const handleSseLine = (line: string) => {
+              const trimmed = line.trim();
+              if (!trimmed.startsWith('data:')) return;
+              const rawJson = trimmed.slice(5).trim();
+              if (!rawJson || rawJson === '[DONE]') return;
+              try {
+                const evt = JSON.parse(rawJson);
+                if (evt.type === 'response.completed' && evt.response?.usage) {
+                  usage = {
+                    prompt_tokens: Number(evt.response.usage.input_tokens) || 0,
+                    completion_tokens: Number(evt.response.usage.output_tokens) || 0,
+                  };
+                }
+                if (
+                  evt.type === 'response.output_text.delta' &&
+                  typeof evt.delta === 'string'
+                ) {
+                  fullText += evt.delta;
+                  if (wantStream) {
+                    const chunk = {
+                      id: 'chatcmpl-codex',
+                      object: 'chat.completion.chunk',
+                      model,
+                      choices: [
+                        {
+                          index: 0,
+                          delta: { content: evt.delta },
+                          finish_reason: null,
+                        },
+                      ],
+                    };
+                    res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+                  }
+                }
+              } catch {
+                // ignore malformed event
+              }
+            };
+
             while (true) {
               const { done, value } = await reader.read();
               if (done) break;
               buffer += decoder.decode(value, { stream: true });
               const lines = buffer.split('\n');
               buffer = lines.pop() || '';
-              for (const line of lines) {
-                const trimmed = line.trim();
-                if (!trimmed.startsWith('data:')) continue;
-                const rawJson = trimmed.slice(5).trim();
-                if (!rawJson || rawJson === '[DONE]') continue;
-                try {
-                  const evt = JSON.parse(rawJson);
-                  if (evt.type === 'response.completed' && evt.response?.usage) {
-                    usage = {
-                      prompt_tokens: Number(evt.response.usage.input_tokens) || 0,
-                      completion_tokens: Number(evt.response.usage.output_tokens) || 0,
-                    };
-                  }
-                  if (
-                    evt.type === 'response.output_text.delta' &&
-                    typeof evt.delta === 'string'
-                  ) {
-                    fullText += evt.delta;
-                    if (wantStream) {
-                      const chunk = {
-                        id: 'chatcmpl-codex',
-                        object: 'chat.completion.chunk',
-                        model,
-                        choices: [
-                          {
-                            index: 0,
-                            delta: { content: evt.delta },
-                            finish_reason: null,
-                          },
-                        ],
-                      };
-                      res.write(`data: ${JSON.stringify(chunk)}\n\n`);
-                    }
-                  }
-                } catch {
-                  // ignore malformed event
-                }
-              }
+              for (const line of lines) handleSseLine(line);
+            }
+            buffer += decoder.decode();
+            if (buffer.trim()) {
+              for (const line of buffer.split('\n')) handleSseLine(line);
             }
 
             if (wantStream) {
@@ -618,9 +652,13 @@ function chatgptCodexOAuthPlugin(): Plugin {
               });
             }
           } catch (err) {
-            return sendJson(502, {
-              error: { message: (err as Error).message },
-            });
+            if (!res.headersSent) {
+              return sendJson(502, {
+                error: { message: (err as Error).message },
+              });
+            }
+            res.end();
+            return;
           }
         }
 

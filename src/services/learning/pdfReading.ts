@@ -118,6 +118,7 @@ export function acceptReadingAttempt(
       "This answer no longer matches the reviewed question. Your draft is unchanged."
     );
   const correct =
+    !attempt.revealed &&
     !attempt.dontKnow &&
     (round.check.kind === "free-response"
       ? !!attempt.response?.trim() &&

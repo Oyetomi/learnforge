@@ -41,10 +41,9 @@ export async function suggestTopics(
   let parsed: any;
   try {
     parsed = JSON.parse(
-      envelope.choices?.[0]?.message?.content?.replace(
-        /^```(?:json)?\s*|\s*```$/g,
-        ""
-      ) || "{}"
+      envelope.choices?.[0]?.message?.content
+        ?.trim()
+        .replace(/^```(?:json)?\s*|\s*```$/g, "") || "{}"
     );
   } catch {
     throw new Error("The topic suggestions were incomplete. Try again.");

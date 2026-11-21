@@ -214,6 +214,7 @@ export interface CheckAttempt {
   thinking: string;
   confidence: ConfidenceLevel | null;
   correct: boolean;
+  revealed?: boolean;
   assisted?: boolean;
   retriedOptionIds?: string[];
   visualSupportIds?: string[];

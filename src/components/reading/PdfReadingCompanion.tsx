@@ -130,6 +130,9 @@ export function PdfReadingCompanion({
   useEffect(() => {
     if (round) setClosedBook(round.bookOpen === false);
   }, [round?.check.id]);
+  useEffect(() => {
+    setLookingBack(false);
+  }, [stop?.id, round?.check.id]);
   const closeHelp = () => {
     setHelp(null);
     requestAnimationFrame(() =>
@@ -436,11 +439,15 @@ export function PdfReadingCompanion({
               <MapPin size={13} aria-hidden="true" />
               {stop ? `PDF pages ${stop.range.from}–${stop.range.to}` : "Choose the pages you’ll read"}
               {stop?.range.pages[0].label &&
-                stop.range.pages[0].label !== String(stop.range.from) && (
-                  <small>
-                    printed {stop.range.pages[0].label}–{stop.range.pages[stop.range.pages.length - 1]?.label || "?"}
-                  </small>
-                )}
+                stop.range.pages[0].label !== String(stop.range.from) && (() => {
+                  const first = stop.range.pages[0].label;
+                  const last = stop.range.pages[stop.range.pages.length - 1]?.label;
+                  return (
+                    <small>
+                      printed {last && last !== first ? `${first}–${last}` : first}
+                    </small>
+                  );
+                })()}
             </p>
           </div>
           {loaded && state && stop && (
@@ -745,17 +752,18 @@ export function PdfReadingCompanion({
                               void perform(
                                 "Preparing a different check…",
                                 async (signal) => {
+                                  // Pass the full stop including the rejected unanswered check so dedupe avoids regenerating it.
+                                  const check = await generateReadingQuestion(
+                                    stop,
+                                    signal
+                                  );
+                                  signal.throwIfAborted();
                                   const base = {
                                     ...stop,
                                     rounds: stop.rounds.filter(
                                       (r) => !!r.attempt
                                     ),
                                   };
-                                  const check = await generateReadingQuestion(
-                                    base,
-                                    signal
-                                  );
-                                  signal.throwIfAborted();
                                   await updateStop({
                                     ...base,
                                     rounds: [
@@ -909,7 +917,9 @@ export function PdfReadingCompanion({
                         onSendMessage={ask}
                       />
                       {(round || !document) && <details
+                        key={`${stop.id}:${round?.check.id || "none"}`}
                         className="reading-covered-text"
+                        open={lookingBack}
                         onToggle={(e) => {
                           if (e.currentTarget.open) support();
                           setLookingBack(e.currentTarget.open);

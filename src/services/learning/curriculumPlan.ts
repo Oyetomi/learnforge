@@ -207,12 +207,14 @@ export function firstAvailableFoundation(
     seen.add(m.id);
     const index = milestones.findIndex((x) => x.id === m.id);
     const parents =
-      m.prerequisite_ids ?? (index ? [milestones[index - 1].id] : []);
+      m.prerequisite_ids ?? (index > 0 ? [milestones[index - 1].id] : []);
     for (const id of parents) {
       if (approved.has(id)) continue;
       const parent = milestones.find((x) => x.id === id);
-      if (parent) return find(parent);
-      return;
+      if (parent) {
+        const candidate = find(parent);
+        if (candidate) return candidate;
+      }
     }
     return m;
   };

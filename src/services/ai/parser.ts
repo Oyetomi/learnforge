@@ -60,9 +60,11 @@ function extractChallengeBlock(content: string): { fullBlock: string; body: stri
     return { fullBlock: content.slice(startOffset), body: remaining };
   }
 
-  // If opening fence is 3 backticks (```), candidate closing fences may be inner code fences.
+  // If opening fence is 3 chars (``` or ~~~), candidate closing fences may be inner code fences.
   // We scan all closing fences and find the one that actually terminates the challenge.
-  const closingRegex = /\r?\n`{3,}(?:\r?\n|$)/g;
+  const fc = fenceChars[0];
+  const closingRegex = new RegExp(`\\r?\\n${fc}{3,}(?:\\r?\\n|$)`, 'g');
+  const nextClosingRegex = new RegExp(`^\\s*${fc}{3,}`);
   let match: RegExpExecArray | null;
   let chosenEndIndex = -1;
   let chosenMatchLength = 0;
@@ -70,9 +72,9 @@ function extractChallengeBlock(content: string): { fullBlock: string; body: stri
   while ((match = closingRegex.exec(remaining)) !== null) {
     const afterCandidate = remaining.slice(match.index + match[0].length);
 
-    // If candidate is followed immediately by another section header like test_code:,
-    // then this candidate was just closing starter_code, NOT the entire challenge!
-    if (/^\s*(test[-_]code:|###\s*test|---test|solution[-_]code:|###\s*solution)/i.test(afterCandidate)) {
+    // If candidate is followed immediately by another section header like starter_code:/test_code:,
+    // then this candidate was just closing an inner snippet, NOT the entire challenge!
+    if (/^\s*(starter[-_]code:|###\s*starter|---starter|test[-_]code:|###\s*test|---test|solution[-_]code:|###\s*solution|---solution)/i.test(afterCandidate)) {
       continue;
     }
 
@@ -80,7 +82,7 @@ function extractChallengeBlock(content: string): { fullBlock: string; body: stri
     chosenMatchLength = match[0].length;
 
     // If immediately followed by another closing fence (e.g. inner ``` then outer ```), continue to pick the outer
-    if (/^\s*`{3,}/.test(afterCandidate)) {
+    if (nextClosingRegex.test(afterCandidate)) {
       continue;
     }
     break;
@@ -175,7 +177,7 @@ function parseChallengeBody(bodyText: string): ForgeChallenge | null {
       continue;
     }
 
-    if (lowerTrimmed.startsWith('prompt:')) {
+    if (currentSection === 'header' && lowerTrimmed.startsWith('prompt:')) {
       currentSection = 'prompt';
       const colonIndex = line.indexOf(':');
       const afterColon = line.substring(colonIndex + 1).trim();

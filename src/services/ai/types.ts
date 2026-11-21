@@ -65,6 +65,8 @@ export interface ParsedChallengeResult {
  */
 export interface StreamOptions {
   activeCheck?: LearningCheckSpec;
+  /** Session programming language (for code block labeling in system prompts). */
+  language?: SupportedLanguage | null;
   /** Invoked for each incremental text delta streamed from the LLM */
   onChunk?: (text: string) => void;
   /** Invoked once when the full stream completes successfully */

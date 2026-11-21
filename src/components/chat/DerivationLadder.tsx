@@ -4,6 +4,7 @@ import { MATH_RENDER_OPTIONS } from '../../services/learning/math';
 import 'katex/dist/katex.min.css';
 import { GuidedDerivation, mathSource } from '../learning/GuidedDerivation';
 import { PaperDerivation } from '../learning/PaperDerivation';
+import { VisualRichText } from '../learning/VisualRichText';
 
 export interface LadderStep {
   rule: string;
@@ -31,6 +32,9 @@ const highlightColors: Record<string, string> = {
   red: '#d49b94',
 };
 
+const colorFor = (name?: string): string =>
+  name && Object.hasOwn(highlightColors, name) ? highlightColors[name] : highlightColors.blue;
+
 function renderHighlightedState(raw: string) {
   const pattern = /\[([^\]]+)\](?::([a-z]+))?/g;
   const parts: React.ReactNode[] = [];
@@ -39,7 +43,7 @@ function renderHighlightedState(raw: string) {
   while ((match = pattern.exec(raw)) !== null) {
     if (match.index > lastIndex) parts.push(raw.slice(lastIndex, match.index));
     parts.push(
-      <mark key={match.index} style={{ color: highlightColors[match[2]] || highlightColors.blue }}>
+      <mark key={match.index} style={{ color: colorFor(match[2]) }}>
         {match[1]}
       </mark>
     );
@@ -51,16 +55,7 @@ function renderHighlightedState(raw: string) {
 
 function renderState(raw: string) {
   const text = raw.trim();
-  const math =
-    text.startsWith('$$') && text.endsWith('$$')
-      ? text.slice(2, -2)
-      : text.startsWith('$') && text.endsWith('$')
-        ? text.slice(1, -1)
-        : text.startsWith('\\(') && text.endsWith('\\)')
-          ? text.slice(2, -2)
-          : text.startsWith('\\[') && text.endsWith('\\]')
-            ? text.slice(2, -2)
-            : null;
+  const math = mathSource(text);
   if (math !== null) {
     const html = renderToString(math, {
       ...MATH_RENDER_OPTIONS,
@@ -68,6 +63,13 @@ function renderState(raw: string) {
       throwOnError: false,
     });
     return <div className="ladder-formula" dangerouslySetInnerHTML={{ __html: html }} />;
+  }
+  if (/\$[^$\n]+\$/.test(text) && !/\[[^\]]+\]:[a-z]+/.test(text)) {
+    return (
+      <div className="ladder-formula">
+        <VisualRichText text={text} />
+      </div>
+    );
   }
   return <code className="ladder-state">{renderHighlightedState(raw)}</code>;
 }
@@ -90,9 +92,7 @@ export const DerivationLadder: React.FC<DerivationLadderProps> = ({
     </div>
     <ol className="ladder-steps">
       {steps.map((step, index) => {
-        const color =
-          highlightColors[step.color || ['orange', 'blue', 'green'][index % 3]] ||
-          highlightColors.blue;
+        const color = colorFor(step.color || ['orange', 'blue', 'green'][index % 3]);
         return (
           <li key={index}>
             <div className="ladder-transition">
@@ -120,8 +120,13 @@ export const DerivationLadder: React.FC<DerivationLadderProps> = ({
               <div className="ladder-annotation">
                 <h5>
                   <span className="sr-only">Step {index + 1}: </span>
-                  {step.rule}
+                  <VisualRichText text={step.rule} />
                 </h5>
+                {step.explanation && (
+                  <p className="ladder-explanation">
+                    <VisualRichText text={step.explanation} />
+                  </p>
+                )}
                 {step.evalText && (
                   <div className="ladder-evaluation">{renderState(step.evalText)}</div>
                 )}
@@ -205,56 +210,71 @@ export const GO_WAITGROUP_LADDER: DerivationLadderProps = {
 export function parseLadderMarkdown(rawText: string): DerivationLadderProps | null {
   try {
     if (rawText.length > 32000) return null;
-    const lines = rawText.trim().split('\n');
+    const lines = rawText.trim().split(/\r?\n/);
     let title: string | undefined;
     let initialState: string = '';
     let result: string | undefined;
     const steps: LadderStep[] = [];
 
     let currentStep: Partial<LadderStep> | null = null;
+    let lastField: 'rule' | 'explanation' | 'evalText' | 'state' | null = null;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
 
-      if (line.toLowerCase().startsWith('title:')) {
+      const lower = line.toLowerCase();
+      if (lower.startsWith('title:')) {
         title = line.slice(6).trim();
+        lastField = null;
         continue;
       }
 
-      if (line.toLowerCase().startsWith('initial:') || line.toLowerCase().startsWith('start:')) {
+      if (lower.startsWith('initial:') || lower.startsWith('start:')) {
         initialState = line.slice(line.indexOf(':') + 1).trim();
+        lastField = null;
         continue;
       }
 
-      if (line.toLowerCase().startsWith('result:')) {
+      if (lower.startsWith('result:')) {
         if (currentStep && currentStep.state) {
           steps.push(currentStep as LadderStep);
           currentStep = null;
         }
         result = line.slice(7).trim();
+        lastField = null;
         continue;
       }
 
-      if (line === '---' || line.toLowerCase().startsWith('step:')) {
+      if (line === '---' || lower.startsWith('step:')) {
         if (currentStep && currentStep.state) {
           steps.push(currentStep as LadderStep);
         }
-        currentStep = {};
+        const afterStep = lower.startsWith('step:') ? line.slice(5).trim() : '';
+        currentStep = afterStep && !/^\d+$/.test(afterStep) ? { rule: afterStep } : {};
+        lastField = null;
         continue;
       }
 
       if (currentStep) {
-        if (line.toLowerCase().startsWith('rule:')) {
+        if (lower.startsWith('rule:')) {
           currentStep.rule = line.slice(5).trim();
-        } else if (line.toLowerCase().startsWith('why:')) {
+          lastField = 'rule';
+        } else if (lower.startsWith('why:')) {
           currentStep.explanation = line.slice(4).trim();
-        } else if (line.toLowerCase().startsWith('eval:')) {
+          lastField = 'explanation';
+        } else if (lower.startsWith('eval:')) {
           currentStep.evalText = line.slice(5).trim();
-        } else if (line.toLowerCase().startsWith('state:')) {
+          lastField = 'evalText';
+        } else if (lower.startsWith('state:')) {
           currentStep.state = line.slice(6).trim();
-        } else if (line.toLowerCase().startsWith('color:')) {
+          lastField = 'state';
+        } else if (lower.startsWith('color:')) {
           currentStep.color = line.slice(6).trim() as any;
+          lastField = null;
+        } else if (lastField) {
+          const prev = currentStep[lastField] || '';
+          currentStep[lastField] = prev ? `${prev}\n${line}` : line;
         }
       } else if (!initialState) {
         initialState = line;
@@ -282,7 +302,7 @@ export function parseLadderMarkdown(rawText: string): DerivationLadderProps | nu
 
 /** Read existing coach explanations without another AI request. */
 export function extractDerivationLadders(content: string): DerivationLadderProps[] {
-  const blocks = /^[ \t]*```[ \t]*(?:ladder|steps)[^\r\n]*\r?\n([\s\S]*?)^[ \t]*```[ \t]*$/gim;
+  const blocks = /^[ \t]*```[ \t]*(?:ladder|steps)[^\r\n]*\r?\n([\s\S]*?)^[ \t]*```[ \t]*\r?$/gim;
   const ladders: DerivationLadderProps[] = [];
   for (const match of content.matchAll(blocks)) {
     const ladder = parseLadderMarkdown(match[1]);

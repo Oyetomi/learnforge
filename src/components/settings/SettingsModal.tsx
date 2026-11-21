@@ -100,7 +100,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     connectionVersion = useRef(0),
     testRequest = useRef(0),
     exaTestRequest = useRef(0),
-    modelRequest = useRef(0);
+    modelRequest = useRef(0),
+    modelAbort = useRef<AbortController | null>(null);
   const loginPoll = useRef<number | null>(null);
   const initialConnection = useRef(loadAIConnection());
   const [modelListStatus, setModelListStatus] = useState("");
@@ -167,6 +168,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       testRequest.current += 1;
       exaTestRequest.current += 1;
       modelRequest.current += 1;
+      modelAbort.current?.abort();
       stopLoginPoll();
       dialog?.close();
       previous?.isConnected && previous.focus();
@@ -212,6 +214,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     connectionVersion.current += 1;
     testRequest.current += 1;
     modelRequest.current += 1;
+    modelAbort.current?.abort();
     stopLoginPoll();
     setCodexBusy(false);
     setSignInUrl("");
@@ -232,21 +235,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const refreshModels = async (quiet = false) => {
     const request = ++modelRequest.current,
       version = connectionVersion.current;
+    modelAbort.current?.abort();
+    const controller = new AbortController();
+    modelAbort.current = controller;
     setLoadingModels(true);
     if (!quiet) setModelListStatus("");
-    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const catalog = await Promise.race([
-        fetchProviderModelCatalog(draft),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(
-            () => reject(new Error("Model discovery timed out.")),
-            15000
-          );
-        }),
-      ]);
+      const catalog = await fetchProviderModelCatalog(draft, {
+        signal: controller.signal,
+      });
       if (
         !mounted.current ||
+        controller.signal.aborted ||
         request !== modelRequest.current ||
         version !== connectionVersion.current
       )
@@ -270,23 +270,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           "Model options could not be refreshed. You can keep the current model or enter its ID."
         );
     } finally {
-      if (timer) clearTimeout(timer);
+      if (modelAbort.current === controller) modelAbort.current = null;
       if (mounted.current && request === modelRequest.current)
         setLoadingModels(false);
     }
   };
 
-  // Keep the list current: read it from the provider when Settings opens and
-  // whenever the provider, endpoint or key changes (after typing pauses).
-  const autoRefreshKey = `${draft.provider} ${draft.url.trim()} ${draft.apiKey.trim().length > 0}`;
+  // Keep the list current: read it from the provider when the Connection tab is
+  // visible and whenever the provider, endpoint or key changes (after typing pauses).
+  const autoRefreshKey = `${draft.provider} ${draft.url.trim()} ${draft.apiKey.trim()}`;
   useEffect(() => {
-    if (draft.provider === "chatgpt-codex") return;
+    if (section !== "connection") return;
+    if (draft.provider === "chatgpt-codex" && !codexStatus.authenticated) return;
     setLoadingModels(true);
     const timer = setTimeout(() => void refreshModels(true), 500);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      modelAbort.current?.abort();
+    };
     // refreshModels reads the latest draft through the closure of this render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRefreshKey]);
+  }, [autoRefreshKey, section, codexStatus.authenticated]);
 
   const handleStartCodexLogin = async () => {
     const version = connectionVersion.current;
@@ -388,7 +392,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         version !== connectionVersion.current
       )
         return;
-      if (model && model !== draft.model) setDraft((d) => ({ ...d, model }));
       setTestState({ kind: "ok", model });
       setUsage(readUsage());
     } catch (err) {
@@ -474,7 +477,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         showSaveError("Couldn't check your saved ElevenLabs key. Open Plugins and try again.", "plugins"); return;
       }
     }
-    if (!/^[a-zA-Z0-9_-]{1,100}$/.test(narration.voiceId)) {
+    if (narration.provider === "elevenlabs" && !/^[a-zA-Z0-9_-]{1,100}$/.test(narration.voiceId)) {
       setSection("plugins"); showSaveError("Choose a valid ElevenLabs voice ID."); return;
     }
     if (narrationKey.trim() && !/^sk_[^\s]{17,253}$/.test(narrationKey.trim())) {
@@ -526,7 +529,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         } catch {}
       }
       showSaveError(
-        typeof error === "string" ? error : "Settings could not be saved on this device. Please try again."
+        error instanceof Error
+          ? error.message
+          : typeof error === "string"
+          ? error
+          : "Settings could not be saved on this device. Please try again."
       );
     } finally {
       setSaving(false);
@@ -796,17 +803,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     const file = event.target.files?.[0];
                     event.target.value = "";
                     if (!file) return;
-                    void file.text().then((text) => {
-                      const added = importNotesIntoLedger(file.name, text);
-                      setLedger(loadConceptLedger());
-                      setLedgerStatus(
-                        added > 0
-                          ? `Imported ${added} ${
-                              added === 1 ? "concept" : "concepts"
-                            } from ${file.name}.`
-                          : `No structured headings or bullet takeaways found in ${file.name}.`
-                      );
-                    });
+                    void file
+                      .text()
+                      .then((text) => {
+                        if (!mounted.current) return;
+                        const added = importNotesIntoLedger(file.name, text);
+                        setLedger(loadConceptLedger());
+                        setLedgerStatus(
+                          added > 0
+                            ? `Imported ${added} ${
+                                added === 1 ? "concept" : "concepts"
+                              } from ${file.name}.`
+                            : `No structured headings or bullet takeaways found in ${file.name}.`
+                        );
+                      })
+                      .catch(() => {
+                        if (mounted.current)
+                          setLedgerStatus(`Could not read ${file.name}.`);
+                      });
                   }}
                 />
                 <div className="settings-ledger-actions">

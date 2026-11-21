@@ -87,6 +87,10 @@ const SOURCE_CITATION_SEQ_RE = new RegExp(
   String.raw`([ \t]*)${SINGLE_CITATION_GROUP}(?:[ \t,;]*${SINGLE_CITATION_GROUP})*([ \t]*)`,
   "gi"
 );
+const BARE_SOURCE_CITATION_RE = new RegExp(
+  String.raw`([ \t]*)(?:\bSOURCE\s+source-[a-z0-9]{2,16}(?:\s*\([^)\n]*\))?(?:[\s,:;#]+(?:L|lines?\s*)?\d+(?:\s*[-–—]\s*L?\d+)?)*|\bsource-[a-z0-9]{2,16}[\s,:;#]+(?:L|lines?\s*)\d+(?:\s*[-–—]\s*L?\d+)?)([ \t]*)`,
+  "gi"
+);
 const CODE_SEGMENT_RE = /(```[\s\S]*?```|`[^`\r\n]+`)/g;
 
 /**
@@ -95,25 +99,31 @@ const CODE_SEGMENT_RE = /(```[\s\S]*?```|`[^`\r\n]+`)/g;
  */
 export function stripInternalSourceCitations(text: string): string {
   if (!text || !/source-[a-z0-9]{2,}/i.test(text)) return text;
+  const collapseCitation = (
+    match: string,
+    lead: string,
+    trail: string,
+    offset: number,
+    str: string
+  ) => {
+    const atLineStart = offset === 0 || str[offset - 1] === "\n";
+    const afterIdx = offset + match.length;
+    const nextChar = afterIdx < str.length ? str[afterIdx] : "";
+    const beforePunctOrEnd =
+      !nextChar ||
+      nextChar === "\n" ||
+      /^[,.;:?!—–)\]}]/.test(nextChar);
+    if (atLineStart || beforePunctOrEnd) return "";
+    return lead || trail ? " " : "";
+  };
   return text
     .split(CODE_SEGMENT_RE)
     .map((segment, index) => {
       // Odd indices are captured fenced or inline code blocks
       if (index % 2 === 1) return segment;
-      return segment.replace(
-        SOURCE_CITATION_SEQ_RE,
-        (match, lead: string, trail: string, offset: number, str: string) => {
-          const atLineStart = offset === 0 || str[offset - 1] === "\n";
-          const afterIdx = offset + match.length;
-          const nextChar = afterIdx < str.length ? str[afterIdx] : "";
-          const beforePunctOrEnd =
-            !nextChar ||
-            nextChar === "\n" ||
-            /^[,.;:?!—–)\]}]/.test(nextChar);
-          if (atLineStart || beforePunctOrEnd) return "";
-          return lead || trail ? " " : "";
-        }
-      );
+      return segment
+        .replace(SOURCE_CITATION_SEQ_RE, collapseCitation)
+        .replace(BARE_SOURCE_CITATION_RE, collapseCitation);
     })
     .join("");
 }

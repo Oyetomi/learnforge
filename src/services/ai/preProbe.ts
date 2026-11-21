@@ -74,11 +74,12 @@ export function validateBoundaryProbes(
     : null;
   if (!list || list.length < 2 || list.length > 4) return null;
 
+  const bounded = list.slice(0, 3);
   const validated: BoundaryProbeQuestion[] = [];
   const seenIds = new Set<string>();
 
-  for (let i = 0; i < list.length; i++) {
-    const item = list[i] as Record<string, unknown> | null;
+  for (let i = 0; i < bounded.length; i++) {
+    const item = bounded[i] as Record<string, unknown> | null;
     if (!item || typeof item !== "object") return null;
     const id = clean(item.id, 40) || `probe-${i + 1}`;
     if (seenIds.has(id)) return null;
@@ -93,7 +94,7 @@ export function validateBoundaryProbes(
         ? item.tier
         : i === 0
         ? "foundation"
-        : i === list.length - 1
+        : i === bounded.length - 1
         ? "frontier"
         : "intermediate";
 

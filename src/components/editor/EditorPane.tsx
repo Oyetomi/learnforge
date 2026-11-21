@@ -272,7 +272,17 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     detail: "Checking execution service availability.",
   });
   const projectRuntime = project?.enabled ? project.runtime : undefined;
+  const projectLanguageReady = project?.enabled ? project.languageReady : true;
   useEffect(() => {
+    if (project?.enabled && !projectLanguageReady) {
+      setRuntime({
+        language,
+        available: false,
+        label: "Checking toolchain…",
+        detail: "Checking installed toolchains on this Mac.",
+      });
+      return;
+    }
     if (projectRuntime) {
       setRuntime({ language, available: projectRuntime.available, label: projectRuntime.label, detail: projectRuntime.detail });
       return;
@@ -302,7 +312,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     return () => {
       active = false;
     };
-  }, [language, projectRuntime?.available, projectRuntime?.label, projectRuntime?.detail]);
+  }, [language, project?.enabled, projectLanguageReady, projectRuntime?.available, projectRuntime?.label, projectRuntime?.detail]);
   const runtimeAvailable = runtime.language === language && runtime.available;
   const runCommand = useRef<() => void>(() => {});
   const monacoRef = useRef<typeof import("monaco-editor") | null>(null);
@@ -323,10 +333,11 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       projectMode
         ? projectModelPath(model.uri, project!.trackId)
         : model === editorRef.current?.getModel() ? singleFile : undefined;
+    const hasTestResults = !!executionResult?.testResults?.length;
     for (const model of monaco.editor.getModels()) {
       const path = modelPathOf(model);
       const own = diagnostics.filter((d) =>
-        projectMode ? d.path === path : path !== undefined && d.path !== "prog.go"
+        projectMode ? d.path === path : path !== undefined && (!hasTestResults || d.path !== "prog.go")
       );
       monaco.editor.setModelMarkers(
         model,
@@ -377,17 +388,24 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     }
     for (const model of monaco.editor.getModels()) {
       const key = model.uri.toString();
-      if (projectModelPath(model.uri as any, trackId) && !wanted.has(key) && model !== editorRef.current?.getModel()) {
+      const isProjectModel = model.uri.path.startsWith("/project/");
+      if (isProjectModel && !wanted.has(key) && model !== editorRef.current?.getModel()) {
         modelListeners.current.get(key)?.dispose();
         modelListeners.current.delete(key);
         model.dispose();
       }
     }
-  }, [project?.allFiles, project?.trackId, editorReady, projectMode, profile]);
+  }, [project?.allFiles, project?.activePath, project?.trackId, editorReady, projectMode, profile]);
   useEffect(
     () => () => {
       for (const l of modelListeners.current.values()) l.dispose();
       modelListeners.current.clear();
+      const monaco = monacoRef.current;
+      if (monaco) {
+        for (const model of monaco.editor.getModels()) {
+          if (model.uri.path.startsWith("/project/")) model.dispose();
+        }
+      }
     },
     []
   );
@@ -475,6 +493,11 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     resetFocus.current = false;
     setConfirmReset(false);
     setResetUndo(null);
+  }, [project?.activePath]);
+  useEffect(() => {
+    resetFocus.current = false;
+    setConfirmReset(false);
+    setResetUndo(null);
     setActiveBottomTab("console");
     setOutputOpen(false);
   }, [milestoneId, language]);
@@ -512,7 +535,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [onRunCode, isRunning, runtimeAvailable]);
+  }, [onRunCode, isRunning, runtimeAvailable, projectMode, project?.wantsPrediction]);
   return (
     <section
       className="editor-pane workspace-panel"
@@ -581,6 +604,19 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             >
               <RotateCcw size={14} />
               <span>Reset</span>
+            </button>
+          )}
+          {isRunning && localRuntime && (
+            <button
+              type="button"
+              className="reset-button"
+              onClick={() => {
+                void import("../../services/sandbox/local").then(({ cancelLocalRun }) => cancelLocalRun());
+              }}
+              aria-label="Stop running tests"
+            >
+              <X size={13} />
+              <span>Stop</span>
             </button>
           )}
           <button
@@ -691,7 +727,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       <div className="monaco-container">
         <Editor
           height="100%"
-          language={getMonacoLanguage(language)}
+          language={profile?.monaco ?? getMonacoLanguage(language)}
           {...(projectMode ? { path: `project/${project!.trackId}/${project!.activePath || "empty"}`, keepCurrentModel: true } : {})}
           value={code}
           onChange={(value) => {

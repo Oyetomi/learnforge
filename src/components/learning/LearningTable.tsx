@@ -10,6 +10,7 @@ export function LearningTable({ children }: { children?: React.ReactNode }) {
     if (!el) return;
     const measure = () => setOverflow(el.scrollWidth > el.clientWidth + 1);
     measure();
+    if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     if (el.firstElementChild) observer.observe(el.firstElementChild);

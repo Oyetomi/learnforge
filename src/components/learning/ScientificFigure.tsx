@@ -180,7 +180,7 @@ function StateDiagram({ model, state, label, rows, language }: {
   const byId = new Map(model.entities.map(entity => [entity.id, entity]));
   return (
     <section className="scientific-figure-panel" aria-label={label}>
-      <h4 className="scientific-figure-panel-label"><VisualRichText text={label} language={model.source?.language} /></h4>
+      <h4 className="scientific-figure-panel-label"><VisualRichText text={label} language={language} /></h4>
       <div className="scientific-figure-diagram" ref={stage} style={{ paddingBottom: 60 + extraRouteSpace }}>
         <svg className="scientific-figure-connectors" width="100%" height={height || "100%"} aria-hidden="true">
           <defs><marker id={arrowId} viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M1 1 L7 4 L1 7" fill="none" stroke="currentColor" strokeWidth="1" /></marker></defs>
@@ -209,11 +209,11 @@ function StateDiagram({ model, state, label, rows, language }: {
           ))}
         </div>
         {connections.filter(connection => keyedRelations || connection.relation.label).map(connection => (
-          <span key={connection.relation.id} className={`scientific-figure-relation-label ${keyedRelations ? "is-number" : ""}`} style={{ left: connection.labelX, top: connection.labelY }} aria-hidden="true">{keyedRelations ? connection.number : <VisualRichText text={connection.relation.label!} language={model.source?.language} />}</span>
+          <span key={connection.relation.id} className={`scientific-figure-relation-label ${keyedRelations ? "is-number" : ""}`} style={{ left: connection.labelX, top: connection.labelY }} aria-hidden="true">{keyedRelations ? connection.number : <VisualRichText text={connection.relation.label!} language={language} />}</span>
         ))}
       </div>
       {!!relations.length && <ol className={keyedRelations ? "scientific-figure-relation-key" : "scientific-figure-relation-text"} aria-label="Figure relationships">
-        {relations.map(relation => <li key={relation.id}><VisualRichText text={byId.get(relation.from)!.label} /> → <VisualRichText text={byId.get(relation.to)!.label} />{relation.label ? <>: <VisualRichText text={relation.label} language={model.source?.language} /></> : null} <span>({relation.kind})</span></li>)}
+        {relations.map(relation => <li key={relation.id}><VisualRichText text={byId.get(relation.from)!.label} language={language} /> → <VisualRichText text={byId.get(relation.to)!.label} language={language} />{relation.label ? <>: <VisualRichText text={relation.label} language={language} /></> : null} <span>({relation.kind})</span></li>)}
       </ol>}
     </section>
   );
@@ -256,12 +256,12 @@ function ScientificWalkthrough({ model, onInteract, notes, takeaway, language }:
     </div>
     <figcaption className="scientific-figure-caption">
       <div ref={caption} tabIndex={-1} aria-live="polite" aria-atomic="true">
-        <strong>Figure. <VisualRichText text={state.label} language={model.source?.language} /></strong>
-        <p><VisualRichText text={transition?.explanation || state.description} language={model.source?.language} /></p>
+        <strong>Figure. <VisualRichText text={state.label} language={codeLanguage} /></strong>
+        <p><VisualRichText text={transition?.explanation || state.description} language={codeLanguage} /></p>
       </div>
     </figcaption>
     <div className="scientific-figure-actions" role="group" aria-label="Explore the figure">
-      {limitReached ? <p>That’s 32 steps. Reset to explore a different path.</p> : actions.length ? actions.map((action, index) => <button key={action.id} type="button" className={index === 0 ? "is-primary" : ""} onClick={() => change(advanceWalkthrough(model, history, action.id))}><VisualRichText text={action.label} language={model.source?.language} /><ChevronRight size={13} aria-hidden="true" /></button>) : <p>End of this path. Go back to compare another choice.</p>}
+      {limitReached ? <p>That’s 32 steps. Reset to explore a different path.</p> : actions.length ? actions.map((action, index) => <button key={action.id} type="button" className={index === 0 ? "is-primary" : ""} onClick={() => change(advanceWalkthrough(model, history, action.id))}><VisualRichText text={action.label} language={codeLanguage} /><ChevronRight size={13} aria-hidden="true" /></button>) : <p>End of this path. Go back to compare another choice.</p>}
     </div>
     <nav className="scientific-figure-history" aria-label="Figure history">
       <button type="button" disabled={history.index === 0} onClick={() => change(seekWalkthrough(history, history.index - 1))}><ChevronLeft size={13} aria-hidden="true" />Back</button>
@@ -270,10 +270,10 @@ function ScientificWalkthrough({ model, onInteract, notes, takeaway, language }:
       <button type="button" className="scientific-figure-reset" disabled={history.index === 0 && history.visits.length === 1} onClick={() => change(startWalkthrough(model))}><RotateCcw size={12} aria-hidden="true" />Reset</button>
     </nav>
     <details className="scientific-figure-text"><summary>Explanation and current state</summary>
-      <p><VisualRichText text={state.description} language={model.source?.language} /></p>
+      <p><VisualRichText text={state.description} language={codeLanguage} /></p>
       <ul>{model.entities.map(entity => { const snapshot = state.entities.find(item => item.entityId === entity.id)!; return <li key={entity.id}><strong><VisualRichText text={entity.label} language={codeLanguage} /></strong>: {snapshot.status}. <FigureValue snapshot={snapshot} language={codeLanguage} title={entity.label} /></li>; })}</ul>
-      {(notes || []).map((note, index) => <p key={index}><strong><VisualRichText text={note.label} language={model.source?.language} /></strong> — <VisualRichText text={note.description} language={model.source?.language} /></p>)}
-      {takeaway && <p><strong>Remember.</strong> <VisualRichText text={takeaway} language={model.source?.language} /></p>}
+      {(notes || []).map((note, index) => <p key={index}><strong><VisualRichText text={note.label} language={codeLanguage} /></strong> — <VisualRichText text={note.description} language={codeLanguage} /></p>)}
+      {takeaway && <p><strong>Remember.</strong> <VisualRichText text={takeaway} language={codeLanguage} /></p>}
       {model.source && <details className="scientific-figure-source"><summary>Related source · {model.source.language}</summary><pre>{highlightedSource === null ? <code>{model.source.code}</code> : <code dangerouslySetInnerHTML={{ __html: highlightedSource }} />}</pre></details>}
     </details>
   </figure>;

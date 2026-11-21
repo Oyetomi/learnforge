@@ -69,7 +69,7 @@ async function resolveExaFetch(override?: FetchLike): Promise<{
       return { doFetch: fetch, baseUrl: EXA_ORIGIN };
     }
   }
-  if (isLocalDevServer()) {
+  if (import.meta.env.DEV && isLocalDevServer()) {
     return { doFetch: fetch, baseUrl: "/api/exa" };
   }
   return { doFetch: fetch, baseUrl: EXA_ORIGIN };
@@ -188,6 +188,17 @@ async function exaPost(
   }
 
   const { doFetch, baseUrl } = await resolveExaFetch(options?.fetchImpl);
+  const controller = new AbortController();
+  let timedOut = false;
+  const onAbort = () => controller.abort();
+  if (options?.signal?.aborted) {
+    throw new DOMException("Request aborted", "AbortError");
+  }
+  options?.signal?.addEventListener("abort", onAbort, { once: true });
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, 25_000);
   let response: Response;
   try {
     response = await doFetch(`${baseUrl}${endpoint}`, {
@@ -198,13 +209,19 @@ async function exaPost(
         "x-api-key": cleanKey,
       },
       body: JSON.stringify(payload),
-      signal: options?.signal,
+      signal: controller.signal,
     });
   } catch (err) {
+    if (timedOut && !options?.signal?.aborted) {
+      throw new ExaPluginError("Exa did not respond in time. Try again.");
+    }
     if ((err as Error)?.name === "AbortError") throw err;
     throw new ExaPluginError(
       "Could not reach Exa (api.exa.ai). Check your internet connection."
     );
+  } finally {
+    clearTimeout(timer);
+    options?.signal?.removeEventListener("abort", onAbort);
   }
 
   if (response.status === 401 || response.status === 403) {
@@ -229,7 +246,12 @@ async function exaPost(
     );
   }
 
-  const data = (await response.json()) as { results?: unknown };
+  let data: { results?: unknown };
+  try {
+    data = (await response.json()) as { results?: unknown };
+  } catch {
+    throw new ExaPluginError("Exa returned an unreadable response.");
+  }
   const results = Array.isArray(data?.results)
     ? (data.results as RawExaResult[])
     : [];
@@ -240,6 +262,9 @@ export async function testExaConnection(
   apiKey: string,
   options?: { signal?: AbortSignal; fetchImpl?: FetchLike }
 ): Promise<{ latencyMs: number; sampleTitle: string }> {
+  if (options?.signal?.aborted) {
+    throw new DOMException("Request aborted", "AbortError");
+  }
   const start = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);

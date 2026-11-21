@@ -16,9 +16,12 @@ export function questionSnapshot(check: LearningCheck): string {
     check.correctOptionIds, check.multiple, check.explanation, check.expectedAnswer || "", check.rubric || []]);
 }
 
+const reviewReferenceLimit = (check: LearningCheck) =>
+  check.id.startsWith("reading:") ? 14500 : undefined;
+
 export function questionReviewIdentity(check: LearningCheck, references?: LearningReference[]): string {
   const connection = loadAIConnection();
-  return JSON.stringify([1, check.id, check.milestoneId, questionSnapshot(check), referenceContext(references, check.question), connection.provider, connection.url, connection.model]);
+  return JSON.stringify([1, check.id, check.milestoneId, questionSnapshot(check), referenceContext(references, check.question, reviewReferenceLimit(check)), connection.provider, connection.url, connection.model]);
 }
 
 export function hasQuestionReview(check: LearningCheck, attempt: CheckAttempt, references?: LearningReference[]): boolean {
@@ -57,7 +60,7 @@ ${written ? "Check that the expected answer is factually defensible and every ru
 Return only JSON {"answerable":true,"confidence":"high|low","correctOptionIds":["exact option id"],"rubricValid":true,"reasoning":"A short justification, including any ambiguity"}. ${written ? "Return an empty correctOptionIds array." : "Set rubricValid true; it is unused for choice questions."}` },
     { role: "user", content: JSON.stringify({ question: check.question, context: check.context,
       ...(written ? { expectedAnswer: check.expectedAnswer, rubric: check.rubric } : { options: check.options, multiSelect: check.multiple }),
-      referenceExcerpts: referenceContext(references, check.question) }) },
+      referenceExcerpts: referenceContext(references, check.question, reviewReferenceLimit(check)) }) },
   ];
 }
 
@@ -83,7 +86,8 @@ export async function reviewQuestion(check: LearningCheck, references: LearningR
   if (!validateLearningCheck(check)) throw new Error("This question needs a smaller, clearer example.");
   const connection = loadAIConnection();
   const messages = questionReviewRequest(check, references);
-  if (JSON.stringify(messages).length > 32000) throw new Error("This question needs a smaller, clearer example.");
+  const maxPayload = check.id.startsWith("reading:") ? 40000 : 32000;
+  if (JSON.stringify(messages).length > maxPayload) throw new Error("This question needs a smaller, clearer example.");
   const response = await aiFetch({ model: connection.model, temperature: 0, max_tokens: 1400,
     messages }, { connection, signal });
   if (!response.ok) throw new Error("Couldn’t check the question yet. Your lesson and answer draft are saved.");

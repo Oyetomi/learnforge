@@ -310,6 +310,10 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
       retriedOptionIds: retriedIds.length > 0 ? retriedIds : undefined,
       submittedAt: Date.now(),
     });
+    // Release lock on the next tick if parent rejected the submission (e.g. model changed or stream busy).
+    setTimeout(() => {
+      submittedRef.current = false;
+    }, 0);
   };
   const revealSolution = () => {
     if (attempt || submittedRef.current || isBusy) return;
@@ -322,10 +326,14 @@ const ChoiceQuestionCard: React.FC<QuestionCardProps> = ({
       checkId: check.id,
       milestoneId: check.milestoneId,
       correct: false,
+      revealed: true,
       assisted: true,
       retriedOptionIds: retriedIds.length > 0 ? retriedIds : undefined,
       submittedAt: Date.now(),
     });
+    setTimeout(() => {
+      submittedRef.current = false;
+    }, 0);
   };
   useEffect(() => {
     if (!attempt) submittedRef.current = false;

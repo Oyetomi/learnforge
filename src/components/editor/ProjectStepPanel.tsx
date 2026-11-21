@@ -22,30 +22,31 @@ const STATUS_ICON = {
   pass: <CheckCircle2 size={11} aria-hidden="true" />,
 };
 
-const taskKey = (trackId: string, unitId: string) => `learnforge:step-task-open:${trackId}:${unitId}`;
+const taskKey = (trackId: string, unitId: string, stageNumber: number) =>
+  `learnforge:step-task-open:${trackId}:${unitId}:${stageNumber}`;
 
 /** The active project step: what to build, and whether its tests (and earlier ones) pass. */
 export const ProjectStepPanel: React.FC<{ project: ProjectWorkspaceController; isRunning?: boolean }> = ({ project, isRunning = false }) => {
   const { stage, step, preparation, totalSteps } = project;
   const status = stepStatus(project, isRunning);
 
-  // The task starts open for a step that hasn't passed; the choice is remembered per step.
+  // The task starts open for each new part that hasn't passed; choice is remembered per part.
   const [taskOpen, setTaskOpen] = useState(true);
   useEffect(() => {
     if (!stage) return;
     let stored: string | null = null;
     try {
-      stored = localStorage.getItem(taskKey(project.trackId, stage.unitId));
+      stored = localStorage.getItem(taskKey(project.trackId, stage.unitId, stage.number));
     } catch {
       /* Preference only. */
     }
     setTaskOpen(stored === null ? !stage.passedAt : stored === "open");
-  }, [stage?.unitId, project.trackId]);
+  }, [stage?.unitId, stage?.number, project.trackId]);
   const toggleTask = (open: boolean) => {
     setTaskOpen(open);
     if (stage)
       try {
-        localStorage.setItem(taskKey(project.trackId, stage.unitId), open ? "open" : "closed");
+        localStorage.setItem(taskKey(project.trackId, stage.unitId, stage.number), open ? "open" : "closed");
       } catch {
         /* Preference only. */
       }

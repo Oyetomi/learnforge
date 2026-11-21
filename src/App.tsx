@@ -10,8 +10,15 @@ import {
 } from "./components/milestones/MilestoneSidebar";
 import { ChatPane } from "./components/chat/ChatPane";
 import { KnowledgeWorkspace } from "./components/knowledge/KnowledgeWorkspace";
-import { recordVisualSupport } from "./services/learning/preferences";
-import { recordDemonstratedConcept } from "./services/learning/conceptLedger";
+import {
+  LEARNING_PREFERENCES_EVENT,
+  recordVisualSupport,
+  visualSupportFor,
+} from "./services/learning/preferences";
+import {
+  recordDemonstratedConcept,
+  removeMilestoneConcepts,
+} from "./services/learning/conceptLedger";
 const EditorPane = lazy(() =>
   import("./components/editor/EditorPane").then((module) => ({
     default: module.EditorPane,
@@ -22,7 +29,6 @@ import { SettingsModal } from "./components/settings/SettingsModal";
 import {
   hideCustomCanvasBlocks,
 } from "./services/learning/visuals";
-import { visualSupportFor } from "./services/learning/preferences";
 import { nextLearningMilestone } from "./services/learning/placement";
 import { isAcceptedFreeResponseGrade } from "./services/learning/freeResponse";
 import { RetentionFlow } from "./components/learning/RetentionFlow";
@@ -32,6 +38,7 @@ import { PdfReadingCompanion } from "./components/reading/PdfReadingCompanion";
 import { PdfBookRail } from "./components/reading/PdfBookRail";
 import { deleteReadingData } from "./services/learning/readingStore";
 import { deleteProject } from "./services/learning/projectStore";
+import { cancelLocalRun, deleteLocalProject } from "./services/sandbox/local";
 import { prepareCurriculumUnit } from "./services/ai/curriculumOutline";
 import { NewTopicModal } from "./components/curriculum/NewTopicModal";
 import { LearningStart } from "./components/curriculum/LearningStart";
@@ -51,7 +58,7 @@ import {
   CheckAttempt,
   LearningPractice,
 } from "./types";
-import { db } from "./services/db";
+import { db, STORAGE_READY_EVENT } from "./services/db";
 import { planAdaptiveRepair } from "./services/learning/planner";
 import { answerTutoring, answerTutoringPrompt, tutoringAttemptKey } from "./services/learning/tutoring";
 import { hasQuestionReview } from "./services/learning/questionReview";
@@ -113,6 +120,10 @@ export default function App() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isStreamingRef = useRef(isStreaming);
+  isStreamingRef.current = isStreaming;
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
 
   // --- Code Editor & Execution State ---
   const [editorCode, setEditorCode] = useState<string>("");
@@ -126,6 +137,22 @@ export default function App() {
 
   // --- FSRS State ---
   const [dueCards, setDueCards] = useState(db.getDueCardsList());
+  useEffect(() => {
+    const refreshDue = () => setDueCards(db.getDueCardsList());
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refreshDue();
+    };
+    window.addEventListener("focus", refreshDue);
+    window.addEventListener(LEARNING_PREFERENCES_EVENT, refreshDue);
+    window.addEventListener(STORAGE_READY_EVENT, refreshDue);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", refreshDue);
+      window.removeEventListener(LEARNING_PREFERENCES_EVENT, refreshDue);
+      window.removeEventListener(STORAGE_READY_EVENT, refreshDue);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   // --- Sidebar Collapse State ---
   const [isSidebarOpen, setIsSidebarOpen] = useState(
@@ -159,8 +186,8 @@ export default function App() {
     setIsCodeWorkspaceOpen(true);
   }, [project.enabled, project.started, workspaceView, currentTrackId]);
   /** The last project run, trimmed, so the tutor can talk about real results. */
-  const lastRunForTutor = () => {
-    const run = executionResult;
+  const lastRunForTutor = (runOverride?: ExecutionResult | null) => {
+    const run = runOverride !== undefined ? runOverride : executionResult;
     if (!project.enabled || !run) return "";
     const steps = run.stepRuns ?? [];
     const body = steps.length
@@ -171,8 +198,8 @@ export default function App() {
     return `\n\n=== Last test run ===\n${body}`;
   };
   /** What the tutor sees of the learner's code: the whole project in project mode. */
-  const codeForTutor = () =>
-    project.enabled ? project.promptContext() + lastRunForTutor() : !isCodeWorkspaceOpen ? "" : editorCode;
+  const codeForTutor = (runOverride?: ExecutionResult | null) =>
+    project.enabled ? project.promptContext() + lastRunForTutor(runOverride) : !isCodeWorkspaceOpen ? "" : editorCode;
   const executionId = useRef(0);
   const milestoneIndex = Math.max(
     0,
@@ -312,6 +339,7 @@ export default function App() {
   const handleSelectTrack = (trackId: string) => {
     if (trackId === currentTrackId) return;
     handleStopStreaming();
+    void cancelLocalRun();
     codeDrafts.persist();
     executionId.current += 1;
     setExecutionResult(null);
@@ -329,10 +357,13 @@ export default function App() {
 
   const handleDeleteTopics = async (ids: string[]) => {
     const deleting = new Set(ids);
-    if (deleting.has(currentTrackId)) { handleStopStreaming(); setWorkspaceView("curriculum"); }
+    if (deleting.has(currentTrackId)) { handleStopStreaming(); void cancelLocalRun(); setWorkspaceView("curriculum"); }
     // Await removal of original PDFs and bookmarks before reporting permanent deletion.
     for (const id of ids) if (tracks.find(t=>t.id===id)?.curriculum?.sourceDocument) await deleteReadingData(id);
-    for (const id of ids) if (tracks.find(t=>t.id===id)?.curriculum?.project) await deleteProject(id);
+    for (const id of ids) if (tracks.find(t=>t.id===id)?.curriculum?.project) {
+      await deleteProject(id);
+      await deleteLocalProject(id).catch(() => {});
+    }
     const erased = ids.flatMap((id) =>
       deleteTopicData(db, tracks.find((t) => t.id === id) || { id, title: "" })
     );
@@ -353,6 +384,7 @@ export default function App() {
     )
       return;
     handleStopStreaming();
+    void cancelLocalRun();
     codeDrafts.persist();
     setWorkspaceView("session");
     setDiagnosticFor(null);
@@ -384,11 +416,14 @@ export default function App() {
       tutoringAttemptKey?: string;
       /** Instruction sent to the AI for this turn instead of the visible text. */
       prompt?: string;
+      /** Fresh execution result to include immediately before React commits state. */
+      runResult?: ExecutionResult;
     }
   ) => {
-    if (!currentSession || isStreaming) return;
+    if (!currentSession || isStreamingRef.current) return;
 
-    // Add user message
+    // Add user message. In project mode the full project files are sent live to
+    // the tutor without duplicating the entire repository onto every stored turn.
     const userMsg = db.addMessage({
       session_id: currentSession.id,
       role: "user",
@@ -397,15 +432,17 @@ export default function App() {
       internal: options?.internal,
       tutoring_for_check_id: options?.answerTutoringFor,
       tutoring_attempt_key: options?.tutoringAttemptKey,
-      code_snippet: codeForTutor().trim() ? codeForTutor() : undefined,
+      code_snippet: !project.enabled && isCodeWorkspaceOpen && editorCode.trim() ? editorCode : undefined,
     });
 
-    const updatedMessages = [...(options?.history || messages), userMsg];
+    const updatedMessages = [...(options?.history || messagesRef.current), userMsg];
+    messagesRef.current = updatedMessages;
     setMessages(updatedMessages);
 
     // Setup streaming
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    isStreamingRef.current = true;
     setIsStreaming(true);
     setStreamingContent("");
 
@@ -447,6 +484,7 @@ export default function App() {
             setMilestones(db.getMilestones(currentSession.id));
             setActiveMilestone(repair);
             setEditorCode("");
+            isStreamingRef.current = false;
             setIsStreaming(false);
             setStreamingContent("");
             setMobilePane("lesson");
@@ -476,9 +514,10 @@ export default function App() {
             ]
           : updatedMessages,
         activeMilestone || undefined,
-        codeForTutor(),
+        codeForTutor(options?.runResult),
         {
           activeCheck: activeCheck || undefined,
+          language: currentSession.language,
           abortSignal: controller.signal,
           onChunk: (chunk) => {
             if (controller.signal.aborted) return;
@@ -487,6 +526,7 @@ export default function App() {
           },
           onComplete: (fullText) => {
             if (controller.signal.aborted) return;
+            isStreamingRef.current = false;
             setIsStreaming(false);
             setStreamingContent("");
 
@@ -576,16 +616,25 @@ export default function App() {
                 title: challenge.title,
                 prompt: challenge.prompt,
                 starter_code: challenge.starter_code,
+                solution_code: challenge.solution_code,
                 test_code: challenge.test_code,
+                prerequisite_ids: activeMilestone?.status === "completed" ? [activeMilestone.id] : [],
                 status: "active",
               });
               setMilestones(db.getMilestones(currentSession.id));
               setActiveMilestone(newM);
               setEditorCode(challenge.starter_code);
+              try {
+                localStorage.setItem(
+                  `learnforge:active-milestone:${currentSession.id}`,
+                  newM.id
+                );
+              } catch {}
             }
           },
           onError: (err) => {
             if (controller.signal.aborted) return;
+            isStreamingRef.current = false;
             setIsStreaming(false);
             setStreamingContent("");
             if (err.name !== "AbortError" && !controller.signal.aborted) {
@@ -605,6 +654,7 @@ export default function App() {
       );
     } catch (err: any) {
       if (controller.signal.aborted) return;
+      isStreamingRef.current = false;
       setIsStreaming(false);
       setStreamingContent("");
     }
@@ -643,7 +693,9 @@ export default function App() {
       practice: check.practice,
       assisted,
       visualSupportIds,
-      correct: check.kind === "free-response"
+      correct: attempt.revealed
+        ? false
+        : check.kind === "free-response"
         ? !attempt.dontKnow && !!attempt.response?.trim() && isAcceptedFreeResponseGrade(check, attempt.grading)
         : gradeLearningCheck(check, attempt.selectedIds, attempt.dontKnow),
     };
@@ -676,6 +728,9 @@ export default function App() {
     if (!db.disputeCheckAttempt(currentSession.id, check.id)) return;
     if (activeMilestone?.status === "completed") {
       db.updateMilestoneStatus(activeMilestone.id, "active");
+      db.deleteCardsForMilestone(activeMilestone.id);
+      removeMilestoneConcepts(activeMilestone.id);
+      setDueCards(db.getDueCardsList());
       setActiveMilestone({ ...activeMilestone, status: "active" });
       setMilestones(db.getMilestones(currentSession.id));
     }
@@ -801,12 +856,14 @@ Do not write the implementation or show solution code. Do not emit forge-check o
     unitController.current?.abort();
     checkRequestId.current += 1;
     setIsRequestingCheck(false);
+    const wasStreaming = isStreamingRef.current;
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    isStreamingRef.current = false;
     setIsStreaming(false);
-    const tutoringRequest = isStreaming ? [...messages].reverse().find((m) => m.role === "user") : undefined;
+    const tutoringRequest = wasStreaming ? [...messagesRef.current].reverse().find((m) => m.role === "user") : undefined;
     if ((streamingContent.trim() || tutoringRequest?.tutoring_for_check_id) && currentSession) {
       const partialMsg = db.addMessage({
         session_id: currentSession.id,
@@ -814,7 +871,10 @@ Do not write the implementation or show solution code. Do not emit forge-check o
         milestone_id: activeMilestone?.id,
         tutoring_for_check_id: tutoringRequest?.tutoring_for_check_id,
         tutoring_attempt_key: tutoringRequest?.tutoring_attempt_key,
-        generation_error: tutoringRequest?.tutoring_for_check_id ? true : undefined,
+        generation_error:
+          tutoringRequest?.tutoring_for_check_id || tutoringRequest?.internal
+            ? true
+            : undefined,
         content:
           hideLearningCheckBlocks(streamingContent) +
           "\n\n*(Generation stopped)*",
@@ -906,17 +966,17 @@ Do not write the implementation or show solution code. Do not emit forge-check o
         const run = await project.run();
         if (runId !== executionId.current) return;
         setExecutionResult(run.result);
-        if (run.stageJustPassed && !isStreaming && !run.unitDone && run.part)
+        if (run.stageJustPassed && !isStreamingRef.current && !run.unitDone && run.part)
           // A part of the chapter's build passed: like a book's next section,
           // say what works now and motivate the next part from the code.
           void handleSendMessage(
             `Part ${run.part.n} of ${run.part.total}${run.part.title ? ` ("${run.part.title}")` : ""} of this chapter's project build passes, along with every earlier test. In under 140 words, as my tutor: (1) say concretely what the project can do now that it couldn't before; (2) introduce the next part${run.next?.title ? `, "${run.next.title}",` : ""} the way a good build-along book does — point to a real limitation or risk in my current code that it will fix (for example "notice what happens to our data if the process restarts"); (3) ask me ONE short question about that limitation. The next part's task is being prepared and will appear in the project panel. Do not write code. Do not emit forge-check or forge-visual blocks.`,
-            { internal: true }
+            { internal: true, runResult: run.result }
           );
-        else if (run.stageJustPassed && !isStreaming)
+        else if (run.stageJustPassed && !isStreamingRef.current)
           void handleSendMessage(
             `All project tests pass for ${run.part && run.part.total > 1 ? `every part of this chapter's build (${run.part.total} parts)` : `step ${run.stageNumber}`} and every earlier step. Review the learner's implementation in the project files against this unit's ideas: name one thing the design does well and one trade-off or failure mode the tests do not cover. Then, on its own line, name the reusable idea this step taught, starting exactly "Principle:" (one sentence about the general idea, not this code), and say which later chapters or steps of the course will use it again. ${run.predictions?.made ? `Before running, the learner predicted the outcome ${run.predictions.made} time(s) and was right ${run.predictions.matched} time(s)${run.prediction?.why ? `; their last reason was: "${run.prediction.why.replace(/"/g, "'")}"` : ""}. If a prediction was wrong, briefly address the misunderstanding it shows. ` : ""}Finish by checking understanding with one applied question. Passing tests alone does not approve readiness.`,
-            { internal: true }
+            { internal: true, runResult: run.result }
           );
       } catch (err: any) {
         if (runId !== executionId.current) return;
@@ -940,7 +1000,7 @@ Do not write the implementation or show solution code. Do not emit forge-check o
       if (res.testResults && res.testResults.length > 0) {
         const allPassed = res.testResults.every((t) => t.passed);
         if (allPassed && res.exitCode === 0 && !res.error) {
-          if (!isStreaming)
+          if (!isStreamingRef.current)
             void handleSendMessage(
               "The optional coding tests passed. Explain what that establishes and check the remaining conceptual understanding with one applied question. Passing tests alone does not approve readiness.",
               { internal: true }
@@ -987,7 +1047,7 @@ Do not write the implementation or show solution code. Do not emit forge-check o
       "_"
     )}.md`;
     link.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const nextMilestone = nextLearningMilestone(
@@ -1056,6 +1116,7 @@ Do not write the implementation or show solution code. Do not emit forge-check o
       const coachMsg = db.addMessage({
         session_id: currentSession.id,
         role: "assistant",
+        milestone_id: nextM.id,
         content: `You completed **${activeMilestone.title}**. Next: **${nextM.title}**. Open the lesson to check your understanding, or ask me about the concept.`,
       });
       setMessages((prev) => [...prev, coachMsg]);
@@ -1375,6 +1436,16 @@ Do not write the implementation or show solution code. Do not emit forge-check o
                           nextMilestone ? handleNextMilestone : undefined
                         }
                         onClose={() => {
+                          if (project.enabled) {
+                            try {
+                              localStorage.setItem(
+                                `learnforge:project-closed:${currentTrackId}`,
+                                "1"
+                              );
+                            } catch {
+                              /* Preference only. */
+                            }
+                          }
                           setIsCodeWorkspaceOpen(false);
                           setMobilePane("lesson");
                         }}

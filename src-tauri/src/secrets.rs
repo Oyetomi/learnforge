@@ -4,8 +4,16 @@
 //! frontend calls these providers directly and needs the key for its request
 //! headers. Keychain protects them at rest instead of plain local storage.
 
+use std::sync::{Mutex, OnceLock};
+
 const NAMES: [&str; 2] = ["ai-connection", "exa"];
 const MAX_LEN: usize = 4096;
+
+/// Serialize Keychain operations so concurrent writes/rollbacks cannot race.
+fn keychain_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
 
 fn check_name(name: &str) -> Result<(), String> {
     if NAMES.contains(&name) {
@@ -93,9 +101,12 @@ pub fn secret_store_available() -> bool {
 #[tauri::command]
 pub async fn secret_get(name: String) -> Result<Option<String>, String> {
     check_name(&name)?;
-    tauri::async_runtime::spawn_blocking(move || keychain::load(&name))
-        .await
-        .map_err(|_| "Could not read Keychain.".to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = keychain_lock().lock().map_err(|_| "Keychain busy.".to_string())?;
+        keychain::load(&name)
+    })
+    .await
+    .map_err(|_| "Could not read Keychain.".to_string())?
 }
 
 /// Stores `value`, or removes the item when `value` is empty.
@@ -105,6 +116,7 @@ pub async fn secret_set(name: String, value: String) -> Result<(), String> {
     let value = value.trim().to_owned();
     check_value(&value)?;
     tauri::async_runtime::spawn_blocking(move || {
+        let _guard = keychain_lock().lock().map_err(|_| "Keychain busy.".to_string())?;
         if value.is_empty() {
             keychain::delete(&name)
         } else {

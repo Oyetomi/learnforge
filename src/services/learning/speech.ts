@@ -140,10 +140,11 @@ export function formatTextForSpeech(raw: string): string {
     .replace(/≤/g, " is at most ")
     .replace(/≈/g, " is approximately ");
 
-  // Strip remaining LaTeX commands, markdown emphasis, and stray braces
+  // Strip remaining LaTeX commands, markdown emphasis, blockquote markers, and stray braces
   s = s
     .replace(/\\[a-zA-Z]+/g, " ")
-    .replace(/[*_~#>{}[\]\\^]/g, " ")
+    .replace(/^\s*>\s?/gm, " ")
+    .replace(/[*_~#{}[\]\\^]/g, " ")
     .replace(/\s+/g, " ")
     .replace(/\s+([.,;:?!])/g, "$1")
     .trim();
@@ -292,10 +293,10 @@ async function speakWithElevenLabs(text: string, utteranceId: number, options?: 
   activeTtsAbort = controller;
   for (const chunk of speechChunks(text)) {
     if (controller.signal.aborted || utteranceId !== activeUtteranceId) return;
-    options?.onLoading?.();
     const key = JSON.stringify([preferences.voiceId, preferences.modelId, chunk]);
     let bytes = cachedNarration(key);
     if (!bytes) {
+      options?.onLoading?.();
       const requestId = ++narrationRequestId;
       activeNativeNarrationId = requestId;
       const result = await invoke<number[]>("narration_generate", { text: chunk, voiceId: preferences.voiceId,
@@ -373,12 +374,14 @@ async function trySpeakWithOpenAI(
     audio.onended = () => {
       if (utteranceId === activeUtteranceId) {
         cleanupAudioElement();
+        activeOnEnd = undefined;
         onEnd?.();
       }
     };
     audio.onerror = () => {
       if (utteranceId === activeUtteranceId) {
         cleanupAudioElement();
+        activeOnEnd = undefined;
         onEnd?.();
       }
     };
@@ -386,6 +389,7 @@ async function trySpeakWithOpenAI(
     if (utteranceId === activeUtteranceId) onStart?.();
     return true;
   } catch {
+    if (utteranceId === activeUtteranceId) clearAudioPlayback();
     return false;
   } finally {
     clearTimeout(timeout);
@@ -471,10 +475,12 @@ export async function speakNaturalText(
             seenSpeaking = true;
           } else if (seenSpeaking || ticks > 6) {
             cleanupAudioElement();
+            activeOnEnd = undefined;
             options?.onEnd?.();
           }
         } catch {
           cleanupAudioElement();
+          activeOnEnd = undefined;
           options?.onEnd?.();
         }
       }, 240);
@@ -501,10 +507,14 @@ export async function speakNaturalText(
     utterance.pitch = 1.0;
     utterance.onstart = () => { if (utteranceId === activeUtteranceId) options?.onStart?.(); };
     utterance.onend = () => {
-      if (utteranceId === activeUtteranceId) options?.onEnd?.();
+      if (utteranceId === activeUtteranceId) {
+        activeOnEnd = undefined;
+        options?.onEnd?.();
+      }
     };
     utterance.onerror = () => {
       if (utteranceId === activeUtteranceId) {
+        activeOnEnd = undefined;
         options?.onError?.();
         options?.onEnd?.();
       }
@@ -513,6 +523,7 @@ export async function speakNaturalText(
     return;
   }
 
+  activeOnEnd = undefined;
   options?.onEnd?.();
 }
 

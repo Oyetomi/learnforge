@@ -8,11 +8,11 @@ import { MarkdownView } from "./MarkdownView";
 import { VisualExample } from "../learning/VisualExample";
 import { NarrationButton } from "../learning/NarrationButton";
 
-export function LearningHelpPanel({ open, kind, contextKey, context, milestone, check, answered, existingVisual, narrow, onClose, onKind, onSupport, language, panelId, expanded = false, onToggleExpanded }: {
+export function LearningHelpPanel({ open, kind, contextKey, context, milestone, check, answered, existingVisual, repairNote, repairToken = 0, narrow, onClose, onKind, onSupport, language, panelId, expanded = false, onToggleExpanded }: {
   panelId?: string; expanded?: boolean; onToggleExpanded?: () => void;
   language?: string;
   open: boolean; kind: HelpKind; contextKey: string; context: string; milestone: Milestone | null;
-  check: LearningCheck | null; answered: boolean; existingVisual?: VisualSpec; narrow: boolean;
+  check: LearningCheck | null; answered: boolean; existingVisual?: VisualSpec; repairNote?: string; repairToken?: number; narrow: boolean;
   onClose: () => void; onKind: (kind: HelpKind) => void;
   onSupport: () => void;
 }) {
@@ -23,6 +23,11 @@ export function LearningHelpPanel({ open, kind, contextKey, context, milestone, 
   const [revision, setRevision] = useState(0);
   const [phase, setPhase] = useState<"generating"|"repairing">("generating");
   const forceNext = useRef(false);
+  const lastRepairToken = useRef(repairToken);
+  if (repairToken !== lastRepairToken.current) {
+    lastRepairToken.current = repairToken;
+    forceNext.current = true;
+  }
   const pane = useRef<HTMLElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -53,7 +58,7 @@ export function LearningHelpPanel({ open, kind, contextKey, context, milestone, 
       controller.abort(); setLoading(false);
       setError("This explanation is taking too long. Your activity and answer are still saved. Try again or choose a walkthrough.");
     },45000);
-    void requestSessionHelp(kind, milestone, check, context, answered, controller.signal, next=>{if(!controller.signal.aborted)setPhase(next);}).then(value => {
+    void requestSessionHelp(kind, milestone, check, context, answered, controller.signal, next=>{if(!controller.signal.aborted)setPhase(next);}, refreshing ? repairNote : undefined).then(value => {
       if (controller.signal.aborted) return;
       saveHelp(cacheKey, value); setResult(value); setLoading(false);
     }).catch(err => {
@@ -62,7 +67,7 @@ export function LearningHelpPanel({ open, kind, contextKey, context, milestone, 
     }).finally(()=>clearTimeout(timer));
     return () => { clearTimeout(timer); controller.abort(); };
     // A context key identifies immutable lesson/question content; drafts never restart help.
-  }, [open, cacheKey, revision]);
+  }, [open, cacheKey, revision, repairToken]);
   useEffect(() => {
     if (!open || !result || !body.current) return;
     try { body.current.scrollTop = Number(localStorage.getItem(`learnforge:help-scroll:${cacheKey}`)) || 0; } catch {}
@@ -86,7 +91,7 @@ export function LearningHelpPanel({ open, kind, contextKey, context, milestone, 
       {error && <section ref={errorPanel} tabIndex={-1} role="alert" className="help-error"><h3>{result?.visual?"Your previous figure is still here":kind==="visual"?"The figure isn’t ready":"The explanation isn’t ready"}</h3><p>{error}</p><div><button type="button" onClick={retry}>{kind==="visual"?"Generate figure again":"Try again"}</button>{kind!=="walkthrough"&&<button type="button" onClick={()=>onKind("walkthrough")}>Use walkthrough</button>}</div></section>}
       {result && <>
         {result.content && <><div className="narration-reading-action"><NarrationButton text={result.content} label="Listen to explanation" onListen={onSupport}/></div><MarkdownView compactFigures content={result.content} languageHint={milestone?.learning_intent?.programmingLanguage} derivationPositionKey={cacheKey}/></>}
-        {result.visual && <VisualExample visual={result.visual} language={language || milestone?.learning_intent?.programmingLanguage} visualId={`help:${cacheKey}`} supportCheckId={!answered ? check?.id : undefined} onRequestFreshVisual={retry}/>}
+        {result.visual && <VisualExample key={`help:${cacheKey}:${revision}:${repairToken}`} visual={result.visual} language={language || milestone?.learning_intent?.programmingLanguage} visualId={`help:${cacheKey}:${revision}:${repairToken}`} supportCheckId={!answered ? check?.id : undefined} onRequestFreshVisual={retry}/>}
       </>}
     </div>
     <footer><span>Your activity and answer stay in place.</span>{!loading && result && <button type="button" onClick={retry}>Try another explanation</button>}</footer>

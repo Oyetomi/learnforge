@@ -58,6 +58,7 @@ export const RetentionFlow: React.FC<Props> = ({
   const [check, setCheck] = useState<LearningCheck | null>(null);
   const [reviewMessage, setReviewMessage] = useState<ChatMessage | null>(null);
   const [repair, setRepair] = useState(false);
+  const [repairAfterRated, setRepairAfterRated] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const request = useRef<AbortController | null>(null);
@@ -89,13 +90,23 @@ export const RetentionFlow: React.FC<Props> = ({
     target?.focus({ preventScroll: true });
     target?.scrollIntoView({ block: "nearest", behavior: "auto" });
   }, [active, check?.id, busy]);
-  const dismiss = () => {
+  const closePanel = (markDismissed: boolean) => {
     request.current?.abort();
     request.current = null;
     setBusy(false);
     setError("");
     setActive(false);
-    setDismissedOn(day);
+    setSelectedCard(null);
+    setCheck(null);
+    setReviewMessage(null);
+    setRepair(false);
+    setRepairAfterRated(false);
+    if (markDismissed) {
+      setDismissedOn(day);
+      try {
+        localStorage.setItem(dismissKey, day);
+      } catch {}
+    }
     requestAnimationFrame(() => {
       const target = previousFocus.current?.isConnected
         ? previousFocus.current
@@ -104,10 +115,8 @@ export const RetentionFlow: React.FC<Props> = ({
           );
       target?.focus({ preventScroll: true });
     });
-    try {
-      localStorage.setItem(dismissKey, day);
-    } catch {}
   };
+  const dismiss = () => closePanel(true);
   const prepare = async (smaller = false) => {
     if (!card || !milestone || busy || request.current) return;
     if (!active)
@@ -181,7 +190,9 @@ export const RetentionFlow: React.FC<Props> = ({
       assisted: Boolean(attempt.assisted || repair || support.length),
       visualSupportIds: support,
       correct:
-        question.kind === "free-response"
+        attempt.revealed
+          ? false
+          : question.kind === "free-response"
           ? !attempt.dontKnow &&
             isAcceptedFreeResponseGrade(question, attempt.grading)
           : gradeLearningCheck(question, attempt.selectedIds, attempt.dontKnow),
@@ -207,7 +218,9 @@ export const RetentionFlow: React.FC<Props> = ({
   const finish = (close = true) => {
     const review = reviewMessage?.retention_review;
     if (!review || !reviewMessage) return;
-    database.finishRetentionReview(session.id, reviewMessage.id);
+    // Guided repair after a missed revisit scaffolds understanding without
+    // double-rating the same FSRS card seconds after the first rating.
+    database.finishRetentionReview(session.id, reviewMessage.id, repairAfterRated);
     if (review.attempt.correct && milestone) {
       recordDemonstratedConcept({
         title: milestone.title,
@@ -220,7 +233,7 @@ export const RetentionFlow: React.FC<Props> = ({
       });
     }
     onSaved();
-    if (close) dismiss();
+    if (close) closePanel(false);
   };
   if (!preferences.retention || (!active && (dismissed || !card || !milestone)))
     return null;
@@ -291,7 +304,7 @@ export const RetentionFlow: React.FC<Props> = ({
               assistedSoFar={repair || visualSupportFor(check.id).length > 0}
               onSubmit={record}
               onAskCoach={() => {}}
-              onNewQuestion={() => void prepare()}
+              onNewQuestion={() => void prepare(repair)}
               onContinue={() => finish()}
               continueLabel="Finish revisit"
               onDispute={() => {
@@ -317,6 +330,7 @@ export const RetentionFlow: React.FC<Props> = ({
                   type="button"
                   onClick={() => {
                     finish(false);
+                    setRepairAfterRated(true);
                     void prepare(true);
                   }}
                 >

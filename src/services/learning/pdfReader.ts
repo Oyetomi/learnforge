@@ -15,7 +15,7 @@ async function loadPdfjs() {
 function openPdfTask(
   pdfjs: Awaited<ReturnType<typeof loadPdfjs>>,
   input: Uint8Array | Blob,
-  hooks: { activity?: () => void; failed?: (error: unknown) => void } = {}
+  hooks: { activity?: () => void; failed?: (error: unknown) => void; visual?: boolean } = {}
 ) {
   const range = input instanceof Uint8Array ? undefined : new class extends pdfjs.PDFDataRangeTransport {
     stopped = false;
@@ -28,12 +28,20 @@ function openPdfTask(
     }
     abort() { this.stopped = true; }
   }(input as Blob);
-  const task = pdfjs.getDocument({ ...(range ? { range, rangeChunkSize: 65536, disableAutoFetch: true, disableStream: true } : { data: (input as Uint8Array).slice() }), cMapUrl: `${import.meta.env.BASE_URL}vendor/pdfjs/cmaps/`, cMapPacked: true, standardFontDataUrl: `${import.meta.env.BASE_URL}vendor/pdfjs/standard_fonts/`, useWasm: false, useSystemFonts: true, disableFontFace: true });
+  const task = pdfjs.getDocument({
+    ...(range ? { range, rangeChunkSize: 65536, disableAutoFetch: true, disableStream: true } : { data: (input as Uint8Array).slice() }),
+    cMapUrl: `${import.meta.env.BASE_URL}vendor/pdfjs/cmaps/`,
+    cMapPacked: true,
+    standardFontDataUrl: `${import.meta.env.BASE_URL}vendor/pdfjs/standard_fonts/`,
+    useWasm: false,
+    useSystemFonts: Boolean(hooks.visual),
+    disableFontFace: !hooks.visual,
+  });
   const stopReads = () => range?.abort();
   return { task, stopReads, abort: () => { stopReads(); void task.destroy().catch(() => {}); } };
 }
 
-async function withPdf<T>(input: Uint8Array | Blob, options: ReadOptions, action: (pdf: PDFDocumentProxy, activity: () => void) => Promise<T>): Promise<T> {
+async function withPdf<T>(input: Uint8Array | Blob, options: ReadOptions & { visual?: boolean }, action: (pdf: PDFDocumentProxy, activity: () => void) => Promise<T>): Promise<T> {
   options.signal?.throwIfAborted();
   const pdfjs = await loadPdfjs();
   options.signal?.throwIfAborted();
@@ -42,7 +50,7 @@ async function withPdf<T>(input: Uint8Array | Blob, options: ReadOptions, action
   let stop = () => {};
   // Inactivity recovery, not a time allowance based on the book's length.
   const activity = () => { clearTimeout(timer); timer = setTimeout(() => { timedOut = true; stop(); }, 120000); };
-  const { task, abort, stopReads } = openPdfTask(pdfjs, input, { activity, failed: error => { rangeFailure = error; stop(); } });
+  const { task, abort, stopReads } = openPdfTask(pdfjs, input, { activity, visual: options.visual, failed: error => { rangeFailure = error; stop(); } });
   stop = abort;
   activity();
   options.signal?.addEventListener("abort", stop, { once: true });
@@ -68,39 +76,58 @@ export interface PdfPageView {
   pageCount: number;
   /** Draw one page into a canvas at the given CSS width (sharp on high-density screens). */
   render(pageNumber: number, canvas: HTMLCanvasElement, cssWidth: number): Promise<void>;
+  cancel?(canvas: HTMLCanvasElement): void;
   close(): void;
 }
 
 /** Keep a stored PDF open for reading pages inside the app. */
 export async function openPdfPageView(file: Blob): Promise<PdfPageView> {
   const pdfjs = await loadPdfjs();
-  const { task, abort } = openPdfTask(pdfjs, file);
+  let abortDoc = () => {};
+  const { task, abort } = openPdfTask(pdfjs, file, {
+    visual: true,
+    failed: () => abortDoc(),
+  });
+  abortDoc = abort;
   const pdf = await task.promise;
   const rendering = new Map<HTMLCanvasElement, { cancel(): void }>();
+  const tokens = new Map<HTMLCanvasElement, number>();
+  let nextToken = 0;
   return {
     pageCount: pdf.numPages,
     async render(pageNumber, canvas, cssWidth) {
+      const token = ++nextToken;
+      tokens.set(canvas, token);
       rendering.get(canvas)?.cancel();
       const page = await pdf.getPage(pageNumber);
+      let renderTask: { cancel(): void; promise: Promise<void> } | null = null;
       try {
+        if (tokens.get(canvas) !== token) return;
         const base = page.getViewport({ scale: 1 });
         const ratio = Math.min(window.devicePixelRatio || 1, 2);
         const viewport = page.getViewport({ scale: (cssWidth / base.width) * ratio });
         canvas.width = Math.floor(viewport.width);
         canvas.height = Math.floor(viewport.height);
         canvas.style.aspectRatio = `${base.width} / ${base.height}`;
-        const task = page.render({ canvas, viewport, background: "#ffffff" });
-        rendering.set(canvas, task);
-        await task.promise.catch((error: unknown) => {
+        renderTask = page.render({ canvas, viewport, background: "#ffffff" });
+        rendering.set(canvas, renderTask);
+        await renderTask.promise.catch((error: unknown) => {
           if ((error as { name?: string })?.name !== "RenderingCancelledException") throw error;
         });
       } finally {
-        rendering.delete(canvas);
+        if (renderTask && rendering.get(canvas) === renderTask) rendering.delete(canvas);
         page.cleanup();
       }
     },
+    cancel(canvas) {
+      tokens.set(canvas, ++nextToken);
+      rendering.get(canvas)?.cancel();
+      rendering.delete(canvas);
+    },
     close() {
-      rendering.forEach((task) => task.cancel());
+      tokens.clear();
+      rendering.forEach((renderTask) => renderTask.cancel());
+      rendering.clear();
       abort();
     },
   };
@@ -177,7 +204,7 @@ export interface PdfReadingRange {
 /** A local thumbnail of the actual first page, never an invented book cover. */
 export async function renderPdfCover(input: Blob | Uint8Array): Promise<Blob | undefined> {
   if (typeof document === "undefined") return undefined;
-  return withPdf(input, {}, async pdf => {
+  return withPdf(input, { visual: true }, async pdf => {
     const page = await pdf.getPage(1);
     try {
       const original = page.getViewport({ scale: 1 });

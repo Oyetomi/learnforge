@@ -14,12 +14,14 @@ const enums: Record<string, string[]> = {
 };
 const idPattern = /^[A-Za-z][\w-]{0,63}$/;
 const colorPattern = /^(?:#[\da-f]{3,8}|[a-z]{1,24}|(?:rgb|rgba|hsl|hsla)\([\d.,%\s+-]+\))$/i;
-const numberPattern = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?%?$/i;
+const numberPattern = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?(?:%|px)?$/i;
 
 /** Rebuild a small, inert SVG language from XML nodes; never insert model markup as-is. */
 export function sanitizeSvgMarkup(raw: string): { svg: string; title: string; description: string } | null {
-  if (raw.length > 60000 || /<!DOCTYPE|<!ENTITY|<\?/i.test(raw)) return null;
-  const match = /<svg\b[\s\S]*<\/svg>/i.exec(raw);
+  if (raw.length > 60000) return null;
+  const cleanedRaw = raw.replace(/^\s*<\?xml(?=\s)[^?]*\?>\s*/i, "");
+  if (/<!DOCTYPE|<!ENTITY|<\?/i.test(cleanedRaw)) return null;
+  const match = /<svg\b[\s\S]*?<\/svg>/i.exec(cleanedRaw);
   if (!match) return null;
   try {
     const parsed = new DOMParser({ onError: () => { throw new Error("Invalid SVG"); } }).parseFromString(match[0], "image/svg+xml");
@@ -39,7 +41,7 @@ export function sanitizeSvgMarkup(raw: string): { svg: string; title: string; de
         if (attr.namespaceURI || value.length > 8000) continue;
         let allowed: string | null = null;
         if (key === "id" && idPattern.test(value)) allowed = prefix + value;
-        else if (numeric.has(key) && numberPattern.test(value) && Number.isFinite(Number(value.replace(/%$/, ""))) && Math.abs(parseFloat(value)) <= 100000) allowed = value;
+        else if (numeric.has(key) && numberPattern.test(value) && Number.isFinite(Number(value.replace(/(?:%|px)$/i, ""))) && Math.abs(parseFloat(value)) <= 100000) allowed = value;
         else if (["fill", "stroke", "stop-color"].includes(key)) {
           const local = /^url\(#([A-Za-z][\w-]{0,63})\)$/.exec(value);
           if (local) allowed = `url(#${prefix}${local[1]})`;
@@ -70,8 +72,8 @@ export function sanitizeSvgMarkup(raw: string): { svg: string; title: string; de
     copyAttributes(original, root);
     const box = original.getAttribute("viewBox")?.trim().split(/[\s,]+/).map(Number);
     const size = (key: string, fallback: number) => {
-      const value = Number(original.getAttribute(key));
-      return value > 0 && value <= 10000 ? value : fallback;
+      const value = parseFloat(original.getAttribute(key) || "");
+      return Number.isFinite(value) && value > 0 && value <= 10000 ? value : fallback;
     };
     root.setAttribute("viewBox", box?.length === 4 && box.every(Number.isFinite) && box.every((n) => Math.abs(n) <= 100000) && box[2] > 0 && box[3] > 0
       ? box.join(" ") : `0 0 ${size("width", 420)} ${size("height", 260)}`);
@@ -81,7 +83,7 @@ export function sanitizeSvgMarkup(raw: string): { svg: string; title: string; de
     const description = desc?.textContent?.trim().slice(0, 1000) || "No text description was provided. Ask for a text explanation.";
     root.setAttribute("role", "img");
     root.setAttribute("aria-label", title);
-    if (desc) { desc.setAttribute("id", `${prefix}description`); root.setAttribute("aria-describedby", `${prefix}description`); }
+    if (desc) { desc.setAttribute("id", `${prefix}lf-desc`); root.setAttribute("aria-describedby", `${prefix}lf-desc`); }
     return { svg: new XMLSerializer().serializeToString(root), title, description };
   } catch { return null; }
 }

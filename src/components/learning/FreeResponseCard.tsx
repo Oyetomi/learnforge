@@ -47,8 +47,13 @@ export const FreeResponseCard: React.FC<QuestionCardProps> = ({
   const [error, setError] = useState("");
   const request = useRef<AbortController | null>(null);
   const committed = useRef(false);
+  const busyRef = useRef(isBusy);
+  busyRef.current = isBusy;
   const resultRef = useRef<HTMLDivElement>(null);
   const focusResult = useRef(false);
+  useEffect(() => {
+    if (!attempt) committed.current = false;
+  }, [attempt, isBusy]);
   useEffect(
     () => () => {
       request.current?.abort();
@@ -69,6 +74,10 @@ export const FreeResponseCard: React.FC<QuestionCardProps> = ({
   }, [draft, attempt, key]);
   const save = (grading: FreeResponseGrade, dontKnow = false) => {
     if (committed.current || attempt) return;
+    if (busyRef.current) {
+      setError("Another response is still finishing. Your answer is saved; try submitting again in a moment.");
+      return;
+    }
     committed.current = true;
     focusResult.current = true;
     onSubmit(check, {
@@ -84,6 +93,10 @@ export const FreeResponseCard: React.FC<QuestionCardProps> = ({
       assisted: assistedSoFar || undefined,
       submittedAt: Date.now(),
     });
+    // Release lock if parent rejected the submission (e.g. model changed mid-question).
+    setTimeout(() => {
+      committed.current = false;
+    }, 0);
   };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -186,6 +199,16 @@ export const FreeResponseCard: React.FC<QuestionCardProps> = ({
             value={draft.response}
             disabled={checking || isBusy}
             placeholder="A short explanation is enough."
+            onKeyDown={(event) => {
+              if (
+                (event.metaKey || event.ctrlKey) &&
+                event.key === "Enter" &&
+                !event.nativeEvent.isComposing
+              ) {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
             onChange={(event) =>
               setDraft((d) => ({ ...d, response: event.target.value }))
             }

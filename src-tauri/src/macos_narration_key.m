@@ -31,6 +31,7 @@ int lf_narration_key_save(const char *key) {
     if (result == errSecItemNotFound) {
       query[(__bridge id)kSecValueData] = data;
       query[(__bridge id)kSecAttrLabel] = @"LearnForge — ElevenLabs narration";
+      query[(__bridge id)kSecAttrAccessible] = (__bridge id)kSecAttrAccessibleWhenUnlockedThisDeviceOnly;
       result = SecItemAdd((__bridge CFDictionaryRef)query, NULL);
     }
     return (int)result;

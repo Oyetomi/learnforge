@@ -4,6 +4,7 @@ import type { QuestionCardProps } from "./QuestionCard";
 import type { LearningCheck, LearningReference } from "../../types";
 import { QuestionCard } from "./QuestionCard";
 import { questionReviewIdentity, readQuestionReview, reviewQuestion, saveQuestionReview, type QuestionReview } from "../../services/learning/questionReview";
+import { AI_CONNECTION_EVENT } from "../../services/ai/connection";
 import "./question-review.css";
 
 export function QuestionReviewStatus({ busy, error, needsRevision, disabled, onRetry, onReplace, onReturn }: {
@@ -24,7 +25,15 @@ export function QuestionReviewStatus({ busy, error, needsRevision, disabled, onR
 
 /** Can run while the learner reads, rather than adding a wait to every question. */
 export function useQuestionReview(check: LearningCheck | null, references?: LearningReference[], enabled = true) {
+  const [connectionTick, setConnectionTick] = useState(0);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onChange = () => setConnectionTick((n) => n + 1);
+    window.addEventListener(AI_CONNECTION_EVENT, onChange);
+    return () => window.removeEventListener(AI_CONNECTION_EVENT, onChange);
+  }, []);
   const identity = check ? questionReviewIdentity(check, references) : "";
+  void connectionTick;
   const [state, setState] = useState<{ identity: string; review?: QuestionReview; error?: string }>(() => ({ identity, review: readQuestionReview(identity) || undefined }));
   const [retry, setRetry] = useState({ identity: "", count: 0 });
   const review = state.identity === identity ? state.review : undefined;
@@ -41,7 +50,11 @@ export function useQuestionReview(check: LearningCheck | null, references?: Lear
     }, 20000);
     setState({ identity });
     void reviewQuestion(check, references, controller.signal).then(result => {
-      if (!controller.signal.aborted) { saveQuestionReview(identity, result); setState({ identity, review: result }); }
+      if (!controller.signal.aborted) {
+        saveQuestionReview(identity, result);
+        setState({ identity, review: result });
+        setRetry(previous => previous.identity === identity ? { identity: "", count: previous.count } : previous);
+      }
     }).catch(() => {
       if (active) setState({ identity, error: controller.signal.aborted ? "The check took too long. Your lesson and answer draft are saved. You can retry." : "We couldn’t finish checking this question. Your lesson and answer draft are saved." });
     }).finally(() => clearTimeout(timer));

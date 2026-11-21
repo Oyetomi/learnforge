@@ -22,6 +22,7 @@ int lf_secret_save(const char *account, const char *value) {
     if (result == errSecItemNotFound) {
       query[(__bridge id)kSecValueData] = data;
       query[(__bridge id)kSecAttrLabel] = @"LearnForge — provider credential";
+      query[(__bridge id)kSecAttrAccessible] = (__bridge id)kSecAttrAccessibleWhenUnlockedThisDeviceOnly;
       result = SecItemAdd((__bridge CFDictionaryRef)query, NULL);
     }
     return (int)result;

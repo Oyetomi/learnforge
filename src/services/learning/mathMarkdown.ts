@@ -4,7 +4,11 @@ function escaped(text: string, at: number) {
   while (at > 0 && text[--at] === "\\") slashes++;
   return slashes % 2 === 1;
 }
+const MATH_STRUCTURE_RE =
+  /[=<>^_]|\\(?:frac|sqrt|sum|int|prod|lim|begin|cdot|times|div|pm|mp|le|ge|ne|approx|equiv|to|rightarrow|infty|partial|nabla|left|right|vec|hat|bar|dot|sin|cos|tan|log|ln|exp|alpha|beta|gamma|delta|theta|lambda|mu|pi|sigma|omega)\b/;
+
 function proseMath(body: string) {
+  if (MATH_STRUCTURE_RE.test(body)) return false;
   const bare = body.replace(/\\(?:text|mathrm|operatorname)\{[^}]*\}/g, "")
     .replace(/\\[a-zA-Z]+/g, "");
   return /^(?:\\\$)?\d/.test(body) && /\b[A-Za-z]{2,}\b/.test(bare);
@@ -28,6 +32,9 @@ function normalizeProse(text: string): string {
       if (display) tex = tex.replace(/\$/g, "\\text{\\textdollar}");
       out += marker + tex + marker;
       i = end + marker.length;
+    } else if (display) {
+      out += "\\$\\$";
+      i += 2;
     } else {
       out += "\\$";
       i++;
@@ -35,12 +42,70 @@ function normalizeProse(text: string): string {
   }
   return out;
 }
-export function normalizeMathMarkdown(text: string): string {
-  const code = /(`{3,})[^\n]*\n[\s\S]*?\1|(~{3,})[^\n]*\n[\s\S]*?\2|`+[^`\n]+`+/g;
-  let out = "", start = 0;
-  for (const match of text.matchAll(code)) {
-    out += normalizeProse(text.slice(start, match.index)) + match[0];
-    start = match.index! + match[0].length;
+
+function normalizeInlineCodeAware(chunk: string): string {
+  let out = "";
+  let i = 0;
+  let plainStart = 0;
+  while (i < chunk.length) {
+    if (chunk[i] === "`") {
+      let ticks = 1;
+      while (i + ticks < chunk.length && chunk[i + ticks] === "`") ticks++;
+      const delimiter = "`".repeat(ticks);
+      const close = chunk.indexOf(delimiter, i + ticks);
+      if (close !== -1) {
+        out += normalizeProse(chunk.slice(plainStart, i));
+        out += chunk.slice(i, close + ticks);
+        i = close + ticks;
+        plainStart = i;
+        continue;
+      }
+      i += ticks;
+      continue;
+    }
+    i++;
   }
-  return out + normalizeProse(text.slice(start));
+  return out + normalizeProse(chunk.slice(plainStart));
+}
+
+export function normalizeMathMarkdown(text: string): string {
+  const lines = text.split(/(?<=\n)/);
+  let out = "";
+  let proseBuf = "";
+  let fence: { marker: string; length: number } | null = null;
+
+  const flushProse = () => {
+    if (proseBuf) {
+      out += normalizeInlineCodeAware(proseBuf);
+      proseBuf = "";
+    }
+  };
+
+  for (const line of lines) {
+    const trimmed = line.replace(/\r?\n$/, "");
+    const stripped = trimmed.replace(/^(?:[ \t]*>[ \t]?)+/, "");
+    if (!fence) {
+      const open = /^[ \t]*(`{3,}|~{3,})/.exec(stripped);
+      if (open) {
+        const marker = open[1][0];
+        const rest = stripped.slice(open[0].length);
+        // Backtick info strings cannot contain backticks (otherwise it's inline code).
+        if (marker !== "`" || !rest.includes("`")) {
+          flushProse();
+          fence = { marker, length: open[1].length };
+          out += line;
+          continue;
+        }
+      }
+      proseBuf += line;
+    } else {
+      out += line;
+      const close = /^[ \t]*(`{3,}|~{3,})[ \t]*$/.exec(stripped);
+      if (close && close[1][0] === fence.marker && close[1].length >= fence.length) {
+        fence = null;
+      }
+    }
+  }
+  flushProse();
+  return out;
 }

@@ -1,7 +1,7 @@
 import type { ExecutionResult } from "../../types";
 
 /** Compiler output rather than a failing assertion. */
-export const BUILD_ERROR = /\[build failed\]|^# learnforge|error\[E\d+\]|: (fatal )?error:|SyntaxError|IndentationError|ModuleNotFoundError|ImportError|cannot find symbol|could not compile|undefined: /m;
+export const BUILD_ERROR = /\[build failed\]|^# (?:learnforge|command-line-arguments)|error\[E\d+\]|: (fatal )?error:|syntax error:|cannot use |imported and not used|redeclared in this block|SyntaxError|IndentationError|ModuleNotFoundError|ImportError|cannot find symbol|could not compile|undefined: /m;
 
 export type Tone = "pass" | "fail" | "warn" | "neutral";
 export interface Headline {

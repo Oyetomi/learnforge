@@ -73,8 +73,17 @@ export function withPageRanges(sections: PdfSection[], pageCount: number): PdfSe
   return sections.map((s, index) => {
     const start = s.pageStart;
     if (!start || start < 1 || start > pageCount) return { ...s, pageStart: undefined, pageEnd: undefined };
-    const next = sections.slice(index + 1).find(n => n.level <= s.level && n.pageStart && n.pageStart > start);
-    return { ...s, pageEnd: next?.pageStart ? next.pageStart - 1 : pageCount };
+    const nextSibling = sections.slice(index + 1).find(n => n.level <= s.level);
+    if (!nextSibling) return { ...s, pageEnd: pageCount };
+    if (nextSibling.pageStart === undefined) {
+      const existingEnd = s.pageEnd && s.pageEnd >= start && s.pageEnd <= pageCount ? s.pageEnd : undefined;
+      return { ...s, pageEnd: existingEnd };
+    }
+    if (nextSibling.pageStart >= start) {
+      return { ...s, pageEnd: Math.max(start, nextSibling.pageStart - 1) };
+    }
+    const later = sections.slice(index + 1).find(n => n.level <= s.level && n.pageStart && n.pageStart >= start);
+    return { ...s, pageEnd: later?.pageStart ? Math.max(start, later.pageStart - 1) : pageCount };
   });
 }
 export function selectedPdfSource(book: PdfBook, ids: string[]): { source: CurriculumSource; references: LearningReference[] } {

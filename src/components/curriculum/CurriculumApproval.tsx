@@ -28,6 +28,9 @@ export function CurriculumApproval({
 }) {
   const [draft, setDraft] = useState(track);
   const [editing, setEditing] = useState(false);
+  const [exclusionsText, setExclusionsText] = useState(
+    () => track.curriculum?.exclusions.join("\n") ?? ""
+  );
   const [attempts, setAttempts] = useState<PlacementAttempt[]>([]);
   const [probe, setProbe] = useState<number | null>(null);
   const [probeIds, setProbeIds] = useState<string[]>([]);
@@ -338,7 +341,12 @@ export function CurriculumApproval({
                 </span>
                 <button
                   className="check-coach-button"
-                  onClick={() => setEditing((v) => !v)}
+                  onClick={() => {
+                    setEditing((v) => {
+                      if (!v) setExclusionsText(plan.exclusions.join("\n"));
+                      return !v;
+                    });
+                  }}
                   disabled={preparing}
                   aria-pressed={editing}
                 >
@@ -524,13 +532,17 @@ export function CurriculumApproval({
                 <label>
                   One exclusion per line
                   <textarea
-                    value={plan.exclusions.join("\n")}
-                    onChange={(e) =>
+                    value={exclusionsText}
+                    onChange={(e) => {
+                      setExclusionsText(e.target.value);
                       changePlan({
                         ...plan,
-                        exclusions: e.target.value.split("\n").filter(Boolean),
-                      })
-                    }
+                        exclusions: e.target.value
+                          .split("\n")
+                          .map((s) => s.trim())
+                          .filter(Boolean),
+                      });
+                    }}
                   />
                 </label>
               ) : (

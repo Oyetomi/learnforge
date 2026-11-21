@@ -55,7 +55,12 @@ export function createNativeDictation(events: Events, api: Bridge = bridge) {
         void api.stop().catch(() => {});
       }, 90_000);
       try {
-        accept(await api.start(lang));
+        const initial = await api.start(lang);
+        if (disposed || ended) {
+          void api.stop().catch(() => {});
+          return;
+        }
+        accept(initial);
         if (!disposed && !ended) timer = setTimeout(() => void poll(), 150);
       } catch (error) { complete(typeof error === "string" ? error : "Could not start macOS dictation. Check microphone permissions and try again."); }
     },

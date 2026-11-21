@@ -37,9 +37,12 @@ export function deleteTopicData(
   const keys = Array.from({ length: localStorage.length }, (_, i) =>
     localStorage.key(i)
   ).filter((key): key is string => !!key);
-  const ownedKeys = new Set(
-    sessions.flatMap((s) => [`learnforge:active-milestone:${s.id}`, `learnforge:retention-dismissed:${s.id}`])
-  );
+  const ownedKeys = new Set([
+    ...sessions.flatMap((s) => [`learnforge:active-milestone:${s.id}`, `learnforge:retention-dismissed:${s.id}`]),
+    `learnforge:workspace-view:${track.id}`,
+    `learnforge:project-closed:${track.id}`,
+    `learnforge:predict-off:${track.id}`,
+  ]);
   for (const session of sessions)
     for (const message of database.getMessages(session.id))
       ownedKeys.add(tutoringReadingKey(message.id));
@@ -55,7 +58,11 @@ export function deleteTopicData(
     if (
       ownedKeys.has(key) ||
       milestoneIds.some(id => key.startsWith(questionReviewCachePrefix(id))) ||
-      key.startsWith(`learnforge:composer-draft:${track.id}:`)
+      key.startsWith(`learnforge:composer-draft:${track.id}:`) ||
+      key.startsWith(`learnforge:help:${track.id}:`) ||
+      key.startsWith(`learnforge:help-scroll:${track.id}:`) ||
+      key.startsWith(`learnforge:session-position:${track.id}:`) ||
+      key.startsWith(`learnforge:step-task-open:${track.id}:`)
     )
       localStorage.removeItem(key);
   let drafts: Record<string, unknown> = {};

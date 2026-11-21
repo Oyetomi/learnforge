@@ -35,7 +35,23 @@ export function startKnowledgePractice(graph: KnowledgeGraph, title: string, tar
     const valid = [...new Set(targetIds)].filter(id => graph.propositions.some(p => p.id === id));
     if (!valid.length || valid.length > 3 || valid.length !== targetIds.length)
         throw new Error("Choose one to three ideas from this topic.");
-    return { version: 1, id: crypto.randomUUID(), trackId: graph.trackId, title, material: structuredClone(graph), targetIds: valid, rounds: [], status: "active", createdAt: now, updatedAt: now };
+    const propIds = new Set(valid);
+    const connectedArgs = graph.arguments.filter(
+        a => propIds.has(a.conclusionId) || a.premiseIds.some(id => propIds.has(id))
+    );
+    for (const arg of connectedArgs) {
+        propIds.add(arg.conclusionId);
+        arg.premiseIds.forEach(id => propIds.add(id));
+    }
+    const propositions = graph.propositions.filter(p => propIds.has(p.id));
+    const sourceIds = new Set(propositions.flatMap(p => p.anchors.map(a => a.sourceId)));
+    const material: KnowledgeGraph = structuredClone({
+        ...graph,
+        sources: graph.sources.filter(s => sourceIds.has(s.id)),
+        propositions,
+        arguments: connectedArgs,
+    });
+    return { version: 1, id: crypto.randomUUID(), trackId: graph.trackId, title, material, targetIds: valid, rounds: [], status: "active", createdAt: now, updatedAt: now };
 }
 export function practiceOutcome(round: PracticeRound, references: LearningReference[]): "unanswered" | "unresolved" | "supported" | "independent" | "needs-work" {
     const a = round.attempt;
@@ -43,7 +59,7 @@ export function practiceOutcome(round: PracticeRound, references: LearningRefere
         return "unanswered";
     if (a.grading?.reviewRequested || a.grading?.status === "uncertain" || !receiptMatches(round.check, a, references))
         return "unresolved";
-    const correct = !a.dontKnow && (round.check.kind === "free-response" ? !!a.response?.trim() && isAcceptedFreeResponseGrade(round.check, a.grading) : gradeLearningCheck(round.check, a.selectedIds, a.dontKnow));
+    const correct = !a.revealed && !a.dontKnow && (round.check.kind === "free-response" ? !!a.response?.trim() && isAcceptedFreeResponseGrade(round.check, a.grading) : gradeLearningCheck(round.check, a.selectedIds, a.dontKnow));
     if (!correct)
         return "needs-work";
     return a.assisted || a.practice === "guided" || round.check.practice === "guided" || a.confidence === "unsure" || (a.retriedOptionIds?.length || 0) > 0 || (a.visualSupportIds?.length || 0) > 0 ? "supported" : "independent";
@@ -91,7 +107,7 @@ export function recordPracticeAttempt(session: KnowledgePractice, roundId: strin
     const round = session.rounds.find(r => r.id === roundId);
     if (!round || round.attempt || round.check.id !== attempt.checkId || round.check.milestoneId !== attempt.milestoneId || !hasQuestionReview(round.check, attempt, practiceReferences(session.material, [round.targetId])))
         return session;
-    const correct = !attempt.dontKnow && (round.check.kind === "free-response" ? !!attempt.response?.trim() && isAcceptedFreeResponseGrade(round.check, attempt.grading) : gradeLearningCheck(round.check, attempt.selectedIds, attempt.dontKnow));
+    const correct = !attempt.revealed && !attempt.dontKnow && (round.check.kind === "free-response" ? !!attempt.response?.trim() && isAcceptedFreeResponseGrade(round.check, attempt.grading) : gradeLearningCheck(round.check, attempt.selectedIds, attempt.dontKnow));
     return { ...session, updatedAt: Date.now(), rounds: session.rounds.map(r => r.id === roundId ? { ...r, attempt: { ...attempt, correct, practice: round.check.practice } } : r) };
 }
 export function disputePracticeAttempt(session: KnowledgePractice, roundId: string): KnowledgePractice {

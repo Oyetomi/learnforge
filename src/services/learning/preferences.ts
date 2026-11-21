@@ -38,7 +38,7 @@ export function loadLearningPreferences(): LearningPreferences {
   }
 }
 export function saveLearningPreferences(value: Partial<LearningPreferences>) {
-  const clean = validatePreferences(value);
+  const clean = validatePreferences({ ...loadLearningPreferences(), ...value });
   localStorage.setItem(key, JSON.stringify(clean));
   if (typeof window !== "undefined")
     window.dispatchEvent(new Event(LEARNING_PREFERENCES_EVENT));

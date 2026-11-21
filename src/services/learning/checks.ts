@@ -88,7 +88,7 @@ export function hideLearningCheckBlocks(content: string): string {
         ""
       )
       .replace(
-        /^[ \t]*```forge-(?:check|assessment|repair|visual)[^\r\n]*(?:\r?\n[\s\S]*?(?:^[ \t]*```[ \t]*$|$(?![\s\S]))|$)/gim,
+        /^[ \t]*```forge-(?:check|assessment|repair|visual|canvas)[^\r\n]*(?:\r?\n[\s\S]*?(?:^[ \t]*```[ \t]*$|$(?![\s\S]))|$)/gim,
         ""
       )
       .trim()

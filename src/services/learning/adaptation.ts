@@ -83,10 +83,16 @@ export function approvedLessonIds(messages: ChatMessage[]): Set<string> {
     const review = message.competency_assessment;
     if (!review || !acceptsReadiness(messages, review.milestoneId, review))
       continue;
-    const last = messages
+    const attempts = messages
       .filter((m) => m.check_attempt?.milestoneId === review.milestoneId)
-      .slice(-1)[0]?.check_attempt;
-    if (last && last.submittedAt <= review.createdAt)
+      .map((m) => m.check_attempt!);
+    const hasPriorAttempt = attempts.some((a) => a.submittedAt <= review.createdAt);
+    const hasPostReviewFailure = attempts.some(
+      (a) =>
+        a.submittedAt > review.createdAt &&
+        (!a.correct || a.grading?.reviewRequested || a.grading?.status === 'uncertain')
+    );
+    if (hasPriorAttempt && !hasPostReviewFailure)
       approved.add(review.milestoneId);
   }
   return approved;

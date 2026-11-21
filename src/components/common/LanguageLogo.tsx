@@ -147,14 +147,14 @@ const EXTRA_NAMES: Record<string, string> = {
 
 const key = (language?: string | null) => {
   const l = (language || "").toLowerCase().trim();
-  return ALIASES[l] || l;
+  return Object.hasOwn(ALIASES, l) ? ALIASES[l] : l;
 };
 
 /** Proper display name for a language id (`java` → `Java`, `csharp` → `C#`). */
 export function languageName(language?: string | null): string {
   const k = key(language);
-  if (LOGOS[k]) return LOGOS[k].name;
-  if (k in EXTRA_NAMES) return EXTRA_NAMES[k];
+  if (Object.hasOwn(LOGOS, k)) return LOGOS[k].name;
+  if (Object.hasOwn(EXTRA_NAMES, k)) return EXTRA_NAMES[k];
   return k ? k.charAt(0).toUpperCase() + k.slice(1) : "Text";
 }
 
@@ -163,7 +163,8 @@ export const LanguageLogo: React.FC<{
   size?: number;
   className?: string;
 }> = ({ language, size = 14, className }) => {
-  const logo = LOGOS[key(language)];
+  const k = key(language);
+  const logo = Object.hasOwn(LOGOS, k) ? LOGOS[k] : undefined;
   if (!logo) return <Code2 size={size} className={className} aria-hidden="true" />;
   return (
     <svg

@@ -693,7 +693,12 @@ export const NewTopicModal: React.FC<Props> = ({
       const book = isPdf ? await readPdfBook(file, file.name, { signal: controller.signal, onProgress: (page, total) => {
         if (mounted.current && readSequence.current === sequence && (page % 5 === 0 || page === total)) setStatus(`Reading contents preview · ${page} of ${total} pages…`);
       } }) : null;
-      const content = book ? book.pages.map((text, i) => `PDF page ${i + 1}\n${text}`).join("\n\n").slice(0, 64000) : await extractTextFromFile(file);
+      const content = book
+        ? `${book.previewOnly ? `Preview of the first ${book.pages.length} of ${book.pageCount} pages.\n\n` : ""}${book.pages
+            .map((text, i) => (text.trim() ? `PDF page ${i + 1}\n${text}` : ""))
+            .filter(Boolean)
+            .join("\n\n")}`.slice(0, 64000)
+        : await extractTextFromFile(file);
       if (!mounted.current || readSequence.current !== sequence) return;
       setPdfBook(book);
       setPdfSections(book ? mainPdfSections(book.sections).map(s => s.id) : []);
@@ -948,7 +953,13 @@ export const NewTopicModal: React.FC<Props> = ({
                         aria-pressed={practice === choice.id}
                         disabled={busy || unavailable}
                         title={unavailable ? "Projects span a full curriculum. Choose Full curriculum first." : undefined}
-                        onClick={() => setPractice(choice.id)}
+                        onClick={() => {
+                          setPractice(choice.id);
+                          if (choice.id === "project" && !supportsProjectMode(chosenLanguage)) {
+                            const fallback = codeLanguages.find(([value]) => value && supportsProjectMode(value))?.[0] || "go";
+                            choosePracticeLanguage(fallback);
+                          }
+                        }}
                       >
                         <strong>{choice.title}</strong>
                         <span>{unavailable ? "Needs a full curriculum." : choice.detail}</span>

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { STARTER_TRACKS, type CourseTrack } from "../../services/ai";
-import { db } from "../../services/db";
+import { db, STORAGE_READY_EVENT } from "../../services/db";
 import { savedTopicIds, topicsInWorkspace } from "../../services/learning/topics";
 
 const STARTER_IDS = STARTER_TRACKS.map((track) => track.id);
@@ -23,6 +23,19 @@ export function useTopics() {
     ...STARTER_TRACKS,
     ...db.getCustomTracks<CourseTrack>(),
   ]);
+  useEffect(() => {
+    const syncTracks = () => {
+      const stored = db.getCustomTracks<CourseTrack>();
+      if (!stored.length) return;
+      setTracks((prev) => {
+        const seen = new Set(prev.map((t) => t.id));
+        const additions = stored.filter((t) => !seen.has(t.id));
+        return additions.length ? [...prev, ...additions] : prev;
+      });
+    };
+    window.addEventListener(STORAGE_READY_EVENT, syncTracks);
+    return () => window.removeEventListener(STORAGE_READY_EVENT, syncTracks);
+  }, []);
   const [addedStarterIds, setAddedStarterIds] = useState(() => {
     let current = "";
     try {

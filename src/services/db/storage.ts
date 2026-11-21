@@ -30,6 +30,7 @@ const IDB_KEYS = {
 };
 
 export const STORAGE_STATUS_EVENT = "learnforge:storage-status";
+export const STORAGE_READY_EVENT = "learnforge:storage-ready";
 
 export interface StorageStatusDetail {
   persisted: boolean;
@@ -224,27 +225,69 @@ export class LocalDatabase {
 
   private loadFromStorage() {
     try {
-      const read = (key: string) => {
-        const value = localStorage.getItem(key);
-        if (value !== null) this.legacyFound = true;
-        return value;
-      };
-      const sessionsJson = read(STORAGE_KEYS.SESSIONS);
-      if (sessionsJson) this.applySessions(JSON.parse(sessionsJson));
-      const milestonesJson = read(STORAGE_KEYS.MILESTONES);
-      if (milestonesJson) this.applyMilestones(JSON.parse(milestonesJson));
-      const messagesJson = read(STORAGE_KEYS.MESSAGES);
-      if (messagesJson) this.applyMessages(JSON.parse(messagesJson));
-      const cardsJson = read(STORAGE_KEYS.SRS_CARDS);
-      if (cardsJson) this.applyCards(JSON.parse(cardsJson));
-      const tracksJson = read(STORAGE_KEYS.CUSTOM_TRACKS);
+      let foundAny = false;
+      const sessionsJson = localStorage.getItem(STORAGE_KEYS.SESSIONS);
+      if (sessionsJson) {
+        this.applySessions(JSON.parse(sessionsJson));
+        foundAny = true;
+      }
+      const milestonesJson = localStorage.getItem(STORAGE_KEYS.MILESTONES);
+      if (milestonesJson) {
+        this.applyMilestones(JSON.parse(milestonesJson));
+        foundAny = true;
+      }
+      const messagesJson = localStorage.getItem(STORAGE_KEYS.MESSAGES);
+      if (messagesJson) {
+        this.applyMessages(JSON.parse(messagesJson));
+        foundAny = true;
+      }
+      const cardsJson = localStorage.getItem(STORAGE_KEYS.SRS_CARDS);
+      if (cardsJson) {
+        this.applyCards(JSON.parse(cardsJson));
+        foundAny = true;
+      }
+      const tracksJson = localStorage.getItem(STORAGE_KEYS.CUSTOM_TRACKS);
       if (tracksJson) {
         const tracks = JSON.parse(tracksJson);
-        if (Array.isArray(tracks)) this.customTracks = tracks;
+        if (Array.isArray(tracks)) {
+          this.customTracks = tracks;
+          foundAny = true;
+        }
       }
+      if (foundAny) this.legacyFound = true;
     } catch (e) {
       console.error("Failed to parse data from localStorage:", e);
     }
+  }
+
+  private emitStorageReady() {
+    if (
+      typeof window !== "undefined" &&
+      typeof window.dispatchEvent === "function"
+    ) {
+      window.dispatchEvent(new CustomEvent(STORAGE_READY_EVENT));
+    }
+  }
+
+  private mergeCustomTracks(existing: unknown[]) {
+    if (!this.customTracks.length) {
+      this.customTracks = existing;
+      return;
+    }
+    const seen = new Set(
+      this.customTracks
+        .map((t) => (t && typeof t === "object" && "id" in t ? String((t as { id: unknown }).id) : ""))
+        .filter(Boolean)
+    );
+    const merged = [...this.customTracks];
+    for (const item of existing) {
+      const id = item && typeof item === "object" && "id" in item ? String((item as { id: unknown }).id) : "";
+      if (!id || !seen.has(id)) {
+        merged.push(item);
+        if (id) seen.add(id);
+      }
+    }
+    this.customTracks = merged;
   }
 
   // --- IndexedDB backend ---
@@ -260,15 +303,7 @@ export class LocalDatabase {
         request.onerror = () => reject(request.error);
         request.onblocked = () => reject(new Error("Storage upgrade blocked by another window."));
       });
-      if (this.legacyFound) {
-        // Migrate: memory holds the legacy records plus any edits since launch.
-        this.idb = idb;
-        this.backend = "indexeddb";
-        this.markAllDirty();
-        await this.flush();
-        if (!this.dirty.size && this.persisted) this.removeLegacyKeys();
-        return;
-      }
+      idb.onversionchange = () => idb.close();
       const records = await new Promise<{ key: IDBValidKey; value: unknown }[]>((resolve, reject) => {
         const out: { key: IDBValidKey; value: unknown }[] = [];
         const request = idb.transaction(IDB_STORE, "readonly").objectStore(IDB_STORE).openCursor();
@@ -285,12 +320,19 @@ export class LocalDatabase {
         if (key === IDB_KEYS.SESSIONS) this.applySessions(value);
         else if (key === IDB_KEYS.MILESTONES) this.applyMilestones(value);
         else if (key === IDB_KEYS.CARDS) this.applyCards(value);
-        else if (key === IDB_KEYS.TRACKS) { if (!this.customTracks.length) this.customTracks = value; }
+        else if (key === IDB_KEYS.TRACKS) this.mergeCustomTracks(value);
         else if (typeof key === "string" && key.startsWith(IDB_KEYS.MESSAGES_PREFIX)) this.applyMessages(value);
       }
       this.idb = idb;
       this.backend = "indexeddb";
-      if (this.dirty.size) this.scheduleFlush();
+      if (this.legacyFound) {
+        // Migrate: memory holds merged legacy, existing IDB records, and any edits since launch.
+        this.markAllDirty();
+        await this.flush();
+        if (!this.dirty.size && this.persisted) this.removeLegacyKeys();
+      } else if (this.dirty.size) {
+        this.scheduleFlush();
+      }
     } catch (e) {
       console.warn("IndexedDB unavailable, using localStorage:", e);
       this.idb = null;
@@ -303,6 +345,8 @@ export class LocalDatabase {
       } catch {
         this.inMemoryOnly = true;
       }
+    } finally {
+      this.emitStorageReady();
     }
   }
 
@@ -481,6 +525,7 @@ export class LocalDatabase {
       this.persistMilestones();
       this.persistMessages();
       this.persistCards();
+      this.persistCustomTracks();
     } finally {
       this.flushingPending = false;
     }
@@ -561,8 +606,15 @@ export class LocalDatabase {
     this.sessions.delete(id);
     this.messages.delete(id);
     this.milestones.delete(id);
-    if (this.usesIndexedDb) this.dirty.add(IDB_KEYS.MESSAGES_PREFIX + id);
-    this.persistAll();
+    if (this.usesIndexedDb) {
+      this.dirty.add(IDB_KEYS.SESSIONS);
+      this.dirty.add(IDB_KEYS.MILESTONES);
+      this.dirty.add(IDB_KEYS.CARDS);
+      this.dirty.add(IDB_KEYS.MESSAGES_PREFIX + id);
+      this.scheduleFlush();
+    } else {
+      this.persistAll();
+    }
   }
 
   // --- Messages CRUD ---
@@ -603,13 +655,13 @@ export class LocalDatabase {
     return true;
   }
 
-  finishRetentionReview(sessionId: string, messageId: string): boolean {
+  finishRetentionReview(sessionId: string, messageId: string, skipRating = false): boolean {
     const message = this.messages.get(sessionId)?.find((m) => m.id === messageId);
     const review = message?.retention_review;
     const card = review && this.cards.get(review.cardId);
     if (!review || review.finishedAt !== undefined || !card || card.session_id !== sessionId ||
       review.check.milestoneId !== card.milestone_id || review.attempt.milestoneId !== card.milestone_id) return false;
-    const rating = retentionRating(review.check, review.attempt);
+    const rating = skipRating ? null : retentionRating(review.check, review.attempt);
     review.finishedAt = Date.now();
     if (rating !== null) this.rateCard(card.id, rating);
     this.persistMessages(sessionId);
@@ -792,6 +844,18 @@ export class LocalDatabase {
     return updatedCard;
   }
 
+  deleteCardsForMilestone(milestoneId: string): boolean {
+    let removed = false;
+    for (const [cardId, card] of this.cards) {
+      if (card.milestone_id === milestoneId) {
+        this.cards.delete(cardId);
+        removed = true;
+      }
+    }
+    if (removed) this.persistCards();
+    return removed;
+  }
+
   // --- Export Markdown Notes ---
   exportSessionMarkdown(sessionId: string): string {
     const session = this.sessions.get(sessionId);
@@ -832,7 +896,7 @@ export class LocalDatabase {
         md += `\n${m.visual.takeaway}\n\n`;
       }
       if (m.starter_code) {
-        md += `\`\`\`${session.language}\n${m.starter_code}\n\`\`\`\n\n`;
+        md += `\`\`\`${session.language || ""}\n${m.starter_code}\n\`\`\`\n\n`;
       }
     }
 
@@ -866,7 +930,7 @@ export class LocalDatabase {
         md += "\n";
       }
       if (msg.code_snippet) {
-        md += `\`\`\`${session.language}\n${msg.code_snippet}\n\`\`\`\n\n`;
+        md += `\`\`\`${session.language || ""}\n${msg.code_snippet}\n\`\`\`\n\n`;
       }
     }
 

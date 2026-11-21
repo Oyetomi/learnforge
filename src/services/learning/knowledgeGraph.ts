@@ -1,5 +1,6 @@
 import type { ChatMessage, LearningSession, Milestone } from "../../types";
 import { aiJsonRequest, loadAIConnection, recordUsage } from "../ai/connection";
+import { parseChatJson } from "../ai/structuredResponse";
 import { forgetVisualSupport } from "./preferences";
 import { questionReviewCachePrefix } from "./questionReview";
 import { hideLearningCheckBlocks } from "./checks";
@@ -44,7 +45,7 @@ export function collectKnowledgeSources(sessions: {
     session: LearningSession;
     milestones: Milestone[];
     messages: ChatMessage[];
-}[]): KnowledgeSource[] {
+}[], mappedSourceIds?: Set<string>): KnowledgeSource[] {
     const all: KnowledgeSource[] = [];
     for (const { session, milestones, messages } of sessions) {
         for (const reference of session.references || [])
@@ -63,8 +64,15 @@ export function collectKnowledgeSources(sessions: {
             }
     }
     const seen = new Set<string>();
+    const deduped = all.reverse().filter(s => s.text.trim().length >= 24 && !seen.has(s.id) && !!seen.add(s.id));
+    const ordered = mappedSourceIds?.size
+        ? [
+            ...deduped.filter(s => !mappedSourceIds.has(`${s.id}:${stableId(s.text.slice(0, 6000))}`)),
+            ...deduped.filter(s => mappedSourceIds.has(`${s.id}:${stableId(s.text.slice(0, 6000))}`)),
+          ]
+        : deduped;
     let remaining = 28000;
-    return all.reverse().filter(s => s.text.trim().length >= 24 && !seen.has(s.id) && !!seen.add(s.id)).flatMap(source => {
+    return ordered.flatMap(source => {
         if (remaining < 100)
             return [];
         const text = source.text.slice(0, Math.min(6000, remaining));
@@ -126,7 +134,8 @@ export function parseKnowledgeExtraction(value: unknown, trackId: string, source
         if (!a || !Array.isArray(a.premiseIds) || a.premiseIds.some((x: unknown) => typeof x !== "string" || !aliases.has(x)) || typeof a.conclusionId !== "string" || !aliases.has(a.conclusionId))
             return null;
         const premiseIds = a.premiseIds.map((id: string) => aliases.get(id)!);
-        args.push({ id: `argument:${stableId(JSON.stringify([premiseIds, aliases.get(a.conclusionId)]))}`, premiseIds, conclusionId: aliases.get(a.conclusionId)! });
+        const sortedPremiseIds = [...premiseIds].sort();
+        args.push({ id: `argument:${stableId(JSON.stringify([sortedPremiseIds, aliases.get(a.conclusionId)]))}`, premiseIds, conclusionId: aliases.get(a.conclusionId)! });
     }
     const graph: KnowledgeGraph = { version: 1, trackId, updatedAt: now, sources, propositions, arguments: args };
     return validRelations(graph) ? graph : null;
@@ -167,9 +176,9 @@ export function mergeKnowledgeGraphs(previous: KnowledgeGraph | null, incoming: 
     const args = new Map(previous.arguments.map(a => [a.id, a]));
     for (const a of incoming.arguments) {
         const old = args.get(a.id);
-        if (old && JSON.stringify(old) !== JSON.stringify(a))
+        if (old && (old.conclusionId !== a.conclusionId || JSON.stringify([...old.premiseIds].sort()) !== JSON.stringify([...a.premiseIds].sort())))
             throw new Error("A reasoning identity conflicted. Your earlier map is unchanged.");
-        args.set(a.id, a);
+        if (!old) args.set(a.id, a);
     }
     const graph: KnowledgeGraph = { ...incoming, sources: [...sources.values()], propositions: [...props.values()], arguments: [...args.values()] };
     if (!validKnowledgeGraph(graph, graph.trackId))
@@ -221,7 +230,7 @@ export async function buildKnowledgeGraph(trackId: string, sources: KnowledgeSou
     recordUsage(envelope?.usage);
     let parsed: unknown;
     try {
-        parsed = JSON.parse(String(envelope?.choices?.[0]?.message?.content || "").replace(/^```(?:json)?\s*|\s*```$/g, ""));
+        parsed = parseChatJson(envelope, ["json"]);
     }
     catch {
         throw new Error("The map response was incomplete. Try again.");

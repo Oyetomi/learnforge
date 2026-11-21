@@ -296,9 +296,14 @@ export function importNotesIntoLedger(
   const extracted: Array<{ title: string; outcome: string }> = [];
 
   let activeHeading = "";
+  let inCodeFence = false;
   for (const rawLine of lines) {
     const line = rawLine.trim();
-    if (!line || line.startsWith("```")) continue;
+    if (/^(?:```|~~~)/.test(line)) {
+      inCodeFence = !inCodeFence;
+      continue;
+    }
+    if (inCodeFence || !line) continue;
 
     const headingMatch = line.match(/^#{1,3}\s+(.+)$/);
     if (headingMatch) {
@@ -379,6 +384,23 @@ export function removeTrackConcepts(trackId: string): void {
   }
   const current = loadConceptLedger();
   const filtered = current.filter((entry) => entry.trackId !== trackId);
+  if (filtered.length !== current.length) {
+    saveConceptLedger(filtered);
+  }
+}
+
+export function removeMilestoneConcepts(milestoneId: string): void {
+  const storage = getStorage();
+  if (!storage || !milestoneId) return;
+  try {
+    if (!storage.getItem(CONCEPT_LEDGER_KEY)) return;
+  } catch {
+    return;
+  }
+  const current = loadConceptLedger();
+  const filtered = current.filter(
+    (entry) => entry.milestoneId !== milestoneId && entry.id !== `concept:${milestoneId}`
+  );
   if (filtered.length !== current.length) {
     saveConceptLedger(filtered);
   }

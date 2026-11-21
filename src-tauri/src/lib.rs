@@ -192,6 +192,7 @@ pub fn configure<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Builde
             secrets::secret_set,
             project::language_profiles,
             project::project_sync,
+            project::project_delete,
             project::project_exec,
             project::project_cancel,
             lsp::lsp_start,

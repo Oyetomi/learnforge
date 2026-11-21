@@ -17,8 +17,10 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code }) => {
     let active = true;
     const trimmed = code.trim();
     if (!trimmed || typeof window === "undefined") return;
+    setFailed(false);
 
     (async () => {
+      const safeId = `lf-mermaid-${reactId.replace(/[^a-zA-Z0-9]/g, "")}-${Date.now()}`;
       try {
         const mermaidMod = await import("mermaid");
         const mermaid = mermaidMod.default;
@@ -26,6 +28,16 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code }) => {
           mermaid.initialize({
             startOnLoad: false,
             securityLevel: "strict",
+            suppressErrorRendering: true,
+            secure: [
+              "secure",
+              "securityLevel",
+              "startOnLoad",
+              "maxTextSize",
+              "suppressErrorRendering",
+              "maxEdges",
+              "themeCSS",
+            ],
             theme: "base",
             fontFamily:
               '"Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif',
@@ -46,13 +58,13 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code }) => {
           });
           mermaidInitialized = true;
         }
-        const safeId = `lf-mermaid-${reactId.replace(/[^a-zA-Z0-9]/g, "")}-${Date.now()}`;
         const { svg } = await mermaid.render(safeId, trimmed);
         if (active) {
           setSvgMarkup(svg);
           setFailed(false);
         }
       } catch {
+        document.getElementById(`d${safeId}`)?.remove();
         if (active) setFailed(true);
       }
     })();
@@ -64,9 +76,17 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code }) => {
 
   if (failed && !svgMarkup) {
     return (
-      <div className="canvas-sandbox-pending" role="status">
-        Preparing architecture diagram…
-      </div>
+      <figure className="forge-mermaid-card" aria-label="Architecture diagram source">
+        <div className="canvas-sandbox-pending" role="status">
+          Could not render architecture diagram.
+        </div>
+        <details className="illustration-text">
+          <summary>View diagram source</summary>
+          <pre>
+            <code>{code.trim()}</code>
+          </pre>
+        </details>
+      </figure>
     );
   }
 

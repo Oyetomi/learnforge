@@ -18,6 +18,7 @@ export interface LegacySecretSlot {
 
 const cache = new Map<SecretName, string>();
 const hydrated = new Set<SecretName>();
+const writeQueue = new Map<SecretName, Promise<void>>();
 let availability: Promise<boolean> | null = null;
 
 const isTauri = () =>
@@ -83,15 +84,28 @@ export async function hydrateSecret(
 export function storeSecret(name: SecretName, value: string, fallback: () => void): void {
   const trimmed = value.trim();
   cache.set(name, trimmed);
-  invoke("secret_set", { name, value: trimmed }).catch((err) => {
-    console.warn(`LearnForge: could not save ${name} credential in Keychain.`, err);
-    if (cache.get(name) === trimmed) fallback();
-  });
+  const previous = writeQueue.get(name) ?? Promise.resolve();
+  const next = previous
+    .catch(() => {})
+    .then(() => invoke("secret_set", { name, value: trimmed }))
+    .then(() => {})
+    .catch((err) => {
+      console.warn(`LearnForge: could not save ${name} credential in Keychain.`, err);
+      if (cache.get(name) === trimmed) {
+        try {
+          fallback();
+        } catch {
+          /* Ignore storage fallback failure. */
+        }
+      }
+    });
+  writeQueue.set(name, next);
 }
 
 /** Test hook: forget hydration state between cases. */
 export function resetSecretsForTests(): void {
   cache.clear();
   hydrated.clear();
+  writeQueue.clear();
   availability = null;
 }

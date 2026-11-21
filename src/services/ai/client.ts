@@ -116,8 +116,37 @@ async function streamSingleModelAttempt(
   let streamUsage: { prompt_tokens?: number; completion_tokens?: number } | null =
     null;
 
+  const processLine = (line: string): boolean => {
+    const trimmed = line.trim();
+    // Ignore empty lines and SSE ping comments
+    if (!trimmed || trimmed.startsWith(":")) return false;
+    if (!trimmed.startsWith("data:")) return false;
+
+    const jsonStr = trimmed.slice(5).trim();
+    if (!jsonStr) return false;
+    if (jsonStr === "[DONE]") return true;
+
+    try {
+      const parsed = JSON.parse(jsonStr);
+      if (parsed.usage) streamUsage = parsed.usage;
+      const delta =
+        parsed.choices?.[0]?.delta?.content ??
+        parsed.choices?.[0]?.text ??
+        "";
+
+      if (delta) {
+        accumulatedText += delta;
+        options?.onChunk?.(delta);
+      }
+    } catch {
+      // Malformed chunk or partial JSON line; ignore and continue stream
+    }
+    return false;
+  };
+
   try {
-    while (true) {
+    let streamDone = false;
+    while (!streamDone) {
       if (signal?.aborted) {
         try {
           await reader.cancel();
@@ -135,52 +164,23 @@ async function streamSingleModelAttempt(
       lineBuffer = lines.pop() ?? ""; // keep trailing partial line
 
       for (const line of lines) {
-        const trimmed = line.trim();
-        // Ignore empty lines and SSE ping comments
-        if (!trimmed || trimmed.startsWith(":")) continue;
-
-        if (trimmed === "data: [DONE]") {
-          // Stream successfully terminated by server
-          break;
-        }
-
-        if (trimmed.startsWith("data: ")) {
-          const jsonStr = trimmed.slice(6).trim();
-          if (!jsonStr) continue;
-
+        if (processLine(line)) {
+          streamDone = true;
           try {
-            const parsed = JSON.parse(jsonStr);
-            if (parsed.usage) streamUsage = parsed.usage;
-            const delta =
-              parsed.choices?.[0]?.delta?.content ??
-              parsed.choices?.[0]?.text ??
-              "";
-
-            if (delta) {
-              accumulatedText += delta;
-              options?.onChunk?.(delta);
-            }
+            await reader.cancel();
           } catch {
-            // Malformed chunk or partial JSON line; ignore and continue stream
+            // Ignore cancellation errors
           }
+          break;
         }
       }
     }
 
-    // Process any residual content in buffer
-    if (lineBuffer.trim().startsWith("data: ")) {
-      const jsonStr = lineBuffer.trim().slice(6).trim();
-      if (jsonStr && jsonStr !== "[DONE]") {
-        try {
-          const parsed = JSON.parse(jsonStr);
-          const delta = parsed.choices?.[0]?.delta?.content ?? "";
-          if (delta) {
-            accumulatedText += delta;
-            options?.onChunk?.(delta);
-          }
-        } catch {
-          // Ignore
-        }
+    // Flush any trailing UTF-8 bytes and residual buffered lines
+    lineBuffer += decoder.decode();
+    if (!streamDone && lineBuffer.trim()) {
+      for (const line of lineBuffer.split("\n")) {
+        if (processLine(line)) break;
       }
     }
 
@@ -221,7 +221,7 @@ export async function streamSocraticChat(
   const systemPrompt = buildSocraticSystemPrompt(
     activeMilestone,
     currentCode,
-    undefined,
+    options?.language || undefined,
     options?.activeCheck,
     [...messages].reverse().find((message) => message.role === "user")?.content || ""
   );

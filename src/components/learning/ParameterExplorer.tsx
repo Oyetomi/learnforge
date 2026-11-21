@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useId, useMemo, useState } from "react";
 import { Coordinates, Line, Mafs, Plot, Point } from "mafs";
 import "mafs/core.css";
 import { RotateCcw, Sliders } from "lucide-react";
@@ -36,20 +36,22 @@ const GREEK_MAP: Record<string, string> = {
   rho: "\\rho",
   sigma: "\\sigma",
   tau: "\\tau",
+  pi: "\\pi",
   PI: "\\pi",
 };
 
 function expressionToLatex(expr: string, xVar = "x"): string {
-  let tex = expr.trim();
+  let tex = expr.trim().replace(/\*\*/g, "^");
   tex = tex.replace(/\b(?:sin|cos|tan|exp|ln|log)\b/g, (fn) => `\\${fn}`);
   tex = tex.replace(/\bsqrt\s*\(([^()]+)\)/g, "\\sqrt{$1}");
   tex = tex.replace(/\babs\s*\(([^()]+)\)/g, "|$1|");
   tex = tex.replace(/\b([a-zA-Z_]\w*)\b/g, (ident) => {
     if (ident === "x" && xVar && xVar.length <= 3) return xVar;
-    if (GREEK_MAP[ident]) return GREEK_MAP[ident];
+    if (Object.hasOwn(GREEK_MAP, ident)) return GREEK_MAP[ident];
     if (ident.includes("_")) {
       const [head, ...rest] = ident.split("_");
-      return `${GREEK_MAP[head] || head}_{${rest.join("_")}}`;
+      const renderedHead = Object.hasOwn(GREEK_MAP, head) ? GREEK_MAP[head] : head;
+      return `${renderedHead}_{${rest.join("\\_")}}`;
     }
     return ident;
   });
@@ -64,6 +66,7 @@ export const ParameterExplorer: React.FC<ParameterExplorerProps> = ({
   title,
   onInteract,
 }) => {
+  const idPrefix = useId();
   const [clientMounted, setClientMounted] = useState(false);
 
   useEffect(() => {
@@ -130,7 +133,8 @@ export const ParameterExplorer: React.FC<ParameterExplorerProps> = ({
   const plotData = useMemo(() => {
     const curve = spec.curve;
     if (!curve) return null;
-    const points: Array<{ x: number; y: number }> = [];
+    const points: Array<{ x: number; y: number } | null> = [];
+    let validCount = 0;
     let yMin = Infinity;
     let yMax = -Infinity;
     const spanX = curve.xMax - curve.xMin;
@@ -140,12 +144,15 @@ export const ParameterExplorer: React.FC<ParameterExplorerProps> = ({
       const y = evaluateMathExpression(curve.expression, { ...values, x });
       if (y !== null && Number.isFinite(y)) {
         points.push({ x, y });
+        validCount += 1;
         if (y < yMin) yMin = y;
         if (y > yMax) yMax = y;
+      } else {
+        points.push(null);
       }
     }
 
-    if (points.length < 2 || !Number.isFinite(yMin) || !Number.isFinite(yMax)) {
+    if (validCount < 2 || !Number.isFinite(yMin) || !Number.isFinite(yMax)) {
       return null;
     }
 
@@ -165,14 +172,19 @@ export const ParameterExplorer: React.FC<ParameterExplorerProps> = ({
     const toSvgY = (y: number) =>
       PAD_Y + innerH - ((y - yMin) / (yMax - yMin)) * innerH;
 
-    const d = points
-      .map(
-        (pt, idx) =>
-          `${idx === 0 ? "M" : "L"}${toSvgX(pt.x).toFixed(1)},${toSvgY(
-            pt.y
-          ).toFixed(1)}`
-      )
-      .join(" ");
+    const segments: string[] = [];
+    let drawing = false;
+    for (const pt of points) {
+      if (!pt) {
+        drawing = false;
+        continue;
+      }
+      segments.push(
+        `${drawing ? "L" : "M"}${toSvgX(pt.x).toFixed(1)},${toSvgY(pt.y).toFixed(1)}`
+      );
+      drawing = true;
+    }
+    const d = segments.join(" ");
 
     let marker: { cx: number; cy: number; xVal: number; yVal: number } | null =
       null;
@@ -249,14 +261,14 @@ export const ParameterExplorer: React.FC<ParameterExplorerProps> = ({
             <label
               key={param.id}
               className="parameter-slider-row"
-              htmlFor={`sim-param-${param.id}`}
+              htmlFor={`${idPrefix}-${param.id}`}
             >
               <span className="parameter-slider-meta">
                 <span className="parameter-slider-label">
                   <VisualRichText text={param.label} />
                 </span>
                 <output
-                  htmlFor={`sim-param-${param.id}`}
+                  htmlFor={`${idPrefix}-${param.id}`}
                   className="parameter-slider-value"
                 >
                   {formatSimNumber(val, decimals)}
@@ -264,7 +276,7 @@ export const ParameterExplorer: React.FC<ParameterExplorerProps> = ({
                 </output>
               </span>
               <input
-                id={`sim-param-${param.id}`}
+                id={`${idPrefix}-${param.id}`}
                 type="range"
                 min={param.min}
                 max={param.max}

@@ -213,14 +213,18 @@ export function loadAIConnection(): AIConnection {
       base.provider === "chatgpt-codex" && RETIRED_CODEX_MODELS.has(rawFallback)
         ? base.fallbackModel
         : rawFallback || model || base.fallbackModel;
+    const authMode = presetFor(base.provider).authMode;
     return {
       provider: base.provider,
       url: (typeof saved.url === "string" && saved.url.trim()) || base.url,
       // A plaintext key only remains here before the move to Keychain, or
       // after a failed Keychain write; it is the newer value in both cases.
+      // Never hydrate an API key onto authMode === "none" providers (proxy/ollama).
       apiKey:
-        (typeof saved.apiKey === "string" && saved.apiKey) ||
-        (keychainHolds("ai-connection") ? cachedSecret("ai-connection") : ""),
+        authMode === "none"
+          ? ""
+          : (typeof saved.apiKey === "string" && saved.apiKey) ||
+            (keychainHolds("ai-connection") ? cachedSecret("ai-connection") : ""),
       model,
       fallbackModel,
     };
@@ -235,9 +239,13 @@ export function saveAIConnection(connection: AIConnection) {
   } else {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...connection, apiKey: "" }));
     storeSecret("ai-connection", connection.apiKey, () => {
-      const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-      if (current && typeof current === "object")
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...current, apiKey: connection.apiKey }));
+      try {
+        const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+        if (current && typeof current === "object")
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...current, apiKey: connection.apiKey }));
+      } catch {
+        /* Storage unavailable. */
+      }
     });
   }
   if (typeof window !== "undefined")
@@ -274,7 +282,8 @@ export function buildHeaders(
   extra: Record<string, string> = {}
 ): Record<string, string> {
   const headers: Record<string, string> = { "Content-Type": "application/json", ...extra };
-  const key = connection.apiKey.trim();
+  const authMode = presetFor(connection.provider).authMode;
+  const key = authMode === "none" ? "" : connection.apiKey.trim();
   if (key) headers.Authorization = `Bearer ${key}`;
   if (connection.provider === "anthropic") {
     if (key) headers["x-api-key"] = key;
@@ -442,17 +451,26 @@ export async function aiJsonRequest(
 
   if (
     !response.ok &&
-    (response.status === 404 ||
+    (response.status === 400 ||
+      response.status === 404 ||
       response.status === 429 ||
       response.status >= 500) &&
     fallbackModel &&
     fallbackModel !== primaryModel &&
     !init?.signal?.aborted
   ) {
-    response = await aiFetch(
-      { ...activeBody, model: fallbackModel },
-      { signal: init?.signal, connection }
-    );
+    let fallbackBody: Record<string, unknown> = { ...activeBody, model: fallbackModel };
+    response = await aiFetch(fallbackBody, { signal: init?.signal, connection });
+    if (
+      !response.ok &&
+      (response.status === 400 || response.status === 422) &&
+      "response_format" in fallbackBody &&
+      !init?.signal?.aborted
+    ) {
+      const { response_format: _omit, ...withoutFormat } = fallbackBody;
+      fallbackBody = withoutFormat;
+      response = await aiFetch(fallbackBody, { signal: init?.signal, connection });
+    }
   }
 
   return response;
@@ -588,6 +606,7 @@ export function modelOptionsFrom(data: any, preset: ProviderPreset): ModelOption
   const list: any[] = Array.isArray(data?.data) ? data.data : Array.isArray(data?.models) ? data.models : [];
   const options: ModelOption[] = [];
   const seen = new Set<string>();
+  const discoveredWindows: Record<string, number> = {};
   for (const item of list.slice(0, 400)) {
     const raw = typeof item?.id === "string" ? item.id : typeof item?.slug === "string" ? item.slug : typeof item?.name === "string" ? item.name : "";
     // Gemini's OpenAI-compatible list names models "models/gemini-…".
@@ -595,12 +614,13 @@ export function modelOptionsFrom(data: any, preset: ProviderPreset): ModelOption
     if (!id || seen.has(id) || NOT_CHAT.test(id)) continue;
     seen.add(id);
     const window = item?.context_window ?? item?.context_length ?? item?.inputTokenLimit;
-    if (typeof window === "number" && window > 0) rememberContextWindow(id, window);
+    if (typeof window === "number" && window > 0) discoveredWindows[id] = window;
     const known = preset.models.find((m) => m.id === id);
     const display = typeof item?.display_name === "string" ? item.display_name : typeof item?.displayName === "string" ? item.displayName : "";
     // The provider's own name is current; built-in labels only fill gaps.
     options.push({ id, label: display.trim() || known?.label || id });
   }
+  rememberContextWindows(discoveredWindows);
   return options;
 }
 
@@ -609,21 +629,29 @@ export function modelOptionsFrom(data: any, preset: ProviderPreset): ModelOption
  * `GET /v1/models`). When the provider answers, only its models are offered;
  * the built-in names are a fallback for providers that don't list models.
  */
-export async function fetchProviderModelCatalog(connection: AIConnection): Promise<ModelCatalog> {
+export async function fetchProviderModelCatalog(
+  connection: AIConnection,
+  options?: { signal?: AbortSignal }
+): Promise<ModelCatalog> {
   const preset = presetFor(connection.provider);
   const fallback: ModelCatalog = { models: [...preset.models], updatedAt: 0, live: false };
   if (connection.provider === "chatgpt-codex" && !subscriptionBridgeAvailable()) return { ...fallback, models: [] };
   if (!connection.url.trim() || (preset.needsKey && !connection.apiKey.trim())) return fallback;
   const modelsUrl = connection.url.trim().replace(/\/chat\/completions\/?$/, "/models");
   if (modelsUrl === connection.url.trim()) return fallback;
+  const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  if (options?.signal?.aborted) return fallback;
+  options?.signal?.addEventListener("abort", onAbort, { once: true });
+  const timer = setTimeout(() => controller.abort(), 15_000);
   try {
     const doFetch = await resolveFetch();
-    const init: RequestInit = { method: "GET", headers: buildHeaders(connection) };
+    const init: RequestInit = { method: "GET", headers: buildHeaders(connection), signal: controller.signal };
     let res: Response;
     try {
       res = await doFetch(modelsUrl, init);
     } catch (err) {
-      if (doFetch === fetch || !needsWebviewFetch(modelsUrl)) throw err;
+      if (doFetch === fetch || controller.signal.aborted || !needsWebviewFetch(modelsUrl)) throw err;
       res = await fetch(modelsUrl, init);
     }
     if (!res.ok) return fallback;
@@ -633,12 +661,18 @@ export async function fetchProviderModelCatalog(connection: AIConnection): Promi
     return { models, updatedAt: Date.now(), live: true };
   } catch {
     return fallback;
+  } finally {
+    clearTimeout(timer);
+    options?.signal?.removeEventListener("abort", onAbort);
   }
 }
 
 /** Model options for a connection (see fetchProviderModelCatalog). */
-export async function fetchProviderModels(connection: AIConnection): Promise<ModelOption[]> {
-  return (await fetchProviderModelCatalog(connection)).models;
+export async function fetchProviderModels(
+  connection: AIConnection,
+  options?: { signal?: AbortSignal }
+): Promise<ModelOption[]> {
+  return (await fetchProviderModelCatalog(connection, options)).models;
 }
 
 export interface ChatGptCodexStatus {
@@ -717,15 +751,26 @@ function readContextWindowCache(): Record<string, number> {
   }
 }
 
-export function rememberContextWindow(model: string, tokens: number): void {
+function rememberContextWindows(entries: Record<string, number>): void {
+  const keys = Object.keys(entries);
+  if (!keys.length) return;
   try {
     const cache = readContextWindowCache();
-    if (cache[model] === tokens) return;
-    cache[model] = tokens;
-    localStorage.setItem(CONTEXT_WINDOW_KEY, JSON.stringify(cache));
+    let dirty = false;
+    for (const model of keys) {
+      if (cache[model] !== entries[model]) {
+        cache[model] = entries[model];
+        dirty = true;
+      }
+    }
+    if (dirty) localStorage.setItem(CONTEXT_WINDOW_KEY, JSON.stringify(cache));
   } catch {
     // storage unavailable; static table still applies
   }
+}
+
+export function rememberContextWindow(model: string, tokens: number): void {
+  rememberContextWindows({ [model]: tokens });
 }
 
 /** Best-known context window (tokens) for a model. */

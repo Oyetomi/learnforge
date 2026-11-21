@@ -52,7 +52,17 @@ export function PdfChapterPicker({ book, selected, enabled, busy, onChange, onSe
             {pagesEditable ? <div className="pdf-chapter-pages"><label>From<input type="number" min={1} max={book.pageCount} disabled={busy} value={section.pageStart || ""} aria-label={`PDF start page for ${section.title}`} placeholder="?" onChange={e => {
               const value = e.target.valueAsNumber;
               const pageStart = Number.isInteger(value) && value >= 1 && value <= book.pageCount ? value : undefined;
-              onChange({ ...book, sections: withPageRanges(book.sections.map(s => s.id === section.id ? { ...s, pageStart } : s), book.pageCount) });
+              const idx = book.sections.findIndex(s => s.id === section.id);
+              const updated = book.sections.map(s => s.id === section.id ? { ...s, pageStart } : s);
+              const recomputed = withPageRanges(updated, book.pageCount);
+              let prevSiblingIdx = -1;
+              for (let i = idx - 1; i >= 0; i--) {
+                if (updated[i].level <= section.level) { prevSiblingIdx = i; break; }
+              }
+              const merged = updated.map((s, i) =>
+                i === idx || i === prevSiblingIdx ? recomputed[i] : s
+              );
+              onChange({ ...book, sections: merged });
             }} /></label><label>To<input type="number" min={section.pageStart || 1} max={book.pageCount} disabled={busy || !section.pageStart} value={section.pageEnd || ""} aria-label={`PDF end page for ${section.title}`} placeholder="?" onChange={e => {
               const value = e.target.valueAsNumber;
               const pageEnd = Number.isInteger(value) && value >= (section.pageStart || 1) && value <= book.pageCount ? value : undefined;

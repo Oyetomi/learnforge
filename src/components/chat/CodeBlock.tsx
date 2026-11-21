@@ -71,9 +71,15 @@ const labels: Record<string, string> = {
   java: "Java", csharp: "C#", kotlin: "Kotlin", swift: "Swift", ruby: "Ruby", php: "PHP", lua: "Lua", yaml: "YAML", markdown: "Markdown", elixir: "Elixir", r: "R",
 };
 
+const aliasFor = (lang: string): string =>
+  Object.hasOwn(aliases, lang) ? aliases[lang] : lang;
+
+const labelFor = (lang: string): string | undefined =>
+  Object.hasOwn(labels, lang) ? labels[lang] : undefined;
+
 export function highlightSource(code: string, language = "") {
   const normalized = language.toLowerCase();
-  const grammar = aliases[normalized] || normalized;
+  const grammar = aliasFor(normalized);
   return hljs.getLanguage(grammar)
     ? hljs.highlight(code, { language: grammar, ignoreIllegals: true }).value
     : null;
@@ -86,7 +92,8 @@ export const CodeBlock: React.FC<{
   onApplyCode?: (code: string) => void;
 }> = ({ code, language = "", title = "Code example", onApplyCode }) => {
   const normalized = language.toLowerCase();
-  const grammar = aliases[normalized] || normalized;
+  const grammar = aliasFor(normalized);
+  const label = labelFor(grammar);
   const highlighted = useMemo(
     () => highlightSource(code, grammar),
     [code, grammar]
@@ -113,14 +120,14 @@ export const CodeBlock: React.FC<{
   return (
     <figure
       className="snippet"
-      aria-label={`${labels[grammar] || language || "Plain text"} code example`}
+      aria-label={`${label || language || "Plain text"} code example`}
     >
       <figcaption className="snippet-toolbar">
         <span className="snippet-tab">
           <LanguageLogo language={normalized} size={14} />
           <span className="snippet-language">
-            {labels[grammar] && !normalized.match(/^(c|h)$/)
-              ? labels[grammar]
+            {label && !normalized.match(/^(c|h)$/)
+              ? label
               : languageName(normalized)}
           </span>
           <span className="sr-only">{title}</span>

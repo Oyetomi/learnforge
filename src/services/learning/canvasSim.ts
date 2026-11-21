@@ -153,7 +153,7 @@ function splitCombinedDocument(rawDoc: string): {
   const jsParts: string[] = [];
 
   let working = rawDoc.replace(
-    /<style\b[^>]*>([\s\S]*?)<\/style>/gi,
+    /<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi,
     (_m, cssBody: string) => {
       if (cssBody.trim()) cssParts.push(cssBody.trim());
       return "";
@@ -161,7 +161,7 @@ function splitCombinedDocument(rawDoc: string): {
   );
 
   working = working.replace(
-    /<script\b([^>]*)>([\s\S]*?)<\/script>/gi,
+    /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi,
     (_m, attrs: string, scriptBody: string) => {
       if (/\bsrc\s*=/i.test(attrs)) {
         hadExternalScript = true;
@@ -619,20 +619,60 @@ function buildBootstrapScript(token: string | null): string {
     var prevTime = performance.now();
     var startTime = prevTime;
     var autoRotate = window.FORGE_REDUCED_MOTION ? 0 : (o.autoRotate || 0);
+    var rafId = 0;
+    var disposed = false;
     var loop = function(now) {
+      if (disposed) return;
+      if (document.hidden) {
+        rafId = 0;
+        return;
+      }
       var dt = Math.min(0.05, (now - prevTime) / 1000);
       prevTime = now;
       if (autoRotate && !dragging) { theta += autoRotate * dt; syncCamera(); }
       for (var i = 0; i < frameCallbacks.length; i++) frameCallbacks[i](dt, (now - startTime) / 1000);
       renderer.render(scene, camera);
-      requestAnimationFrame(loop);
+      rafId = requestAnimationFrame(loop);
     };
-    requestAnimationFrame(loop);
+    var resumeLoop = function() {
+      if (disposed || document.hidden || rafId) return;
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(loop);
+    };
+    var handleResize = function() {
+      if (disposed) return;
+      var box = canvas.getBoundingClientRect();
+      var nextW = Math.max(260, Math.round(box.width || w));
+      var nextH = Math.max(180, Math.round(cssHeight || box.height || h));
+      if (nextW === w && nextH === h) return;
+      w = nextW; h = nextH;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h, false);
+      renderer.render(scene, camera);
+    };
+    var cleanup = function() {
+      if (disposed) return;
+      disposed = true;
+      if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+      try { if (ro) ro.disconnect(); } catch (_e) {}
+      document.removeEventListener("visibilitychange", resumeLoop);
+      window.removeEventListener("resize", handleResize);
+      try { renderer.dispose(); } catch (_e) {}
+    };
+    var ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(handleResize) : null;
+    if (ro && canvas.parentElement) ro.observe(canvas.parentElement);
+    document.addEventListener("visibilitychange", resumeLoop);
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("pagehide", cleanup);
+    window.addEventListener("beforeunload", cleanup);
+    resumeLoop();
     return {
       THREE: THREE, canvas: canvas, renderer: renderer, scene: scene, camera: camera,
       width: w, height: h, target: targetVec,
       setOrbit: function(t, p, r) { if (t != null) theta = t; if (p != null) phi = p; if (r != null) radius = r; syncCamera(); },
-      onFrame: function(fn) { if (typeof fn === "function") frameCallbacks.push(fn); }
+      onFrame: function(fn) { if (typeof fn === "function") frameCallbacks.push(fn); },
+      dispose: cleanup
     };
   };
   window.FORGE_DRAW = Object.freeze({
@@ -716,7 +756,20 @@ function buildBootstrapScript(token: string | null): string {
   window.__forgeReportHeight = reportHeight;
   window.__forgeReportError = function(err) {
     var msg = (err && err.message) ? String(err.message) : String(err || "Simulation runtime error");
-    send("error", { message: msg.slice(0, 240) });
+    var clipped = msg.slice(0, 240);
+    if (TOKEN) {
+      send("error", { message: clipped });
+    } else {
+      var root = document.getElementById("forge-sim-root") || document.body;
+      if (root && !document.getElementById("forge-standalone-error")) {
+        var box = document.createElement("div");
+        box.id = "forge-standalone-error";
+        box.setAttribute("role", "alert");
+        box.style.cssText = "padding:10px 14px;border:1px solid #e59888;border-radius:6px;background:rgba(229,152,136,0.12);color:#f6d9d2;font-size:13px;";
+        box.textContent = "Simulation error: " + clipped;
+        root.prepend(box);
+      }
+    }
   };
   window.addEventListener("error", function(e) {
     var msg = (e && e.error && e.error.message)
@@ -747,7 +800,15 @@ function buildBootstrapScript(token: string | null): string {
       new ResizeObserver(reportHeight).observe(root);
     }
     if (typeof MutationObserver !== "undefined") {
-      new MutationObserver(reportHeight).observe(root, {
+      var pending = false;
+      var scheduleReport = function() {
+        if (pending) return;
+        pending = true;
+        var run = function() { pending = false; reportHeight(); };
+        if (typeof requestAnimationFrame === "function") requestAnimationFrame(run);
+        else setTimeout(run, 16);
+      };
+      new MutationObserver(scheduleReport).observe(root, {
         childList: true,
         subtree: true,
         attributes: true,
@@ -838,6 +899,34 @@ export function buildStandaloneCanvasHtml(
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
+  const renderPlainTextWithLatex = (raw: string): string => {
+    const mathRe = /(\$\$[\s\S]+?\$\$|\$(?!\s)(?:\\.|[^$\\\r\n])+?(?<!\s)\$)/g;
+    let out = "";
+    let last = 0;
+    for (const match of raw.matchAll(mathRe)) {
+      const idx = match.index ?? 0;
+      if (idx > last) out += escapeHtml(raw.slice(last, idx));
+      const full = match[0];
+      const isDisplay = full.startsWith("$$") && full.endsWith("$$");
+      const expr = (isDisplay ? full.slice(2, -2) : full.slice(1, -1)).trim();
+      let rendered: string | null = null;
+      if (expr && expr.length <= 1500 && (isDisplay || !/^\d+(?:[.,]\d+)?(?:\s|$)/.test(expr))) {
+        try {
+          rendered = renderToString(expr, {
+            ...MATH_RENDER_OPTIONS,
+            displayMode: isDisplay,
+            throwOnError: true,
+          });
+        } catch {
+          rendered = null;
+        }
+      }
+      out += rendered ?? escapeHtml(full);
+      last = idx + full.length;
+    }
+    if (last < raw.length) out += escapeHtml(raw.slice(last));
+    return out;
+  };
   const customCss = spec.css ? `\n<style>${escapeClosingStyle(spec.css)}</style>` : "";
   const vendorTags = vendorScripts
     .map((code) => `\n<script>${escapeClosingScript(code)}</script>`)
@@ -845,10 +934,10 @@ export function buildStandaloneCanvasHtml(
   const safeJs = escapeClosingScript(spec.js);
   const renderedHtml = renderLatexInCanvasHtml(spec.html);
   const renderedSummary = meta?.summary
-    ? renderLatexInCanvasHtml(escapeHtml(meta.summary))
+    ? renderPlainTextWithLatex(meta.summary)
     : "";
   const renderedTakeaway = meta?.takeaway
-    ? renderLatexInCanvasHtml(escapeHtml(meta.takeaway))
+    ? renderPlainTextWithLatex(meta.takeaway)
     : "";
   return `<!doctype html>
 <html lang="en">

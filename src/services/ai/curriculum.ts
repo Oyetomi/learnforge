@@ -55,7 +55,7 @@ export function normalizeLanguage(lang: unknown): SupportedLanguage | null {
   // A learning plan may teach a language even when its execution service lacks
   // a runtime. Do not silently substitute one of the original five languages.
   if (!/^[a-z][a-z0-9+#.-]{0,39}$/.test(clean) || ["none", "null", "general"].includes(clean)) return null;
-  return aliases[clean] || clean;
+  return Object.hasOwn(aliases, clean) ? aliases[clean] : clean;
 }
 
 export async function generateCustomTrack(
@@ -247,7 +247,7 @@ Return valid JSON only, using this structure. The single milestone here is a sch
       : "general";
   const chosenLanguage =
     practiceMode === "coding"
-      ? normalizeLanguage(parsed.language || options.language)
+      ? normalizeLanguage(options.language || parsed.language)
       : null;
   if (practiceMode === "coding" && !chosenLanguage)
     throw new Error(

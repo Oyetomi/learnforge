@@ -131,7 +131,13 @@ export interface ProjectRun {
  */
 export function useProjectWorkspace(track: CourseTrack | undefined, milestone: Milestone | null) {
   const plan = useMemo(() => (track ? curriculumForTrack(track) : null), [track]);
-  const enabled = !!plan?.project && supportsProjectMode(track?.language);
+  const [languages, setLanguages] = useState<LanguageStatus[] | null | undefined>(undefined);
+  const hasProjectPlan = !!plan?.project;
+  // Re-evaluate once custom profiles from languages.json arrive via loadLanguageStatus().
+  const enabled = useMemo(
+    () => hasProjectPlan && supportsProjectMode(track?.language),
+    [hasProjectPlan, track?.language, languages]
+  );
   const trackId = enabled ? track!.id : "";
   const [workspace, setWorkspace] = useState<ProjectWorkspace | null>(null);
   const [activePath, setActivePath] = useState("");
@@ -145,7 +151,6 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
   /** The project revision when tests last ran; a prediction is asked again only after edits. */
   const [predictedRevision, setPredictedRevision] = useState<string | null>(null);
   const [predictOff, setPredictOff] = useState(false);
-  const [languages, setLanguages] = useState<LanguageStatus[] | null | undefined>(undefined);
   /** A location to show after go-to-definition switches files. */
   const [reveal, setReveal] = useState<{ path: string; line: number; column: number; at: number } | null>(null);
   const latest = useRef<ProjectWorkspace | null>(null);
@@ -195,7 +200,7 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
   );
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!hasProjectPlan) return;
     let cancelled = false;
     void loadLanguageStatus().then((list) => {
       if (!cancelled) setLanguages(list);
@@ -203,7 +208,7 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     return () => {
       cancelled = true;
     };
-  }, [enabled]);
+  }, [hasProjectPlan]);
   const runtime = projectRuntime(track?.language || "go", languages);
 
   // Load (or start) the workspace when the topic changes.
@@ -243,7 +248,7 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     setLastHeadline(null);
     setLastPrediction(null);
     setPredictedRevision(null);
-  }, [unitId]);
+  }, [unitId, stage?.number]);
   useEffect(() => {
     try {
       setPredictOff(!!trackId && localStorage.getItem(`learnforge:predict-off:${trackId}`) === "1");
@@ -271,10 +276,18 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
       // before it is shown (Go compiles every step's tests together).
       const check = runtime.local
         ? async (candidate: PreparedStage, number: number, testPath: string) => {
-            const { checkLocalStage } = await import("../../services/sandbox/local");
+            const { checkLocalStage, syncLocalProject } = await import("../../services/sandbox/local");
             const base = latest.current!;
             const trial = applyStage(base, unitId, unit.title, candidate, Date.now(), section);
-            return checkLocalStage(trial, number, testPath);
+            const actualTestPath = trial.stages.find((s) => s.number === number)?.testPath ?? testPath;
+            try {
+              const problem = await checkLocalStage(trial, number, actualTestPath);
+              if (problem) await syncLocalProject(latest.current ?? base).catch(() => {});
+              return problem;
+            } catch (err) {
+              await syncLocalProject(latest.current ?? base).catch(() => {});
+              throw err;
+            }
           }
         : undefined;
       const { stage: prepared } = await prepareProjectStage(track, unitId, latest.current, controller.signal, check, section);
@@ -282,6 +295,9 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
       const before = new Set(latest.current.files.map((f) => f.path));
       const next = applyStage(latest.current, unitId, unit.title, prepared, Date.now(), section);
       commit(next, true);
+      if (runtime.local) {
+        void import("../../services/sandbox/local").then(({ syncLocalProject }) => syncLocalProject(next)).catch(() => {});
+      }
       const added = next.files.find((f) => !before.has(f.path))?.path;
       setActivePath((current) => added ?? (current || next.files[0]?.path || ""));
       setPreparation(null);
@@ -295,15 +311,15 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     }
   }, [track, unitId, unit, commit, runtime.local]);
 
-  // Prepare the step once its lesson is ready: its first part, the next part
-  // after one passes, or the first part again for an untouched old one-step stage.
+  // Prepare the step once its lesson is ready and toolchain status is known
+  // (so local compile-checking is never skipped on initial load).
   useEffect(() => {
-    if (!workspace || !step || milestone?.content_status === "outline") return;
+    if (!workspace || !step || milestone?.content_status === "outline" || languages === undefined) return;
     const redo = legacy && !!unitId && !reprepared.current.has(unitId);
     if (stage && !following && !redo) return;
     if (preparation?.unitId === unitId) return;
     void prepareStage();
-  }, [workspace, step, stage, following, legacy, milestone?.content_status, unitId, preparation?.unitId, prepareStage]);
+  }, [workspace, step, stage, following, legacy, milestone?.content_status, languages, unitId, preparation?.unitId, prepareStage]);
 
   useEffect(() => () => preparing.current?.abort(), []);
 
@@ -519,6 +535,9 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
       const next = addFile(latest.current, path);
       if (next === latest.current) return false;
       commit(next, true);
+      if (runtime.local) {
+        void import("../../services/sandbox/local").then(({ syncLocalProject }) => syncLocalProject(next)).catch(() => {});
+      }
       setActivePath(path);
       return true;
     },
@@ -527,6 +546,9 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
       const next = removeFile(latest.current, path);
       if (next === latest.current) return;
       commit(next, true);
+      if (runtime.local) {
+        void import("../../services/sandbox/local").then(({ syncLocalProject }) => syncLocalProject(next)).catch(() => {});
+      }
       setActivePath((current) => (current === path ? next.files[0]?.path ?? "" : current));
     },
     /** Reset the active file to how it was when this step began. */

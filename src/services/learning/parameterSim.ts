@@ -174,12 +174,12 @@ export function evaluateMathExpression(
       failed = true;
       return NaN;
     }
-    let left = parsePower(depth + 1);
+    let left = parseUnary(depth + 1);
     while (!failed) {
       const next = peek();
       if (next?.kind === "op" && (next.op === "*" || next.op === "/")) {
         consume();
-        const right = parsePower(depth + 1);
+        const right = parseUnary(depth + 1);
         if (next.op === "/") {
           if (right === 0) {
             failed = true;
@@ -196,21 +196,6 @@ export function evaluateMathExpression(
     return left;
   };
 
-  const parsePower = (depth: number): number => {
-    if (depth > MAX_PARSE_DEPTH) {
-      failed = true;
-      return NaN;
-    }
-    const base = parseUnary(depth + 1);
-    const next = peek();
-    if (!failed && next?.kind === "op" && next.op === "^") {
-      consume();
-      const exponent = parsePower(depth + 1);
-      return Math.pow(base, exponent);
-    }
-    return base;
-  };
-
   const parseUnary = (depth: number): number => {
     if (depth > MAX_PARSE_DEPTH) {
       failed = true;
@@ -222,7 +207,22 @@ export function evaluateMathExpression(
       const val = parseUnary(depth + 1);
       return next.op === "-" ? -val : val;
     }
-    return parsePrimary(depth + 1);
+    return parsePower(depth + 1);
+  };
+
+  const parsePower = (depth: number): number => {
+    if (depth > MAX_PARSE_DEPTH) {
+      failed = true;
+      return NaN;
+    }
+    const base = parsePrimary(depth + 1);
+    const next = peek();
+    if (!failed && next?.kind === "op" && next.op === "^") {
+      consume();
+      const exponent = parseUnary(depth + 1);
+      return Math.pow(base, exponent);
+    }
+    return base;
   };
 
   const parsePrimary = (depth: number): number => {
@@ -269,10 +269,10 @@ export function evaluateMathExpression(
           return NaN;
         }
         const fnName = tok.name.toLowerCase();
-        if (fnName in UNARY_FUNCS && args.length === 1) {
+        if (Object.hasOwn(UNARY_FUNCS, fnName) && args.length === 1) {
           return UNARY_FUNCS[fnName](args[0]);
         }
-        if (fnName in MULTI_FUNCS) {
+        if (Object.hasOwn(MULTI_FUNCS, fnName)) {
           const expected = fnName === "clamp" ? 3 : 2;
           if (args.length === expected) {
             return MULTI_FUNCS[fnName](...args);
@@ -322,7 +322,7 @@ function expressionValidForVariables(
         (tokens[i + 1] as { value: string }).value === "(";
       if (isCall) {
         const lower = tok.name.toLowerCase();
-        if (!(lower in UNARY_FUNCS) && !(lower in MULTI_FUNCS)) return false;
+        if (!Object.hasOwn(UNARY_FUNCS, lower) && !Object.hasOwn(MULTI_FUNCS, lower)) return false;
       } else if (
         !allowedVars.has(tok.name) &&
         !Object.prototype.hasOwnProperty.call(CONSTANTS, tok.name)
@@ -370,7 +370,7 @@ export function validateParameterSim(value: unknown): ParameterSimSpec | null {
     if (
       !VALID_IDENTIFIER.test(id) ||
       id === "x" ||
-      id in CONSTANTS ||
+      Object.hasOwn(CONSTANTS, id) ||
       paramIds.has(id) ||
       !label ||
       !Number.isFinite(min) ||

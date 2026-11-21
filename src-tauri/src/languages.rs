@@ -97,8 +97,10 @@ pub fn responds(program: &Path, args: &[String]) -> bool {
         }
     })()
     .unwrap_or(false);
-    if let Ok(mut m) = cache.lock() {
-        m.insert(key, ok);
+    if ok {
+        if let Ok(mut m) = cache.lock() {
+            m.insert(key, true);
+        }
     }
     ok
 }
@@ -122,7 +124,9 @@ impl Profile {
         }
         Regex::new(&self.source_pattern).map_err(|e| format!("{}: sourcePattern: {e}", self.id))?;
         Regex::new(&self.test_pattern).map_err(|e| format!("{}: testPattern: {e}", self.id))?;
-        if self.run.is_empty() || self.run.iter().chain(&self.test).chain(&self.lsp).any(|argv| argv.is_empty()) {
+        if self.run.is_empty()
+            || self.run.iter().chain(&self.test).chain(&self.check).chain(&self.lsp).any(|argv| argv.is_empty())
+        {
             return Err(format!("{}: every command needs a program.", self.id));
         }
         for s in &self.scaffold {
@@ -251,6 +255,7 @@ fn login_shell_path() -> Option<String> {
             Ok(None) if std::time::Instant::now() < deadline => std::thread::sleep(Duration::from_millis(25)),
             _ => {
                 let _ = child.kill();
+                let _ = child.wait();
                 return None;
             }
         }
@@ -263,11 +268,11 @@ fn login_shell_path() -> Option<String> {
 
 /// First executable named `candidates` in the search dirs.
 pub fn resolve_binary(candidates: &[String]) -> Option<PathBuf> {
-    static CACHE: OnceLock<Mutex<HashMap<String, Option<PathBuf>>>> = OnceLock::new();
+    static CACHE: OnceLock<Mutex<HashMap<String, PathBuf>>> = OnceLock::new();
     let key = candidates.join("|");
     let cache = CACHE.get_or_init(Default::default);
-    if let Some(hit) = cache.lock().ok()?.get(&key) {
-        return hit.clone();
+    if let Some(hit) = cache.lock().ok()?.get(&key).cloned() {
+        return Some(hit);
     }
     use std::os::unix::fs::PermissionsExt;
     let found = candidates.iter().filter(|c| !c.contains('/')).find_map(|name| {
@@ -275,16 +280,31 @@ pub fn resolve_binary(candidates: &[String]) -> Option<PathBuf> {
             std::fs::metadata(p).map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0).unwrap_or(false)
         })
     });
-    cache.lock().ok()?.insert(key, found.clone());
+    if let Some(ref path) = found {
+        if let Ok(mut m) = cache.lock() {
+            m.insert(key, path.clone());
+        }
+    }
     found
 }
 
 /// The install root of a resolved binary, so the sandbox may read it:
 /// `<root>/bin/tool` -> `<root>`, otherwise the binary's directory.
+/// Never returns `$HOME` or a top-level system root (e.g. for `~/bin/tool`),
+/// which would nullify `$HOME` read isolation in `sandbox.rs`.
 pub fn toolchain_root(binary: &Path) -> Option<PathBuf> {
     let real = std::fs::canonicalize(binary).ok()?;
     let dir = real.parent()?;
-    Some(if dir.file_name().is_some_and(|n| n == "bin") { dir.parent()?.to_path_buf() } else { dir.to_path_buf() })
+    let candidate = if dir.file_name().is_some_and(|n| n == "bin") {
+        dir.parent()?.to_path_buf()
+    } else {
+        dir.to_path_buf()
+    };
+    let home_dir = std::fs::canonicalize(home()).unwrap_or_else(|_| home());
+    if candidate == home_dir || candidate == Path::new("/") || candidate == Path::new("/Users") {
+        return (dir != home_dir).then(|| dir.to_path_buf());
+    }
+    Some(candidate)
 }
 
 /// Binary placeholders ({go}, {cargo}…) used by a set of commands.

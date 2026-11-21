@@ -221,6 +221,8 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   const helpPanelId = React.useId();
   const [helpOpen, setHelpOpen] = useState(savedPosition?.helpOpen || false);
   const [helpKind, setHelpKind] = useState<HelpKind>(savedPosition?.helpKind || "walkthrough");
+  const [helpRepairNote, setHelpRepairNote] = useState<string | undefined>(undefined);
+  const [helpRepairToken, setHelpRepairToken] = useState(0);
   const helpOpener = useRef<HTMLElement | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sessionMenu = useRef<HTMLDetailsElement>(null);
@@ -548,8 +550,14 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   const helpContext = activity === "reply" ? replySteps[replyStep] || lastReply?.content || ""
     : activity === "lesson" ? lessonSteps[visibleStep] || activeMilestone?.lesson || ""
     : `${helpCheck?.question || activeMilestone?.prompt || ""}\n${helpCheck?.context || ""}${helpAttempt ? `\nSubmitted answer: ${helpAttempt.response || helpCheck?.options.filter(option => helpAttempt.selectedIds.includes(option.id)).map(option => option.label).join("; ") || "I do not know"}\nReasoning: ${helpAttempt.thinking}\nCommitted feedback: ${helpCheck?.explanation || ""}` : ""}`;
-  const openHelp = (kind: HelpKind, _note?: string) => {
+  const openHelp = (kind: HelpKind, note?: string) => {
     if (!shownHelp && typeof document !== "undefined") helpOpener.current = document.activeElement as HTMLElement;
+    if (note) {
+      setHelpRepairNote(note);
+      setHelpRepairToken((token) => token + 1);
+    } else {
+      setHelpRepairNote(undefined);
+    }
     setHelpForKey(helpContextKey); setHelpKind(kind); setHelpOpen(true);
   };
   const closeRequested = useRef(false);
@@ -566,17 +574,24 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   useEffect(() => { if (!shownHelp && closeRequested.current) { closeRequested.current = false; (helpOpener.current || composerRef.current?.querySelector<HTMLElement>(`[data-help-kind="${helpKind}"]`))?.focus({ preventScroll: true }); } }, [shownHelp]);
 
   useEffect(() => {
+    const nextStep = savedPosition?.stepIndex ?? readLessonStep(activeMilestone?.id);
+    const nextReply = savedPosition?.replyIndex || 0;
+    const nextActivity = entryActivity();
+    const nextVisibleStep = Math.min(nextStep, Math.max(0, lessonSteps.length - 1));
+    const nextReplyStep = Math.min(nextReply, Math.max(0, replySteps.length - 1));
+    const nextHelpKey = `${positionKey}:${nextActivity}:${nextActivity === "reply" ? `${lastReply?.id || ""}:${nextReplyStep}` : nextActivity === "lesson" ? nextVisibleStep : latest?.id || ""}:${attempt?.submittedAt || "pending"}`;
     setHelpExpanded(false);
-    setStepIndex(savedPosition?.stepIndex ?? readLessonStep(activeMilestone?.id));
-    setReplyIndex(savedPosition?.replyIndex || 0);
+    setStepIndex(nextStep);
+    setReplyIndex(nextReply);
     setHelpOpen(savedPosition?.helpOpen || false);
     setHelpKind(savedPosition?.helpKind || "walkthrough");
-    setHelpForKey(helpContextKey);
+    setHelpRepairNote(undefined);
+    setHelpForKey(nextHelpKey);
     setOverview(preferences.pace === "overview");
     setLessonVisual(!lastReply?.visual_example);
     setInlineVisualOpen(false);
     setInlineLessonOpen(false);
-    setActivity(entryActivity());
+    setActivity(nextActivity);
     holdCheck(null);
     continuationRequested.current = false;
     lastSeenReply.current = lastReply?.id;
@@ -826,7 +841,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
       </header>
       <div className={`session-stage ${narrowHelp ? "is-narrow" : ""} ${shownHelp && helpExpanded ? "is-help-expanded" : ""}`} ref={stageRef}
         style={shownHelp && stageWidth ? {"--help-pane-width":`${helpPaneWidth(stageWidth,helpRatios[helpKind])}px`} as React.CSSProperties : undefined}>
-      <div className="session-flow" ref={scrollRef} onScroll={() => saveSessionPosition(positionKey, { ...currentPosition, scrollTop: scrollRef.current?.scrollTop || 0 })}>
+      <div className="session-flow" ref={scrollRef} onScroll={() => { if (lastPositionKey.current === positionKey) saveSessionPosition(positionKey, { ...currentPosition, scrollTop: scrollRef.current?.scrollTop || 0 }); }}>
         {(activity === "lesson" || activity === "reply" || !latest) && (
           <div className="lesson-heading">
             <div className="lesson-position">
@@ -1015,7 +1030,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
           {activity === "check" && (!busy || held || tutoringBusy) && (
             <>
               <div className="check-context-pills">
-                {latest && reference && !held && reviewAttempt && (
+                {latest && reference && reviewAttempt && (
                   <button
                     className="slide-reference-button"
                     onClick={() => setActivity("reference")}
@@ -1319,7 +1334,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
             </div>
           </div>
         )}
-        {activity === "reply" && !busy && onRequestCompress && (evidence?.independentCorrect ?? 0) > 0 && (
+        {activity === "reply" && !busy && !approved && onRequestCompress && (evidence?.independentCorrect ?? 0) > 0 && (
           <section className="lesson-compress-card" aria-label="Compress it">
             <div>
               <strong>Can you say it in two sentences?</strong>
@@ -1417,6 +1432,8 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
         onReset={()=>{const ratio=DEFAULT_HELP_RATIOS[helpKind];setHelpRatios(current=>({...current,[helpKind]:ratio}));saveHelpRatio(helpKind,ratio);}}/>}
       <LearningHelpPanel panelId={helpPanelId} expanded={helpExpanded} onToggleExpanded={()=>setHelpExpanded(value=>!value)} key={`${helpContextKey}:${helpKind}`} open={shownHelp} kind={helpKind} contextKey={helpContextKey} context={helpContext}
         language={language}
+        repairNote={helpRepairNote}
+        repairToken={helpRepairToken}
         milestone={activeMilestone} check={helpCheck || null} answered={!!helpAttempt} existingVisual={activity === "lesson" || activity === "visual" ? availableVisual : undefined}
         narrow={narrowHelp} onClose={closeHelp} onKind={openHelp} onSupport={() => {
           if (helpCheck && !helpAttempt) recordVisualSupport(helpCheck.id, `help:${helpKind}:${helpContextKey}`);
@@ -1669,10 +1686,10 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                       : activeMilestone
                       ? [activeMilestone]
                       : [];
-                  const sheet = buildStudySheet(allMilestones, messages);
+                  const sheet = buildStudySheet(allMilestones, messages, trackId);
                   const readyIds = approvedLessonIds(messages);
                   const sheetTitle =
-                    activeMilestone?.title || trackId || "Learning Session";
+                    planTitle || activeMilestone?.title || trackId || "Learning Session";
                   return (
                     <div className="study-sheet-view">
                       <div className="study-sheet-actions">
@@ -1691,7 +1708,8 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                                 buildStudySheetMarkdown(
                                   sheetTitle,
                                   allMilestones,
-                                  messages
+                                  messages,
+                                  trackId
                                 )
                               );
                               setCopiedSheet(true);
@@ -1723,7 +1741,8 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                             const md = buildStudySheetMarkdown(
                               sheetTitle,
                               allMilestones,
-                              messages
+                              messages,
+                              trackId
                             );
                             const url = URL.createObjectURL(
                               new Blob([md], {
@@ -1749,7 +1768,8 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                             const tsv = buildAnkiTsv(
                               sheetTitle,
                               allMilestones,
-                              messages
+                              messages,
+                              trackId
                             );
                             const blob = new Blob([tsv], {
                               type: "text/tab-separated-values;charset=utf-8",
@@ -1761,7 +1781,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                               trackId || "learnforge"
                             }-anki.tsv`;
                             link.click();
-                            URL.revokeObjectURL(url);
+                            setTimeout(() => URL.revokeObjectURL(url), 1000);
                           }}
                         >
                           Export Anki deck (.tsv)
@@ -1969,7 +1989,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
                         )}
                       </article>
                     ))}
-                  {!messages.length && !activeMilestone?.lesson && (
+                  {!messages.some((m) => m.role !== "system" && !m.internal) && !activeMilestone?.lesson && (
                     <p>Your explanations and answers will be saved here.</p>
                   )}
                 </>

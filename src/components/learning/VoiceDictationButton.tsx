@@ -162,14 +162,20 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
       return;
     }
 
+    modeRef.current = "mediarecorder";
+    setStarting(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!mounted.current) { stream.getTracks().forEach(track => track.stop()); return; }
+      if (!mounted.current || modeRef.current !== "mediarecorder") {
+        stream.getTracks().forEach(track => track.stop());
+        if (mounted.current) setStarting(false);
+        return;
+      }
+      setStarting(false);
       mediaStreamRef.current = stream;
       audioChunksRef.current = [];
       const recorder = new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
-      modeRef.current = "mediarecorder";
 
       recorder.ondataavailable = (ev) => {
         if (ev.data && ev.data.size > 0) {
@@ -214,6 +220,7 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
       setLivePreview("Recording audio…");
     } catch {
       cleanupTimersAndStreams();
+      setStarting(false);
       setListening(false);
       modeRef.current = "none";
       showError(
@@ -225,6 +232,7 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
   const startTauriNativeDictation = async () => {
     setErrorMsg(""); setStatusMsg(""); setLivePreview(""); setStarting(true);
     modeRef.current = "tauri";
+    let hadOutcome = false;
     nativeSessionRef.current = createNativeDictation({
       status: status => {
         setStarting(status.phase === "starting");
@@ -236,11 +244,12 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
           status.phase === "finishing" ? "Finishing your words…" :
           "Listening. Speak, then choose Finish to add the text. It won’t submit the field.");
       },
-      transcript: text => { callbackRef.current(text); setStatusMsg("Dictation added. Review the text before submitting."); },
-      error: showError,
+      transcript: text => { hadOutcome = true; callbackRef.current(text); setStatusMsg("Dictation added. Review the text before submitting."); },
+      error: msg => { hadOutcome = true; showError(msg); },
       end: () => {
         modeRef.current = "none"; setStarting(false); setListening(false); setTranscribing(false);
         setAudioLevel(0); setLivePreview("");
+        if (!hadOutcome) setStatusMsg("");
       },
     });
     await nativeSessionRef.current.start(currentLang());
@@ -255,14 +264,17 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
     }
     if (activeMode !== "webspeech") modeRef.current = "none";
 
-    if (activeMode === "mediarecorder" && mediaRecorderRef.current) {
-      try {
-        if (mediaRecorderRef.current.state !== "inactive") {
-          mediaRecorderRef.current.stop();
+    if (activeMode === "mediarecorder") {
+      setStarting(false);
+      if (mediaRecorderRef.current) {
+        try {
+          if (mediaRecorderRef.current.state !== "inactive") {
+            mediaRecorderRef.current.stop();
+          }
+        } catch {
+          cleanupTimersAndStreams();
+          setListening(false);
         }
-      } catch {
-        cleanupTimersAndStreams();
-        setListening(false);
       }
       return;
     }

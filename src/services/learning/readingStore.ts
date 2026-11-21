@@ -2,6 +2,7 @@ import type { ChatMessage, CheckAttempt, LearningCheck } from "../../types";
 import type { PdfBook, CurriculumSource, PdfSection } from "./pdfContents";
 import type { PdfReadingRange } from "./pdfReader";
 import { validateLearningCheck } from "./checks";
+import { forgetVisualSupport } from "./preferences";
 
 export interface ReadingDocument {
   trackId: string;
@@ -88,7 +89,11 @@ async function transaction<T>(
         request = action(tx);
       } catch (error) {
         tx.abort();
-        reject(storageError(error));
+        reject(
+          error instanceof Error && error.message === "This topic has been deleted."
+            ? error
+            : storageError(error)
+        );
         return;
       }
       tx.oncomplete = () => resolve(request.result);
@@ -294,8 +299,22 @@ export async function deleteReadingData(trackId: string): Promise<void> {
     deletedTracks.delete(trackId);
     throw error;
   }
-  // Question drafts/support/help are small UI records; their ownership is in the key.
-  const marker = `reading:${trackId}:`;
-  for (const key of Object.keys(localStorage))
-    if (key.includes(marker)) localStorage.removeItem(key);
+  // Question drafts/support/help/review caches are small UI records; their ownership is in the key.
+  const rawMarker = `reading:${trackId}:`;
+  const encodedMarker = `reading%3A${encodeURIComponent(trackId)}%3A`;
+  const supportPrefix = "learnforge:visual-support:";
+  const checkIds: string[] = [];
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.includes(rawMarker) || key.includes(encodedMarker)) {
+        if (key.startsWith(supportPrefix)) {
+          checkIds.push(key.slice(supportPrefix.length));
+        }
+        localStorage.removeItem(key);
+      }
+    }
+  } catch {
+    /* Storage unavailable. */
+  }
+  forgetVisualSupport(checkIds);
 }

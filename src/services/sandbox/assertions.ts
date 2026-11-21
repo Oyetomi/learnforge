@@ -12,16 +12,19 @@ export class AssertionCollector {
   describe(suiteName: string, fn: () => void | Promise<void>): void | Promise<void> {
     const prevSuite = this.currentSuite;
     this.currentSuite = prevSuite ? `${prevSuite} > ${suiteName}` : suiteName;
+    let res: void | Promise<void>;
     try {
-      const res = fn();
-      if (res && typeof (res as Promise<void>).then === 'function') {
-        return (res as Promise<void>).finally(() => {
-          this.currentSuite = prevSuite;
-        });
-      }
-    } finally {
+      res = fn();
+    } catch (err) {
       this.currentSuite = prevSuite;
+      throw err;
     }
+    if (res && typeof (res as Promise<void>).then === 'function') {
+      return (res as Promise<void>).finally(() => {
+        this.currentSuite = prevSuite;
+      });
+    }
+    this.currentSuite = prevSuite;
   }
 
   async runTest(name: string, fn: () => void | Promise<void>): Promise<TestResult> {
@@ -272,24 +275,40 @@ export function parseGoTestOutput(stdout: string, stderr: string): TestResult[] 
   const lines = combined.split('\n');
   const results: TestResult[] = [];
 
-  const passRegex = /--- PASS:\s+([A-Za-z0-9_]+)\s*\(([^)]+)\)/;
-  const failRegex = /--- FAIL:\s+([A-Za-z0-9_]+)\s*\(([^)]+)\)/;
+  const runRegex = /^=== RUN\s+([^\s(]+)/;
+  const passRegex = /--- PASS:\s+([^\s(]+)\s*\(([^)]+)\)/;
+  const failRegex = /--- FAIL:\s+([^\s(]+)\s*\(([^)]+)\)/;
 
+  let currentRunningTest: string | null = null;
+  const runDetails = new Map<string, string[]>();
   let currentFailedTest: string | null = null;
   let failureDetails: string[] = [];
 
+  const flushFailed = () => {
+    if (!currentFailedTest) return;
+    results.push({
+      name: currentFailedTest,
+      passed: false,
+      error: failureDetails.join('\n').trim(),
+    });
+    currentFailedTest = null;
+    failureDetails = [];
+  };
+
   for (const line of lines) {
+    const runMatch = line.match(runRegex);
+    if (runMatch) {
+      flushFailed();
+      currentRunningTest = runMatch[1];
+      runDetails.set(currentRunningTest, []);
+      continue;
+    }
+
     const passMatch = line.match(passRegex);
     if (passMatch) {
-      if (currentFailedTest) {
-        results.push({
-          name: currentFailedTest,
-          passed: false,
-          error: failureDetails.join('\n').trim(),
-        });
-        currentFailedTest = null;
-        failureDetails = [];
-      }
+      flushFailed();
+      runDetails.delete(passMatch[1]);
+      if (currentRunningTest === passMatch[1]) currentRunningTest = null;
       results.push({
         name: passMatch[1],
         passed: true,
@@ -299,40 +318,33 @@ export function parseGoTestOutput(stdout: string, stderr: string): TestResult[] 
 
     const failMatch = line.match(failRegex);
     if (failMatch) {
-      if (currentFailedTest) {
-        results.push({
-          name: currentFailedTest,
-          passed: false,
-          error: failureDetails.join('\n').trim(),
-        });
-        failureDetails = [];
-      }
+      flushFailed();
       currentFailedTest = failMatch[1];
+      failureDetails = [...(runDetails.get(currentFailedTest) || [])];
+      runDetails.delete(currentFailedTest);
+      if (currentRunningTest === currentFailedTest) currentRunningTest = null;
       continue;
     }
 
     if (currentFailedTest) {
-      if (line.trim().startsWith('=== RUN') || line.trim().startsWith('FAIL') || line.trim().startsWith('PASS')) {
-        results.push({
-          name: currentFailedTest,
-          passed: false,
-          error: failureDetails.join('\n').trim(),
-        });
-        currentFailedTest = null;
-        failureDetails = [];
-      } else {
+      if (/^(?:=== RUN|=== PAUSE|=== CONT|FAIL\b|PASS\b)/.test(line)) {
+        flushFailed();
+      } else if (line.trim()) {
         failureDetails.push(line.trim());
+      }
+      continue;
+    }
+
+    if (currentRunningTest) {
+      if (/^(?:FAIL\b|PASS\b)/.test(line)) {
+        currentRunningTest = null;
+      } else if (/^\s+/.test(line) && line.trim()) {
+        runDetails.get(currentRunningTest)?.push(line.trim());
       }
     }
   }
 
-  if (currentFailedTest) {
-    results.push({
-      name: currentFailedTest,
-      passed: false,
-      error: failureDetails.join('\n').trim(),
-    });
-  }
+  flushFailed();
 
   return results;
 }
@@ -387,7 +399,7 @@ export function parseRustTestOutput(stdout: string, stderr: string): TestResult[
   const results: TestResult[] = [];
   const lines = combined.split('\n');
 
-  const testLineRegex = /^\s*test\s+([A-Za-z0-9_:]+)\s+\.\.\.\s+(ok|FAILED|ignored)/;
+  const testLineRegex = /^\s*test\s+([A-Za-z0-9_:]+)(?:\s+-\s+should panic)?\s+\.\.\.\s+(ok|FAILED|ignored)/;
   const failureHeaderRegex = /----\s+([A-Za-z0-9_:]+)\s+stdout\s+----/;
 
   const failureMessages = new Map<string, string[]>();

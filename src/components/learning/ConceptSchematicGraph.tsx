@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import type {
   ConceptDiagramEdge,
@@ -153,6 +153,9 @@ export function ConceptSchematicGraph({
   onSelectIndex,
   language,
 }: ConceptSchematicGraphProps) {
+  const markerUid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const accentMarkerId = `schematic-arrow-accent-${markerUid}`;
+  const mutedMarkerId = `schematic-arrow-muted-${markerUid}`;
   const topology = useMemo(() => analyzeDiagramTopology(spec), [spec]);
   const { orderedNodes, tiers, isChain, chainEdges } = topology;
 
@@ -178,13 +181,17 @@ export function ConceptSchematicGraph({
     const stageRect = stageEl.getBoundingClientRect();
     if (stageRect.width <= 0) return;
 
+    const escapeAttr = (value: string) =>
+      typeof CSS !== "undefined" && typeof CSS.escape === "function"
+        ? CSS.escape(value)
+        : value.replace(/["\\]/g, "\\$&");
     const lines: DagOverlayLine[] = [];
     for (const edge of spec.edges) {
       const fromEl = stageEl.querySelector<HTMLElement>(
-        `[data-schematic-node="${CSS.escape(edge.from)}"]`
+        `[data-schematic-node="${escapeAttr(edge.from)}"]`
       );
       const toEl = stageEl.querySelector<HTMLElement>(
-        `[data-schematic-node="${CSS.escape(edge.to)}"]`
+        `[data-schematic-node="${escapeAttr(edge.to)}"]`
       );
       if (!fromEl || !toEl) continue;
       const r1 = fromEl.getBoundingClientRect();
@@ -475,7 +482,7 @@ export function ConceptSchematicGraph({
             <svg className="schematic-dag-svg" aria-hidden="true">
               <defs>
                 <marker
-                  id="schematic-arrow-accent"
+                  id={accentMarkerId}
                   viewBox="0 0 10 10"
                   refX="8"
                   refY="5"
@@ -486,7 +493,7 @@ export function ConceptSchematicGraph({
                   <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#d4b08c" />
                 </marker>
                 <marker
-                  id="schematic-arrow-muted"
+                  id={mutedMarkerId}
                   viewBox="0 0 10 10"
                   refX="8"
                   refY="5"
@@ -508,8 +515,8 @@ export function ConceptSchematicGraph({
                   className={line.animated ? "schematic-svg-animated" : undefined}
                   markerEnd={
                     line.highlighted
-                      ? "url(#schematic-arrow-accent)"
-                      : "url(#schematic-arrow-muted)"
+                      ? `url(#${accentMarkerId})`
+                      : `url(#${mutedMarkerId})`
                   }
                 />
               ))}

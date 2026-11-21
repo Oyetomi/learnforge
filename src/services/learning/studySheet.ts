@@ -1,9 +1,10 @@
 import { aiFetch, loadAIConnection, recordUsage } from "../ai/connection";
 import type { ChatMessage, LearningCheck, Milestone } from "../../types";
-import { hideLearningCheckBlocks } from "./checks";
+import { hideLearningCheckBlocks, starterLearningCheck } from "./checks";
 import { ILLUSTRATION_INSTRUCTIONS, MATH_INSTRUCTIONS, TABLE_INSTRUCTIONS } from "./visualContract";
 import { GROUNDING_INSTRUCTIONS, referenceContext } from "./grounding";
 import { approvedLessonIds } from "./adaptation";
+import { READING_BOUNDARY } from "./readingBoundary";
 
 /**
  * Ephemeral "/btw" side-question helper (inspired by LearnHarness #16).
@@ -19,45 +20,56 @@ export async function askBtwQuestion(
   const cleanQuestion = question.replace(/^\/btw\b\s*/i, "").trim();
   if (!cleanQuestion) return "Ask a quick side question after `/btw`.";
 
-  const response = await aiFetch(
-    {
-      model: loadAIConnection().model,
-      temperature: 0.3,
-      messages: [
-        {
-          role: "system",
-          content: `Answer a quick /btw side question in 2–4 plain-language sentences without changing the lesson. ${ILLUSTRATION_INSTRUCTIONS} ${MATH_INSTRUCTIONS} ${TABLE_INSTRUCTIONS} ${GROUNDING_INSTRUCTIONS} Do not emit forge-check, forge-visual, forge-repair or forge-assessment. Never reveal the answer to an active unanswered check.`,
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            sideQuestion: cleanQuestion,
-            currentLesson: milestone
-              ? { title: milestone.title, goal: milestone.prompt }
-              : null,
-            referenceExcerpts: referenceContext(milestone?.references, cleanQuestion),
-            activeQuestion: activeCheck
-              ? {
-                  question: activeCheck.question,
-                  context: activeCheck.context,
-                }
-              : null,
-          }),
-        },
-      ],
-    },
-    { signal }
-  );
+  const controller = new AbortController();
+  const onParentAbort = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", onParentAbort, { once: true });
+  const timeout = setTimeout(() => controller.abort(), 25_000);
+  try {
+    const response = await aiFetch(
+      {
+        model: loadAIConnection().model,
+        temperature: 0.3,
+        messages: [
+          {
+            role: "system",
+            content: `Answer a quick /btw side question in 2–4 plain-language sentences without changing the lesson. ${ILLUSTRATION_INSTRUCTIONS} ${MATH_INSTRUCTIONS} ${TABLE_INSTRUCTIONS} ${GROUNDING_INSTRUCTIONS} ${milestone?.reading_context ? READING_BOUNDARY : ""} Do not emit forge-check, forge-visual, forge-repair or forge-assessment. Never reveal the answer to an active unanswered check.`,
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              sideQuestion: cleanQuestion,
+              coveredPdfPages: milestone?.reading_context,
+              currentLesson: milestone
+                ? { title: milestone.title, goal: milestone.prompt }
+                : null,
+              referenceExcerpts: referenceContext(milestone?.references, cleanQuestion),
+              activeQuestion: activeCheck
+                ? {
+                    question: activeCheck.question,
+                    context: activeCheck.context,
+                  }
+                : null,
+            }),
+          },
+        ],
+      },
+      { signal: controller.signal }
+    );
 
-  if (!response.ok) {
-    throw new Error(`Side question failed (${response.status})`);
+    if (!response.ok) {
+      throw new Error(`Side question failed (${response.status})`);
+    }
+    const envelope = await response.json();
+    recordUsage(envelope?.usage);
+    const raw = envelope?.choices?.[0]?.message?.content;
+    return typeof raw === "string" && raw.trim()
+      ? hideLearningCheckBlocks(raw.trim())
+      : "No response returned.";
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", onParentAbort);
   }
-  const envelope = await response.json();
-  recordUsage(envelope?.usage);
-  const raw = envelope?.choices?.[0]?.message?.content;
-  return typeof raw === "string" && raw.trim()
-    ? hideLearningCheckBlocks(raw.trim())
-    : "No response returned.";
 }
 
 export interface StudySheetSummary {
@@ -98,18 +110,16 @@ export interface StudySheetSummary {
 
 export function buildStudySheet(
   milestones: Milestone[],
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  trackId = ""
 ): StudySheetSummary {
   const checksById = new Map<string, LearningCheck>();
-  for (const m of milestones) {
-    if (m.check) {
-      checksById.set(`${m.id}:intro-check-v1`, {
-        ...m.check,
-        id: `${m.id}:intro-check-v1`,
-        milestoneId: m.id,
-      });
+  milestones.forEach((m, index) => {
+    const starter = starterLearningCheck(trackId, m, index);
+    if (starter) {
+      checksById.set(starter.id, starter);
     }
-  }
+  });
   for (const msg of messages) {
     if (msg.learning_check) {
       checksById.set(msg.learning_check.id, msg.learning_check);
@@ -223,9 +233,10 @@ export function buildStudySheet(
 export function buildStudySheetMarkdown(
   trackTitle: string,
   milestones: Milestone[],
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  trackId = ""
 ): string {
-  const sheet = buildStudySheet(milestones, messages);
+  const sheet = buildStudySheet(milestones, messages, trackId);
   const readyIds = approvedLessonIds(messages);
   const lines: string[] = [`# ${trackTitle} — Study Sheet`, ""];
 
@@ -294,9 +305,10 @@ export function buildStudySheetMarkdown(
 export function buildAnkiTsv(
   trackTitle: string,
   milestones: Milestone[],
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  trackId = ""
 ): string {
-  const sheet = buildStudySheet(milestones, messages);
+  const sheet = buildStudySheet(milestones, messages, trackId);
   const tag = trackTitle
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")

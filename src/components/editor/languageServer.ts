@@ -1,6 +1,6 @@
 import type * as Monaco from "monaco-editor";
 import { LspClient, pathFromUri, tauriTransport, type Transport } from "../../services/lsp/client";
-import type { LanguageProfile } from "../../services/languages";
+import { isTestPath, type LanguageProfile } from "../../services/languages";
 
 type M = typeof Monaco;
 type Json = any;
@@ -21,6 +21,7 @@ export type ServerStatus =
 interface Session {
   client: LspClient;
   trackId: string;
+  profile: LanguageProfile;
   onOpenFile: (path: string, line: number, column: number) => void;
 }
 const sessions = new Map<string, Session>();
@@ -164,14 +165,16 @@ function registerProviders(monaco: M, languageId: string) {
     async provideRenameEdits(model, position, newName) {
       const s = sessionFor(model);
       if (!s) return { edits: [] };
-      const r = await s.client.request("textDocument/rename", { textDocument: { uri: s.client.uri(s.path) }, position: toPosition(position), newName });
+      const r = await s.client
+        .request("textDocument/rename", { textDocument: { uri: s.client.uri(s.path) }, position: toPosition(position), newName })
+        .catch(() => null);
       const changes: [string, Json[]][] = r?.changes
         ? Object.entries(r.changes)
         : (r?.documentChanges || []).filter((d: Json) => d.textDocument).map((d: Json) => [d.textDocument.uri, d.edits]);
       return {
         edits: changes.flatMap(([uri, edits]) => {
           const path = pathFromServer(s.client, uri);
-          if (!path) return [];
+          if (!path || isTestPath(s.profile, path)) return [];
           const resource = modelUri(monaco, s.trackId, path);
           return edits.map((e) => ({ resource, versionId: undefined, textEdit: { range: toRange(monaco, e.range), text: e.newText } }));
         }),
@@ -248,7 +251,10 @@ export function attachLanguageServer(
         startLineNumber: d.range.start.line + 1,
         startColumn: d.range.start.character + 1,
         endLineNumber: d.range.end.line + 1,
-        endColumn: Math.max(d.range.end.character + 1, d.range.start.character + 2),
+        endColumn:
+          d.range.start.line === d.range.end.line
+            ? Math.max(d.range.end.character + 1, d.range.start.character + 2)
+            : d.range.end.character + 1,
       }))
     );
   };
@@ -298,11 +304,12 @@ export function attachLanguageServer(
       }
       registerProviders(monaco, languageId);
       registerOpener(monaco);
-      sessions.set(languageId, { client, trackId: opts.trackId, onOpenFile: opts.onOpenFile });
+      sessions.set(languageId, { client, trackId: opts.trackId, profile: opts.profile, onOpenFile: opts.onOpenFile });
       ready = true;
       sync(queued);
       opts.onStatus({ state: "ready", program: client.program.split("/").pop() || client.program });
     } catch (error) {
+      if (client.serverId) void client.stop();
       if (!disposed) opts.onStatus({ state: "unavailable", message: error instanceof Error ? error.message : String(error) });
     }
   })();

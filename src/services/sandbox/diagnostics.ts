@@ -14,7 +14,13 @@ export interface RunDiagnostic {
 
 /** Map an output path (absolute, ./relative, file://) to a known project path. */
 function resolvePath(raw: string, known: string[]): string | undefined {
-  const clean = raw.replace(/^file:\/\//, "").replace(/^\.\//, "");
+  let stripped = raw.replace(/^file:\/\//, "");
+  try {
+    stripped = decodeURIComponent(stripped);
+  } catch {
+    /* Keep raw text if percent-encoding is malformed. */
+  }
+  const clean = stripped.replace(/^\.\//, "");
   return (
     known.find((k) => clean === k) ??
     known
@@ -24,7 +30,7 @@ function resolvePath(raw: string, known: string[]): string | undefined {
 }
 
 const severityOf = (message: string): "error" | "warning" =>
-  /^\s*warning\b/i.test(message) ? "warning" : "error";
+  /^\s*(?:warning|note)\b/i.test(message) ? "warning" : "error";
 
 export function parseDiagnostics(output: string, known: string[], max = 50): RunDiagnostic[] {
   const out: RunDiagnostic[] = [];
@@ -41,7 +47,7 @@ export function parseDiagnostics(output: string, known: string[], max = 50): Run
   let pythonFrame: { path: string; line: number } | null = null;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (/^\s*(error|warning)(\[\w+\])?:/.test(line)) lastHeadline = line.trim();
+    if (/^\s*(error|warning|note)(\[\w+\])?:/.test(line)) lastHeadline = line.trim();
 
     // Rust: "  --> src/lib.rs:3:5" under an "error[E…]: message" headline.
     const arrow = /^\s*-->\s+(\S+?):(\d+):(\d+)/.exec(line);
@@ -67,7 +73,7 @@ export function parseDiagnostics(output: string, known: string[], max = 50): Run
     }
 
     // Generic: "path:line[:col]: message" (Go, clang, javac, ruby, node).
-    const generic = /(?:^|[\s(])((?:file:\/\/)?[\w./-]*?[\w-]+\.[A-Za-z]{1,5}):(\d+)(?::(\d+))?(?::|\s+in\b)\s*(.*)$/.exec(line);
+    const generic = /(?:^|[\s(])((?:file:\/\/)?[\w./%-]*?[\w-]+\.[A-Za-z]{1,5}):(\d+)(?::(\d+))?(?:\)|:|\s+in\b|$)\s*(.*)$/.exec(line);
     if (generic) {
       const path = resolvePath(generic[1], known);
       if (!path) continue;

@@ -62,6 +62,7 @@ export function VisualExample({
   const contentId = useId();
   const optionsRef = useRef<HTMLDetailsElement>(null);
   const [narrating, setNarrating] = useState(false);
+  const narratingRef = useRef(false);
   const ref = useRef<HTMLElement>(null);
 
   const speechAvailable = isSpeechOutputSupported();
@@ -76,7 +77,12 @@ export function VisualExample({
     setSelected(0);
     setTextOpen(false);
     setNarrating(false);
-    return () => stopNaturalSpeech();
+    return () => {
+      if (narratingRef.current) {
+        narratingRef.current = false;
+        stopNaturalSpeech();
+      }
+    };
   }, [visualId]);
 
   useEffect(() => {
@@ -94,9 +100,6 @@ export function VisualExample({
     observer.observe(ref.current);
     return () => observer.disconnect();
   }, [open, embedded, supportCheckId, visualId]);
-
-  const safeIndex = Math.min(selected, Math.max(0, visual.items.length - 1));
-  const current = visual.items[safeIndex];
 
   const derivedSchematic = useMemo(() => {
     if (visual.kind === "diagram" && visual.diagram) return visual.diagram;
@@ -117,18 +120,22 @@ export function VisualExample({
     [derivedSchematic]
   );
 
+  const safeIndex = Math.min(selected, Math.max(0, visual.items.length - 1));
+  const schematicIndex = orderedSchematicNodes
+    ? Math.min(selected, Math.max(0, orderedSchematicNodes.length - 1))
+    : safeIndex;
+  const current = visual.items[safeIndex];
+
   const toggleNarration = () => {
     if (!speechAvailable) return;
     if (narrating) {
+      narratingRef.current = false;
       stopNaturalSpeech();
       setNarrating(false);
       return;
     }
     markSupport();
-    const activeNode =
-      orderedSchematicNodes?.[
-        Math.min(selected, Math.max(0, orderedSchematicNodes.length - 1))
-      ];
+    const activeNode = orderedSchematicNodes?.[schematicIndex];
     const layerSpeech = activeNode
       ? `${activeNode.label}. ${activeNode.detail}`
       : current
@@ -143,10 +150,17 @@ export function VisualExample({
       .filter(Boolean)
       .join(". ");
 
+    narratingRef.current = true;
     setNarrating(true);
     void speakNaturalText(script, {
-      onEnd: () => setNarrating(false),
-      onError: () => setNarrating(false),
+      onEnd: () => {
+        narratingRef.current = false;
+        setNarrating(false);
+      },
+      onError: () => {
+        narratingRef.current = false;
+        setNarrating(false);
+      },
     });
   };
 
@@ -188,7 +202,10 @@ export function VisualExample({
         <button
           type="button"
           onClick={() => {
-            stopNaturalSpeech();
+            if (narratingRef.current) {
+              narratingRef.current = false;
+              stopNaturalSpeech();
+            }
             setNarrating(false);
             setSelected(0);
             setTextOpen(false);
@@ -248,6 +265,7 @@ export function VisualExample({
       type="button"
       className="visual-workbench-stop-audio"
       onClick={() => {
+        narratingRef.current = false;
         stopNaturalSpeech();
         setNarrating(false);
       }}
@@ -274,7 +292,10 @@ export function VisualExample({
             onClick={() => {
               if (!open) markSupport();
               else {
-                stopNaturalSpeech();
+                if (narratingRef.current) {
+                  narratingRef.current = false;
+                  stopNaturalSpeech();
+                }
                 setNarrating(false);
               }
               setOpen((value) => !value);
@@ -347,7 +368,7 @@ export function VisualExample({
           ) : derivedSchematic ? (
             <ConceptSchematicGraph
               spec={derivedSchematic}
-              selectedIndex={safeIndex}
+              selectedIndex={schematicIndex}
               onSelectIndex={(idx) => {
                 markSupport();
                 setSelected(idx);

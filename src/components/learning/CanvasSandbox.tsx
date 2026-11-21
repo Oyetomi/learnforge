@@ -92,9 +92,15 @@ export function CanvasSandbox({
     [reactId, runCount, spec]
   );
 
+  const waitingForVendors =
+    typeof window !== "undefined" && vendorScripts === null;
+
   const srcDoc = useMemo(
-    () => buildCanvasSimSrcDoc(spec, channelToken, vendorScripts ?? []),
-    [spec, channelToken, vendorScripts]
+    () =>
+      waitingForVendors
+        ? ""
+        : buildCanvasSimSrcDoc(spec, channelToken, vendorScripts ?? []),
+    [spec, channelToken, vendorScripts, waitingForVendors]
   );
 
   useEffect(() => {
@@ -160,8 +166,6 @@ export function CanvasSandbox({
   // rather than clipping the frame at an unrelated compact-view threshold.
   const contentHeight = bridge.height ?? spec.height ?? CANVAS_DEFAULT_HEIGHT;
   const frameHeight = contentHeight;
-  const waitingForVendors =
-    typeof window !== "undefined" && vendorScripts === null;
 
   const sandboxBody = (
     <div

@@ -44,7 +44,7 @@ const RICH_INTERACTIVE_KINDS = new Set([
 
 function repairLooseJson(raw: string): string {
   // Escape raw control newlines/tabs inside JSON double-quoted string literals
-  // and strip trailing commas before `}` or `]`.
+  // and strip trailing commas before `}` or `]` outside string literals.
   let out = "";
   let inString = false;
   let escaped = false;
@@ -72,11 +72,21 @@ function repairLooseJson(raw: string): string {
     } else {
       if (ch === '"') {
         inString = true;
+        out += ch;
+      } else if (ch === ",") {
+        let j = i + 1;
+        while (j < raw.length && /\s/.test(raw[j])) j++;
+        if (raw[j] === "}" || raw[j] === "]") {
+          // Omit trailing comma outside strings.
+          continue;
+        }
+        out += ch;
+      } else {
+        out += ch;
       }
-      out += ch;
     }
   }
-  return out.replace(/,\s*([}\]])/g, "$1");
+  return out;
 }
 
 export function validateVisualExample(value: unknown): VisualExample | null {

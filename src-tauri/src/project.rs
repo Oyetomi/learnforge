@@ -13,14 +13,47 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager, Runtime, State};
 
-const MANIFEST: &str = ".learnforge-files";
+const LEGACY_MANIFEST: &str = ".learnforge-files";
+const MANIFEST_DIR: &str = ".learnforge-manifests";
 const MAX_FILES: usize = 64;
 const MAX_FILE_BYTES: usize = 200 * 1024;
 const STEP_TIMEOUT: Duration = Duration::from_secs(60);
 const TOTAL_TIMEOUT: Duration = Duration::from_secs(120);
 
 #[derive(Default)]
-pub struct Runs(Mutex<HashMap<String, Arc<AtomicBool>>>);
+pub struct Runs {
+    active: Mutex<HashMap<String, Arc<AtomicBool>>>,
+    locks: Mutex<HashMap<String, Arc<Mutex<()>>>>,
+}
+
+impl Runs {
+    fn lock_for(&self, track_id: &str) -> Result<Arc<Mutex<()>>, String> {
+        let mut map = self.locks.lock().map_err(|_| "busy".to_string())?;
+        Ok(map.entry(track_id.to_string()).or_insert_with(|| Arc::new(Mutex::new(()))).clone())
+    }
+}
+
+/// Store the file manifest outside the sandbox-writable project folder so
+/// untrusted code inside the sandbox cannot tamper with deletion targets.
+fn manifest_path(dir: &Path) -> PathBuf {
+    let name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("project");
+    dir.parent().unwrap_or(dir).join(MANIFEST_DIR).join(format!("{name}.files"))
+}
+
+/// Verify no path component under `dir` (existing ancestors or target) is a symlink.
+fn safe_target(dir: &Path, rel: &str) -> Result<PathBuf, String> {
+    if !languages::safe_relative_path(rel) {
+        return Err(format!("{rel:?} is not a safe relative path."));
+    }
+    let mut cur = dir.to_path_buf();
+    for part in rel.split('/') {
+        cur.push(part);
+        if std::fs::symlink_metadata(&cur).is_ok_and(|m| m.file_type().is_symlink()) {
+            return Err(format!("{rel} crosses a symbolic link; refusing to touch it."));
+        }
+    }
+    Ok(cur)
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ProjectFile {
@@ -98,10 +131,15 @@ pub fn sync_files(dir: &Path, profile: &Profile, files: &[ProjectFile]) -> Resul
         .iter()
         .map(|f| (f.path.as_str(), f.content.as_str()))
         .chain(config.iter().map(|s| (s.path.as_str(), s.content.as_str())));
+    let canon_dir = std::fs::canonicalize(dir).map_err(|e| e.to_string())?;
     for (path, content) in all {
-        let target = dir.join(path);
+        let target = safe_target(dir, path)?;
         if let Some(parent) = target.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            let canon_parent = std::fs::canonicalize(parent).map_err(|e| e.to_string())?;
+            if !canon_parent.starts_with(&canon_dir) {
+                return Err(format!("{path} resolves outside the project folder."));
+            }
         }
         if std::fs::symlink_metadata(&target).is_ok_and(|m| m.file_type().is_symlink()) {
             return Err(format!("{path} is a link; refusing to write through it."));
@@ -110,13 +148,27 @@ pub fn sync_files(dir: &Path, profile: &Profile, files: &[ProjectFile]) -> Resul
             std::fs::write(&target, content).map_err(|e| format!("Could not write {path}: {e}"))?;
         }
     }
-    let previous = std::fs::read_to_string(dir.join(MANIFEST)).unwrap_or_default();
+    let manifest = manifest_path(dir);
+    let legacy = dir.join(LEGACY_MANIFEST);
+    let previous = std::fs::read_to_string(&manifest)
+        .or_else(|_| std::fs::read_to_string(&legacy))
+        .unwrap_or_default();
     for old in previous.lines().filter(|p| languages::safe_relative_path(p)) {
         if !written.iter().any(|w| w == old) {
-            let _ = std::fs::remove_file(dir.join(old));
+            if let Ok(stale) = safe_target(dir, old) {
+                if stale.parent().and_then(|p| std::fs::canonicalize(p).ok()).is_some_and(|p| p.starts_with(&canon_dir)) {
+                    let _ = std::fs::remove_file(&stale);
+                }
+            }
         }
     }
-    std::fs::write(dir.join(MANIFEST), written.join("\n")).map_err(|e| e.to_string())
+    if std::fs::symlink_metadata(&legacy).is_ok_and(|m| m.file_type().is_file()) {
+        let _ = std::fs::remove_file(&legacy);
+    }
+    if let Some(parent) = manifest.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&manifest, written.join("\n")).map_err(|e| e.to_string())
 }
 
 fn sources(dir: &Path, profile: &Profile, spec: &str) -> Vec<String> {
@@ -124,7 +176,9 @@ fn sources(dir: &Path, profile: &Profile, spec: &str) -> Vec<String> {
     let (exts, exclude) = spec.split_once('!').unwrap_or((spec, ""));
     let exts: Vec<&str> = exts.split(',').filter(|e| !e.is_empty()).collect();
     let exclude: Vec<&str> = exclude.split(',').filter(|e| !e.is_empty()).collect();
-    let listed = std::fs::read_to_string(dir.join(MANIFEST)).unwrap_or_default();
+    let listed = std::fs::read_to_string(manifest_path(dir))
+        .or_else(|_| std::fs::read_to_string(dir.join(LEGACY_MANIFEST)))
+        .unwrap_or_default();
     let mut out: Vec<String> = listed
         .lines()
         .filter(|p| profile.is_source(p) && exts.iter().any(|e| p.ends_with(e)) && !exclude.contains(p))
@@ -250,12 +304,43 @@ pub async fn language_profiles<R: Runtime>(app: AppHandle<R>) -> Result<Vec<Prof
 }
 
 #[tauri::command]
-pub async fn project_sync<R: Runtime>(app: AppHandle<R>, track_id: String, profile_id: String, files: Vec<ProjectFile>) -> Result<String, String> {
+pub async fn project_sync<R: Runtime>(
+    app: AppHandle<R>,
+    runs: State<'_, Runs>,
+    track_id: String,
+    profile_id: String,
+    files: Vec<ProjectFile>,
+) -> Result<String, String> {
+    let lock = runs.lock_for(&track_id)?;
     tauri::async_runtime::spawn_blocking(move || {
+        let _guard = lock.lock().map_err(|_| "busy".to_string())?;
         let profile = profile(&app, &profile_id)?;
         let dir = project_dir(&app, &track_id)?;
         sync_files(&dir, &profile, &files)?;
         Ok(dir.display().to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn project_delete<R: Runtime>(app: AppHandle<R>, runs: State<'_, Runs>, track_id: String) -> Result<(), String> {
+    if !valid_id(&track_id) {
+        return Err("Invalid topic id.".into());
+    }
+    let lock = runs.lock_for(&track_id)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = lock.lock().map_err(|_| "busy".to_string())?;
+        let base = app.path().app_data_dir().map_err(|e| e.to_string())?.join("projects");
+        let dir = base.join(&track_id);
+        let manifest = manifest_path(&dir);
+        if manifest.exists() {
+            let _ = std::fs::remove_file(&manifest);
+        }
+        if dir.exists() {
+            std::fs::remove_dir_all(&dir).map_err(|e| format!("Could not remove the project folder: {e}"))?;
+        }
+        Ok(())
     })
     .await
     .map_err(|e| e.to_string())?
@@ -275,8 +360,16 @@ pub async fn project_exec<R: Runtime>(
         return Err("Invalid request id.".into());
     }
     let cancel = Arc::new(AtomicBool::new(false));
-    runs.0.lock().map_err(|_| "busy")?.insert(request_id.clone(), cancel.clone());
+    {
+        let mut active = runs.active.lock().map_err(|_| "busy")?;
+        if active.contains_key(&request_id) {
+            return Err("That run request is already active.".into());
+        }
+        active.insert(request_id.clone(), cancel.clone());
+    }
+    let lock = runs.lock_for(&track_id)?;
     let result = tauri::async_runtime::spawn_blocking(move || {
+        let _guard = lock.lock().map_err(|_| "busy".to_string())?;
         let profile = profile(&app, &profile_id)?;
         let dir = project_dir(&app, &track_id)?;
         let cache = cache_dir(&app)?;
@@ -306,7 +399,7 @@ pub async fn project_exec<R: Runtime>(
     })
     .await
     .map_err(|e| e.to_string());
-    if let Ok(mut map) = runs.0.lock() {
+    if let Ok(mut map) = runs.active.lock() {
         map.remove(&request_id);
     }
     result?
@@ -314,7 +407,7 @@ pub async fn project_exec<R: Runtime>(
 
 #[tauri::command]
 pub fn project_cancel(runs: State<'_, Runs>, request_id: String) {
-    if let Some(flag) = runs.0.lock().ok().and_then(|m| m.get(&request_id).cloned()) {
+    if let Some(flag) = runs.active.lock().ok().and_then(|m| m.get(&request_id).cloned()) {
         flag.store(true, Ordering::Relaxed);
     }
 }
@@ -348,8 +441,18 @@ mod tests {
         assert!(sync_files(&dir, &go, &[file("notes.txt", "")]).is_err());
         sync_files(&dir, &go, &[file("a.go", "package main"), file("b.go", "package main")]).unwrap();
         assert!(dir.join("go.mod").is_file());
+        // Manifest must live outside the sandbox-writable project directory.
+        assert!(!dir.join(LEGACY_MANIFEST).exists());
+        assert!(manifest_path(&dir).is_file());
         sync_files(&dir, &go, &[file("a.go", "package main")]).unwrap();
         assert!(dir.join("a.go").is_file() && !dir.join("b.go").exists());
+
+        // Directory symlink inside the project must never allow writes outside.
+        let outside = dir.parent().unwrap().join("outside");
+        std::fs::create_dir_all(&outside).unwrap();
+        std::os::unix::fs::symlink(&outside, dir.join("sub")).unwrap();
+        assert!(sync_files(&dir, &go, &[file("sub/evil.go", "package sub")]).is_err());
+        assert!(!outside.join("evil.go").exists());
     }
 
     #[test]

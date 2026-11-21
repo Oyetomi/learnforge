@@ -39,26 +39,26 @@ export function PdfBookRail({
       revision = 0;
     const refresh = () => {
       const request = ++revision;
-      void Promise.all([
+      void Promise.allSettled([
         loadReadingDocument(trackId),
         loadReadingState(trackId),
-      ])
-        .then(([file, place]) => {
-          if (active && request === revision) {
-            setBook((previous) =>
-              previous?.fingerprint === file?.fingerprint &&
-              previous?.file.size === file?.file.size &&
-              previous?.cover?.size === file?.cover?.size
-                ? previous
-                : file
-            );
-            setBookmark(place);
-            setError(false);
-          }
-        })
-        .catch(() => {
-          if (active) setError(true);
-        });
+      ]).then(([fileRes, placeRes]) => {
+        if (!active || request !== revision) return;
+        if (fileRes.status === "fulfilled") {
+          const file = fileRes.value;
+          setBook((previous) =>
+            previous?.fingerprint === file?.fingerprint &&
+            previous?.file.size === file?.file.size &&
+            previous?.cover?.size === file?.cover?.size
+              ? previous
+              : file
+          );
+        }
+        if (placeRes.status === "fulfilled") {
+          setBookmark(placeRes.value);
+        }
+        setError(fileRes.status === "rejected" || placeRes.status === "rejected");
+      });
     };
     refresh();
     window.addEventListener(READING_CHANGED, refresh);
@@ -92,7 +92,7 @@ export function PdfBookRail({
     requestAnimationFrame(() => {
       const nav = index.current,
         button = nav?.querySelector<HTMLElement>('[aria-current="location"]');
-      if (nav && button) nav.scrollTop = button.offsetTop - 12;
+      if (button?.scrollIntoView) button.scrollIntoView({ block: "nearest" });
     });
   useEffect(() => {
     if (index.current?.closest("details")?.open) revealCurrent();
@@ -129,7 +129,10 @@ export function PdfBookRail({
         <strong>{placeText}</strong>
         {current && <span className="pdf-book-current">{current.title}</span>}
       </div>
-      <button className="pdf-book-resume" onClick={onRead}>
+      <button
+        className="pdf-book-resume"
+        onClick={() => (!bookmark && lessonPage ? onChoosePage(lessonPage) : onRead())}
+      >
         {page ? "Resume reading" : "Start reading"}
         <ArrowRight size={14} aria-hidden="true" />
       </button>

@@ -23,7 +23,7 @@ export const SvgIllustration: React.FC<{ rawSvg: string }> = ({ rawSvg }) => {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "") || "illustration"}.svg`;
     link.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   return (
@@ -140,7 +140,9 @@ export function parsePictogramSpec(raw: string): PictogramSpec | null {
 
 export const PictogramCard: React.FC<{ spec: PictogramSpec }> = ({ spec }) => {
   const [activeIndex, setActiveIndex] = useState(0);
-  const current = spec.items[Math.min(activeIndex, spec.items.length - 1)];
+  const maxItems = spec.kind === "quadrant" ? Math.min(4, spec.items.length) : spec.items.length;
+  const safeIndex = Math.min(activeIndex, Math.max(0, maxItems - 1));
+  const current = spec.items[safeIndex];
   const sanitizedSvg = useMemo(
     () => (spec.svg ? sanitizeSvgMarkup(spec.svg) : null),
     [spec.svg]
@@ -174,9 +176,9 @@ export const PictogramCard: React.FC<{ spec: PictogramSpec }> = ({ spec }) => {
                 key={item.id}
                 type="button"
                 className={`pictogram-swatch ${
-                  idx === activeIndex ? "is-selected" : ""
+                  idx === safeIndex ? "is-selected" : ""
                 }`}
-                aria-pressed={idx === activeIndex}
+                aria-pressed={idx === safeIndex}
                 onClick={() => setActiveIndex(idx)}
               >
                 <span
@@ -205,9 +207,9 @@ export const PictogramCard: React.FC<{ spec: PictogramSpec }> = ({ spec }) => {
                 key={item.id}
                 type="button"
                 className={`pictogram-quadrant-cell ${
-                  idx === activeIndex ? "is-selected" : ""
+                  idx === safeIndex ? "is-selected" : ""
                 }`}
-                aria-pressed={idx === activeIndex}
+                aria-pressed={idx === safeIndex}
                 onClick={() => setActiveIndex(idx)}
               >
                 <small>{item.quadrant || `Quadrant ${idx + 1}`}</small>
@@ -237,9 +239,9 @@ export const PictogramCard: React.FC<{ spec: PictogramSpec }> = ({ spec }) => {
                 key={item.id}
                 type="button"
                 className={`pictogram-pin ${
-                  idx === activeIndex ? "is-selected" : ""
+                  idx === safeIndex ? "is-selected" : ""
                 }`}
-                aria-pressed={idx === activeIndex}
+                aria-pressed={idx === safeIndex}
                 style={
                   sanitizedSvg &&
                   typeof item.x === "number" &&
@@ -260,7 +262,7 @@ export const PictogramCard: React.FC<{ spec: PictogramSpec }> = ({ spec }) => {
       {current && (
         <div className="pictogram-detail" role="status">
           <strong>
-            {activeIndex + 1}. {current.label}
+            {safeIndex + 1}. {current.label}
           </strong>
           <p>{current.detail}</p>
         </div>

@@ -25,7 +25,7 @@ struct Server {
 #[derive(Default)]
 pub struct Servers {
     next: AtomicU64,
-    running: Mutex<HashMap<String, Server>>,
+    running: Arc<Mutex<HashMap<String, Server>>>,
 }
 
 #[derive(Clone, Serialize)]
@@ -95,12 +95,17 @@ pub async fn lsp_start<R: Runtime>(app: AppHandle<R>, servers: State<'_, Servers
     let stdout = child.stdout.take().ok_or("no stdout")?;
     let mut stderr = child.stderr.take().ok_or("no stderr")?;
     let stdin = Arc::new(Mutex::new(child.stdin.take().ok_or("no stdin")?));
+    servers.running.lock().map_err(|_| "busy")?.insert(server_id.clone(), Server { child, stdin });
     {
-        let (app, server_id) = (app.clone(), server_id.clone());
+        let (app, server_id, running) = (app.clone(), server_id.clone(), servers.running.clone());
         std::thread::spawn(move || {
             let mut reader = BufReader::new(stdout);
             while let Some(message) = read_message(&mut reader) {
                 let _ = app.emit("lsp-message", LspEvent { server_id: server_id.clone(), message: Some(message) });
+            }
+            // Reap exited server so crashed processes never leak map entries or zombies.
+            if let Some(mut server) = running.lock().ok().and_then(|mut m| m.remove(&server_id)) {
+                let _ = server.child.wait();
             }
             let _ = app.emit("lsp-message", LspEvent { server_id, message: None });
         });
@@ -110,7 +115,6 @@ pub async fn lsp_start<R: Runtime>(app: AppHandle<R>, servers: State<'_, Servers
         let mut sink = [0u8; 8192];
         while matches!(stderr.read(&mut sink), Ok(n) if n > 0) {}
     });
-    servers.running.lock().map_err(|_| "busy")?.insert(server_id.clone(), Server { child, stdin });
     Ok(Started { server_id, root: dir.display().to_string(), program })
 }
 
@@ -141,13 +145,25 @@ pub fn spawn(profile: &languages::Profile, argv: &[String], dir: &std::path::Pat
 }
 
 #[tauri::command]
-pub fn lsp_send(servers: State<'_, Servers>, server_id: String, message: String) -> Result<(), String> {
+pub async fn lsp_send(servers: State<'_, Servers>, server_id: String, message: String) -> Result<(), String> {
     if message.len() > MAX_MESSAGE {
         return Err("Message too large.".into());
     }
-    let stdin = servers.running.lock().map_err(|_| "busy")?.get(&server_id).map(|s| s.stdin.clone()).ok_or("The language server has stopped.")?;
-    let mut pipe = stdin.lock().map_err(|_| "busy")?;
-    pipe.write_all(&frame(&message)).and_then(|_| pipe.flush()).map_err(|e| format!("The language server has stopped: {e}"))
+    let stdin = servers
+        .running
+        .lock()
+        .map_err(|_| "busy")?
+        .get(&server_id)
+        .map(|s| s.stdin.clone())
+        .ok_or("The language server has stopped.")?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut pipe = stdin.lock().map_err(|_| "busy".to_string())?;
+        pipe.write_all(&frame(&message))
+            .and_then(|_| pipe.flush())
+            .map_err(|e| format!("The language server has stopped: {e}"))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

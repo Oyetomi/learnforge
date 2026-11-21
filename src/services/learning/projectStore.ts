@@ -46,22 +46,21 @@ async function run<T>(mode: IDBTransactionMode, action: (store: IDBObjectStore) 
 }
 
 export async function loadProject(trackId: string): Promise<ProjectWorkspace | null> {
-  if (!unavailable) {
-    try {
-      const value = await run("readonly", (s) => s.get(trackId));
-      return validWorkspace(value) ? value : memory.get(trackId) ?? null;
-    } catch {
-      unavailable = true;
-    }
+  try {
+    const value = await run("readonly", (s) => s.get(trackId));
+    unavailable = false;
+    return validWorkspace(value) ? value : memory.get(trackId) ?? null;
+  } catch {
+    unavailable = true;
+    return memory.get(trackId) ?? null;
   }
-  return memory.get(trackId) ?? null;
 }
 
 export async function saveProject(ws: ProjectWorkspace): Promise<boolean> {
   memory.set(ws.trackId, ws);
-  if (unavailable) return false;
   try {
     await run("readwrite", (s) => s.put(ws));
+    unavailable = false;
     return true;
   } catch {
     unavailable = true;
@@ -71,7 +70,6 @@ export async function saveProject(ws: ProjectWorkspace): Promise<boolean> {
 
 export async function deleteProject(trackId: string): Promise<void> {
   memory.delete(trackId);
-  if (unavailable) return;
   try {
     await run("readwrite", (s) => s.delete(trackId));
   } catch {

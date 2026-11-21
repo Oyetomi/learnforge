@@ -14,15 +14,26 @@ function ViewerPage({ view, page, width, label }: { view: PdfPageView; page: num
     const element = canvas.current;
     if (!element || typeof IntersectionObserver === "undefined") return setVisible(true);
     const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) setVisible(true);
+      if (entries.some((entry) => entry.isIntersecting)) {
+        setVisible(true);
+        observer.disconnect();
+      }
     }, { rootMargin: "600px 0px" });
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
   useEffect(() => {
-    if (!visible || !width || !canvas.current) return;
+    const el = canvas.current;
+    if (!visible || !width || !el) return;
+    let active = true;
     setFailed(false);
-    view.render(page, canvas.current, width).catch(() => setFailed(true));
+    view.render(page, el, width).catch(() => {
+      if (active) setFailed(true);
+    });
+    return () => {
+      active = false;
+      view.cancel?.(el);
+    };
   }, [visible, width, view, page]);
   return (
     <figure className="pdf-viewer-page">

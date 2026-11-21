@@ -105,6 +105,19 @@ export function stripTypeScript(tsCode: string): string {
   return code;
 }
 
+function safeFormatArg(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'bigint') return `${value}n`;
+  if (typeof value === 'object' && value !== null) {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
+}
+
 export class JavaScriptSandboxRunner implements SandboxRunner {
   readonly language = 'javascript';
 
@@ -129,7 +142,7 @@ export class JavaScriptSandboxRunner implements SandboxRunner {
       typeof URL.createObjectURL === 'function';
 
     if (isBrowserWorkerAvailable && !options?.forceBuiltinRunner) {
-      return this.executeInWorker(code, tests, timeoutMs, startTime);
+      return this.executeInWorker(code, tests, options, timeoutMs, startTime);
     }
 
     // Direct sandbox execution with timeout race
@@ -163,25 +176,34 @@ export class JavaScriptSandboxRunner implements SandboxRunner {
         // Safe mock console
         const mockConsole = {
           log: (...args: unknown[]) => {
-            stdoutLines.push(args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' '));
+            stdoutLines.push(args.map(safeFormatArg).join(' '));
           },
           info: (...args: unknown[]) => {
-            stdoutLines.push(args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' '));
+            stdoutLines.push(args.map(safeFormatArg).join(' '));
           },
           warn: (...args: unknown[]) => {
-            stderrLines.push('[WARN] ' + args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' '));
+            stderrLines.push('[WARN] ' + args.map(safeFormatArg).join(' '));
           },
           error: (...args: unknown[]) => {
-            stderrLines.push(args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' '));
+            stderrLines.push(args.map(safeFormatArg).join(' '));
           },
+        };
+
+        // Track registered async tests so unawaited `it(...)`/`test(...)` calls settle.
+        const pendingTests: Promise<unknown>[] = [];
+        const track = <T>(p: T): T => {
+          if (p && typeof (p as unknown as Promise<unknown>).then === 'function') {
+            pendingTests.push((p as unknown as Promise<unknown>).catch(() => {}));
+          }
+          return p;
         };
 
         // Build test runner globals
         const testScope = {
           console: mockConsole,
-          describe: (name: string, fn: () => void | Promise<void>) => collector.describe(name, fn),
-          test: (name: string, fn: () => void | Promise<void>) => collector.runTest(name, fn),
-          it: (name: string, fn: () => void | Promise<void>) => collector.runTest(name, fn),
+          describe: (name: string, fn: () => void | Promise<void>) => track(collector.describe(name, fn)),
+          test: (name: string, fn: () => void | Promise<void>) => track(collector.runTest(name, fn)),
+          it: (name: string, fn: () => void | Promise<void>) => track(collector.runTest(name, fn)),
           expect: createExpect,
           assert: Object.assign(
             (cond: unknown, msg?: string) => {
@@ -189,9 +211,9 @@ export class JavaScriptSandboxRunner implements SandboxRunner {
             },
             {
               strictEqual: (a: unknown, b: unknown, msg?: string) => {
-                if (!Object.is(a, b)) throw new Error(msg || `Expected ${a} to equal ${b}`);
+                if (!Object.is(a, b)) throw new Error(msg || `Expected ${safeFormatArg(a)} to equal ${safeFormatArg(b)}`);
               },
-              deepEqual: (a: unknown, b: unknown, msg?: string) => {
+              deepEqual: (a: unknown, b: unknown) => {
                 createExpect(a).toEqual(b);
               },
             }
@@ -217,6 +239,10 @@ export class JavaScriptSandboxRunner implements SandboxRunner {
 
         const sandboxFn = new Function(...paramNames, combinedCode);
         await sandboxFn(...paramValues);
+        while (pendingTests.length) {
+          const batch = pendingTests.splice(0, pendingTests.length);
+          await Promise.all(batch);
+        }
       })();
 
       await Promise.race([execPromise, timeoutPromise]);
@@ -257,6 +283,7 @@ export class JavaScriptSandboxRunner implements SandboxRunner {
   private executeInWorker(
     code: string,
     tests: string | undefined,
+    options: ExecutionOptions | undefined,
     timeoutMs: number,
     startTime: number
   ): Promise<ExecutionResult> {
@@ -265,9 +292,23 @@ export class JavaScriptSandboxRunner implements SandboxRunner {
       const strippedTests = tests ? stripTypeScript(tests) : '';
 
       const workerScript = `
+        const __post = self.postMessage.bind(self);
         const stdout = [];
         const stderr = [];
         const testResults = [];
+        const pendingTests = [];
+        let currentSuite = '';
+
+        function safeFmt(val) {
+          if (val === undefined) return 'undefined';
+          if (val === null) return 'null';
+          if (typeof val === 'string') return val;
+          if (typeof val === 'bigint') return val + 'n';
+          if (typeof val === 'object') {
+            try { return JSON.stringify(val); } catch { return String(val); }
+          }
+          return String(val);
+        }
 
         function deepEqual(a, b) {
           if (Object.is(a, b)) return true;
@@ -290,43 +331,121 @@ export class JavaScriptSandboxRunner implements SandboxRunner {
           get not() { return expect(actual, !isNot); },
           toBe(exp) {
             const pass = Object.is(actual, exp);
-            if (isNot ? pass : !pass) throw new Error(\`Expected \${JSON.stringify(actual)} \${isNot ? 'NOT ' : ''}to be \${JSON.stringify(exp)}\`);
+            if (isNot ? pass : !pass) throw new Error(\`Expected \${safeFmt(actual)} \${isNot ? 'NOT ' : ''}to be \${safeFmt(exp)}\`);
           },
           toEqual(exp) {
             const pass = deepEqual(actual, exp);
-            if (isNot ? pass : !pass) throw new Error(\`Expected \${JSON.stringify(actual)} \${isNot ? 'NOT ' : ''}to equal \${JSON.stringify(exp)}\`);
+            if (isNot ? pass : !pass) throw new Error(\`Expected \${safeFmt(actual)} \${isNot ? 'NOT ' : ''}to equal \${safeFmt(exp)}\`);
           },
           toBeTruthy() {
-            if (isNot ? Boolean(actual) : !Boolean(actual)) throw new Error(\`Expected \${actual} to be truthy\`);
+            if (isNot ? Boolean(actual) : !Boolean(actual)) throw new Error(\`Expected \${safeFmt(actual)} \${isNot ? 'NOT ' : ''}to be truthy\`);
           },
           toBeFalsy() {
-            if (isNot ? !actual : Boolean(actual)) throw new Error(\`Expected \${actual} to be falsy\`);
+            if (isNot ? !actual : Boolean(actual)) throw new Error(\`Expected \${safeFmt(actual)} \${isNot ? 'NOT ' : ''}to be falsy\`);
+          },
+          toBeNull() {
+            const pass = actual === null;
+            if (isNot ? pass : !pass) throw new Error(\`Expected \${safeFmt(actual)} \${isNot ? 'NOT ' : ''}to be null\`);
+          },
+          toBeUndefined() {
+            const pass = actual === undefined;
+            if (isNot ? pass : !pass) throw new Error(\`Expected \${safeFmt(actual)} \${isNot ? 'NOT ' : ''}to be undefined\`);
+          },
+          toBeDefined() {
+            const pass = actual !== undefined;
+            if (isNot ? pass : !pass) throw new Error(\`Expected value \${isNot ? 'NOT ' : ''}to be defined\`);
+          },
+          toBeGreaterThan(exp) {
+            const pass = typeof actual === 'number' && actual > exp;
+            if (isNot ? pass : !pass) throw new Error(\`Expected \${safeFmt(actual)} \${isNot ? 'NOT ' : ''}to be greater than \${exp}\`);
+          },
+          toBeLessThan(exp) {
+            const pass = typeof actual === 'number' && actual < exp;
+            if (isNot ? pass : !pass) throw new Error(\`Expected \${safeFmt(actual)} \${isNot ? 'NOT ' : ''}to be less than \${exp}\`);
+          },
+          toBeGreaterThanOrEqual(exp) {
+            const pass = typeof actual === 'number' && actual >= exp;
+            if (isNot ? pass : !pass) throw new Error(\`Expected \${safeFmt(actual)} \${isNot ? 'NOT ' : ''}to be >= \${exp}\`);
+          },
+          toBeLessThanOrEqual(exp) {
+            const pass = typeof actual === 'number' && actual <= exp;
+            if (isNot ? pass : !pass) throw new Error(\`Expected \${safeFmt(actual)} \${isNot ? 'NOT ' : ''}to be <= \${exp}\`);
+          },
+          toContain(item) {
+            let pass = false;
+            if (typeof actual === 'string' && typeof item === 'string') pass = actual.includes(item);
+            else if (Array.isArray(actual)) pass = actual.some((el) => deepEqual(el, item));
+            else if (actual instanceof Set || actual instanceof Map) pass = actual.has(item);
+            if (isNot ? pass : !pass) throw new Error(\`Expected \${safeFmt(actual)} \${isNot ? 'NOT ' : ''}to contain \${safeFmt(item)}\`);
+          },
+          toThrow(expectedError) {
+            if (typeof actual !== 'function') throw new Error('expect(fn).toThrow requires actual to be a function');
+            let thrown = false, thrownError;
+            try { actual(); } catch (e) { thrown = true; thrownError = e; }
+            if (isNot ? thrown : !thrown) throw new Error(isNot ? 'Expected function NOT to throw' : 'Expected function to throw');
+            if (thrown && expectedError) {
+              const msg = thrownError && thrownError.message ? thrownError.message : String(thrownError);
+              if (typeof expectedError === 'string' && !msg.includes(expectedError)) throw new Error(\`Expected error to include "\${expectedError}", got "\${msg}"\`);
+              if (expectedError instanceof RegExp && !expectedError.test(msg)) throw new Error(\`Expected error to match \${expectedError}, got "\${msg}"\`);
+            }
           }
         });
 
-        const test = async (name, fn) => {
-          try {
-            await fn();
-            testResults.push({ name, passed: true });
-          } catch (err) {
-            testResults.push({ name, passed: false, error: err.message || String(err) });
+        const assert = Object.assign(
+          (cond, msg) => { if (!cond) throw new Error(msg || 'Assertion failed'); },
+          {
+            strictEqual: (a, b, msg) => { if (!Object.is(a, b)) throw new Error(msg || \`Expected \${safeFmt(a)} to equal \${safeFmt(b)}\`); },
+            deepEqual: (a, b) => { expect(a).toEqual(b); }
           }
+        );
+
+        const describe = (suiteName, fn) => {
+          const prev = currentSuite;
+          currentSuite = prev ? \`\${prev} > \${suiteName}\` : suiteName;
+          let res;
+          try { res = fn(); } catch (e) { currentSuite = prev; throw e; }
+          if (res && typeof res.then === 'function') {
+            const p = res.finally(() => { currentSuite = prev; });
+            pendingTests.push(p.catch(() => {}));
+            return p;
+          }
+          currentSuite = prev;
         };
 
+        const runOne = (name, fn) => {
+          const fullName = currentSuite ? \`\${currentSuite} > \${name}\` : name;
+          const p = (async () => {
+            try {
+              await fn();
+              testResults.push({ name: fullName, passed: true });
+            } catch (err) {
+              testResults.push({ name: fullName, passed: false, error: (err && err.message) || String(err) });
+            }
+          })();
+          pendingTests.push(p);
+          return p;
+        };
+        const test = runOne;
+        const it = runOne;
+
         const console = {
-          log: (...args) => stdout.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')),
-          info: (...args) => stdout.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')),
-          warn: (...args) => stderr.push('[WARN] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')),
-          error: (...args) => stderr.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '))
+          log: (...args) => stdout.push(args.map(safeFmt).join(' ')),
+          info: (...args) => stdout.push(args.map(safeFmt).join(' ')),
+          warn: (...args) => stderr.push('[WARN] ' + args.map(safeFmt).join(' ')),
+          error: (...args) => stderr.push(args.map(safeFmt).join(' '))
         };
 
         self.onmessage = async () => {
           try {
             ${strippedCode}
             ${strippedTests}
-            self.postMessage({ ok: true, stdout: stdout.join('\\n'), stderr: stderr.join('\\n'), testResults });
+            while (pendingTests.length) {
+              const batch = pendingTests.splice(0, pendingTests.length);
+              await Promise.all(batch);
+            }
+            __post({ ok: true, stdout: stdout.join('\\n'), stderr: stderr.join('\\n'), testResults });
           } catch (err) {
-            self.postMessage({ ok: false, error: err.message || String(err), stdout: stdout.join('\\n'), stderr: stderr.join('\\n'), testResults });
+            __post({ ok: false, error: (err && err.message) || String(err), stdout: stdout.join('\\n'), stderr: stderr.join('\\n'), testResults });
           }
         };
       `;
@@ -344,7 +463,7 @@ export class JavaScriptSandboxRunner implements SandboxRunner {
         return this.executeInSandbox(
           code,
           tests,
-          undefined,
+          options,
           timeoutMs,
           startTime,
           [],

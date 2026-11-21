@@ -210,11 +210,21 @@ export class LspClient {
   }
 
   async stop() {
-    this.unlisten?.();
-    if (this.serverId) {
+    const id = this.serverId;
+    if (id) {
       await this.request("shutdown", null, 2000).catch(() => {});
       this.notify("exit", null);
-      await this.transport.stop(this.serverId);
+    }
+    this.unlisten?.();
+    this.unlisten = undefined;
+    for (const p of this.pending.values()) {
+      clearTimeout(p.timer);
+      p.reject(new Error("The language server stopped."));
+    }
+    this.pending.clear();
+    this.serverId = "";
+    if (id) {
+      await this.transport.stop(id);
     }
   }
 }
