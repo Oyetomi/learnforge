@@ -1,6 +1,6 @@
 [package]
 name = "learnforge"
-version = "0.3.0"
+version = "0.4.0"
 description = "Adaptive lessons, worked explanations, visual learning, and optional code practice in a local-first desktop app."
 authors = ["Oyetomi"]
 license = "MIT"

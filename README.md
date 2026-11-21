@@ -11,7 +11,7 @@
   <a href="#how-it-works">How it works</a> ·
   <a href="#features">Features</a> ·
   <a href="#development">Development</a> ·
-  <a href="docs/release-0.3.0.md">Release notes</a>
+  <a href="docs/release-0.4.0.md">Release notes</a>
 </p>
 
 <p align="center">
@@ -133,7 +133,7 @@ cd src-tauri && cargo test       # Native tests
 
 Desktop bundles are written to `src-tauri/target/release/bundle/`.
 
-The UI uses React, TypeScript, and Vite inside a Tauri/Rust desktop shell. AI requests go through a shared provider adapter. Learning state, assessment evidence, and optional help remain separate from figure rendering and code execution. See [the 0.3.0 release notes](docs/release-0.3.0.md) for what changed and how it was checked, and [the 0.2.4 verification report](docs/release-0.2.4.md) for the earlier learning-flow checks.
+The UI uses React, TypeScript, and Vite inside a Tauri/Rust desktop shell. AI requests go through a shared provider adapter. Learning state, assessment evidence, and optional help remain separate from figure rendering and code execution. See [the 0.4.0 release notes](docs/release-0.4.0.md) for what changed and how it was checked, and the [0.3.0](docs/release-0.3.0.md) and [0.2.4](docs/release-0.2.4.md) notes for earlier releases.
 
 ## Current limits
 
