@@ -1000,3 +1000,53 @@
 .project-step-parts li[data-state="done"] { color: var(--c-success-soft); }
 .project-step-parts li[data-state="current"] { color: var(--c-text-strong); font-weight: 600; }
 .project-step-parts li[data-state="current"] svg { color: var(--c-accent-text); }
+
+/* Project tools in the output bar (All tests, Coverage, Benchmarks, vet) */
+.project-tool-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin: 0 6px 0 auto;
+  padding-left: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.project-tool-actions::-webkit-scrollbar { display: none; }
+.project-tool-button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--c-text-secondary);
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 140ms ease-out, border-color 140ms ease-out, background-color 140ms ease-out;
+}
+.project-tool-button:hover:not(:disabled) { color: var(--c-text-strong); border-color: var(--c-line-strong); background: var(--c-surface-1); }
+.project-tool-button:focus-visible { outline: 2px solid var(--c-accent-base); outline-offset: 1px; }
+.project-tool-button:disabled { cursor: default; opacity: 0.45; }
+.project-tool-button[data-running] { opacity: 1; color: var(--c-accent-text); border-color: #e5aa7255; background: #e5aa7212; }
+@media (prefers-reduced-motion: reduce) { .project-tool-button { transition: none; } }
+
+/* Multi-project courses: which project this step belongs to */
+.project-step-title-group { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.project-step-title-group strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-step-project-pill {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-pill);
+  color: var(--c-text-quiet);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.project-step-book-tag { color: var(--c-text-faint); }

@@ -1177,31 +1177,8 @@
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
-.curriculum-projects-list {
-  display: grid;
-  gap: 12px;
-}
-.curriculum-project-item + .curriculum-project-item {
-  padding-top: 10px;
-  border-top: 1px solid var(--c-line);
-}
-.curriculum-project-item > .curriculum-project-source {
-  margin-bottom: 4px;
-}
 .curriculum-project-edit label {
   margin: 8px 0;
-}
-.curriculum-project-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--heading);
-}
-.curriculum-project-meta .curriculum-project-lang {
-  margin-left: auto;
-  color: var(--c-accent-text);
-  font-size: 11px;
 }
 .curriculum-scope-card p.curriculum-project-title {
   display: flex;
@@ -1242,3 +1219,59 @@
 @media (max-width: 560px) {
   .new-topic-dialog .curriculum-brief .goal-practice-options { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Multi-project courses: a numbered list, language and origin said once */
+.curriculum-scope-card h4.curriculum-project-heading .curriculum-project-lang {
+  color: var(--c-accent-text);
+  font-weight: 400;
+}
+.curriculum-scope-card p.curriculum-project-origin {
+  margin: -4px 0 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.curriculum-projects-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.curriculum-scope-card li.curriculum-project-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  margin: 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--c-line);
+}
+.curriculum-scope-card li.curriculum-project-item:first-child { border-top: 0; padding-top: 2px; }
+.curriculum-project-number {
+  color: var(--c-text-quiet);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.6;
+}
+.curriculum-project-body { display: grid; gap: 4px; min-width: 0; }
+.curriculum-scope-card p.curriculum-project-name {
+  margin: 0;
+  color: var(--heading);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.curriculum-scope-card p.curriculum-project-summary { margin: 0; }
+.curriculum-scope-card p.curriculum-project-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 2px 0 0;
+  color: var(--c-text-quiet);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.curriculum-project-edit { display: grid; gap: 8px; }
+.curriculum-project-edit label { margin: 0; }
+.curriculum-project-edit textarea { min-height: 84px; }

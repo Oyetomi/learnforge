@@ -559,13 +559,15 @@ export function CurriculumApproval({
                                     hasStep ? "" : "is-none"
                                   }`}
                                 >
-                                  <span className={named ? "is-named" : undefined}>
+                                  <span className={named || (!hasStep && projects.length > 1) ? "is-named" : undefined}>
                                     {named
                                       ? `Project · ${unitProject!.title}`
+                                      : !hasStep && projects.length > 1
+                                      ? "Concepts only"
                                       : "Project"}
                                   </span>
                                   {unit.projectStep?.trim() ||
-                                    "No code in this unit: concepts only"}
+                                    (projects.length > 1 ? "No code in this unit" : "No code in this unit: concepts only")}
                                 </small>
                               );
                             })()}
@@ -649,75 +651,73 @@ export function CurriculumApproval({
                   </>
                 ) : (
                   <>
-                    <h4>Projects in this course ({projects.length})</h4>
-                    <div className="curriculum-projects-list">
-                      {projects.map((proj, index) => (
-                        <div key={proj.id} className="curriculum-project-item">
-                          {editing ? (
-                            <div className="curriculum-project-edit">
-                              <div className="curriculum-project-meta">
-                                <span>Project {index + 1}</span>
-                                {proj.source === "book" && (
-                                  <span className="curriculum-project-source">
-                                    Book project
-                                  </span>
-                                )}
-                                <span className="curriculum-project-lang">
-                                  {profileFor(draft.language)?.name ??
-                                    draft.language}
-                                </span>
-                              </div>
-                              <label>
-                                Title
-                                <input
-                                  type="text"
-                                  value={proj.title}
-                                  aria-label={`Title for project ${index + 1}`}
-                                  maxLength={1200}
-                                  onChange={(e) =>
-                                    updateProject(proj.id, {
-                                      title: e.target.value,
-                                    })
-                                  }
-                                />
-                              </label>
-                              <label>
-                                Summary
-                                <textarea
-                                  value={proj.summary}
-                                  aria-label={`Summary for project ${index + 1}`}
-                                  maxLength={1200}
-                                  onChange={(e) =>
-                                    updateProject(proj.id, {
-                                      summary: e.target.value,
-                                    })
-                                  }
-                                />
-                              </label>
-                            </div>
-                          ) : (
-                            <>
-                              <p className="curriculum-project-title">
-                                {proj.title}
-                                <span>
-                                  {profileFor(draft.language)?.name ??
-                                    draft.language}
-                                </span>
-                              </p>
-                              {proj.source === "book" && (
-                                <span className="curriculum-project-source">
-                                  Book project
-                                </span>
-                              )}
-                              <p>{proj.summary}</p>
-                            </>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    <p className="curriculum-project-note">
-                      Each project has its own workspace and accumulating tests. Chapters extending the same project share one codebase. Runs on this Mac with your installed toolchain, inside a sandbox{draft.language === "go" ? " (or on the Go Playground if Go isn’t installed)" : ""}.
-                    </p>
+                    {(() => {
+                      const language = profileFor(draft.language)?.name ?? draft.language;
+                      const allFromBook = projects.every((p) => p.source === "book");
+                      const stepsFor = (id: string) =>
+                        plan.modules
+                          .flatMap((m) => m.units)
+                          .filter((u) => u.projectStep?.trim() && projectForUnit(plan, u.id)?.id === id).length;
+                      return (
+                        <>
+                          <h4 className="curriculum-project-heading">
+                            {projects.length} projects
+                            <span className="curriculum-project-lang">{language}</span>
+                          </h4>
+                          {allFromBook && <p className="curriculum-project-origin">All from your book</p>}
+                          <ol className="curriculum-projects-list">
+                            {projects.map((proj, index) => {
+                              const steps = stepsFor(proj.id);
+                              return (
+                                <li key={proj.id} className="curriculum-project-item">
+                                  <span className="curriculum-project-number" aria-hidden="true">{index + 1}</span>
+                                  <div className="curriculum-project-body">
+                                    {editing ? (
+                                      <div className="curriculum-project-edit">
+                                        <label>
+                                          Title
+                                          <input
+                                            type="text"
+                                            value={proj.title}
+                                            aria-label={`Title for project ${index + 1}`}
+                                            maxLength={1200}
+                                            onChange={(e) => updateProject(proj.id, { title: e.target.value })}
+                                          />
+                                        </label>
+                                        <label>
+                                          Summary
+                                          <textarea
+                                            rows={4}
+                                            value={proj.summary}
+                                            aria-label={`Summary for project ${index + 1}`}
+                                            maxLength={1200}
+                                            onChange={(e) => updateProject(proj.id, { summary: e.target.value })}
+                                          />
+                                        </label>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <p className="curriculum-project-name">{proj.title}</p>
+                                        <p className="curriculum-project-summary">{proj.summary}</p>
+                                      </>
+                                    )}
+                                    <p className="curriculum-project-facts">
+                                      <span>{steps === 1 ? "1 step" : `${steps} steps`}</span>
+                                      {!allFromBook && proj.source === "book" && (
+                                        <span className="curriculum-project-source">From your book</span>
+                                      )}
+                                    </p>
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ol>
+                          <p className="curriculum-project-note">
+                            Each project gets its own folder and tests; chapters that extend a project keep building on the same code. Code runs on this Mac in a sandbox{draft.language === "go" ? ", or on the Go Playground if Go isn’t installed" : ""}.
+                          </p>
+                        </>
+                      );
+                    })()}
                   </>
                 ))}
               <h4>The destination</h4>

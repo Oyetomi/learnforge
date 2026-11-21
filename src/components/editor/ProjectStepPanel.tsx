@@ -175,40 +175,12 @@ export const ProjectStepPanel: React.FC<{ project: ProjectWorkspaceController; i
     <section className="project-step-panel" aria-label="Project step">
       <header>
         {isMultiProject ? (
-          <span
-            className="project-step-title-group"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}
-          >
+          <span className="project-step-title-group">
             <strong title={projectTitleTooltip}>{project.project?.title ?? "Project"}</strong>
-            <span
-              className="project-step-project-pill"
-              title={fromBook ? "From book" : undefined}
-              style={{
-                flexShrink: 0,
-                padding: "1px 6px",
-                border: "1px solid var(--c-line)",
-                borderRadius: "var(--radius-pill)",
-                color: "var(--c-text-quiet)",
-                fontSize: "var(--text-2xs)",
-                fontVariantNumeric: "tabular-nums",
-                whiteSpace: "nowrap",
-              }}
-            >
+            <span className="project-step-project-pill" title={fromBook ? "A project from your book" : undefined}>
               Project {project.projectIndex} of {project.totalProjects}
+              {fromBook && <span className="project-step-book-tag"> · from book</span>}
             </span>
-            {fromBook && (
-              <span
-                className="project-step-book-tag"
-                style={{
-                  flexShrink: 0,
-                  color: "var(--c-text-disabled)",
-                  fontSize: "var(--text-2xs)",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                From book
-              </span>
-            )}
           </span>
         ) : (
           <strong title={projectTitleTooltip}>{project.project?.title ?? "Project"}</strong>

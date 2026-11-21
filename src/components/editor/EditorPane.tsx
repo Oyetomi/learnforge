@@ -984,20 +984,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             </button>
           </div>
           {projectMode && availableTools.length > 0 && (
-            <span
-              className="project-tool-actions"
-              role="group"
-              aria-label="Project tools"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                marginLeft: "auto",
-                marginRight: 6,
-                minWidth: 0,
-                overflowX: "auto",
-              }}
-            >
+            <span className="project-tool-actions" role="group" aria-label="Project tools">
               {availableTools.map((tool) => {
                 const isThisRunning = runningToolId === tool.id;
                 const disabled =
@@ -1010,26 +997,11 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                     key={tool.id}
                     type="button"
                     className="project-tool-button"
+                    data-running={isThisRunning || undefined}
+                    aria-busy={isThisRunning || undefined}
+                    title={(tool.commands ?? []).map((c: string[]) => c.join(" ").replace(/\{(\w+)\}/g, "$1")).join(" && ") || undefined}
                     disabled={disabled}
                     onClick={() => void runProjectTool(tool)}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 5,
-                      padding: "3px 8px",
-                      border: "1px solid var(--c-line)",
-                      borderRadius: "var(--radius-sm)",
-                      background: isThisRunning ? "var(--c-surface-2)" : "transparent",
-                      color: isThisRunning
-                        ? "var(--c-accent-text)"
-                        : "var(--c-text-secondary)",
-                      font: "inherit",
-                      fontSize: "11px",
-                      lineHeight: 1.3,
-                      whiteSpace: "nowrap",
-                      cursor: disabled ? "default" : "pointer",
-                      opacity: disabled && !isThisRunning ? 0.5 : 1,
-                    }}
                   >
                     {isThisRunning && (
                       <Loader2 size={11} className="animate-spin" aria-hidden="true" />
