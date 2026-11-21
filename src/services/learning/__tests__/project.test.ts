@@ -296,3 +296,38 @@ describe("project plans", () => {
     expect(repair.validationFailure).toMatch(/TestStage01/);
   });
 });
+
+import { currentStageFor, nextPart, unitBuildDone, untouchedLegacyStage } from "../project";
+describe("a chapter's build in parts", () => {
+  const outline = ["In-memory map", "Length"];
+  const part1 = { task: "Map", tests: stage1Tests, files: [{ path: "store.go", content: storeStub }], title: "In-memory map", outline };
+  const part2 = { task: "Len", tests: stage2Tests, files: [], title: "Length" };
+  it("prepares parts one at a time, each with its own tests, and knows when the chapter is done", () => {
+    let ws = applyStage(emptyWorkspace("t"), "u1", "Store", part1, 1, 1);
+    expect(currentStageFor(ws, "u1")).toMatchObject({ section: 1, title: "In-memory map", outline });
+    expect(nextPart(ws, "u1")).toBeNull();
+    ws = markStagePassed(ws, "u1", 2);
+    expect(nextPart(ws, "u1")).toEqual({ section: 2, title: "Length" });
+    expect(unitBuildDone(ws, "u1")).toBe(false);
+    ws = applyStage(ws, "u1", "Store", part2, 3, 2);
+    expect(ws.stages).toHaveLength(2);
+    expect(currentStageFor(ws, "u1")).toMatchObject({ number: 2, section: 2, outline });
+    // The earlier part's pass is kept; marking applies to the current part.
+    ws = markStagePassed(ws, "u1", 4);
+    expect(ws.stages.map((s) => s.passedAt)).toEqual([2, 4]);
+    expect(unitBuildDone(ws, "u1")).toBe(true);
+    expect(projectPromptContext(ws, "u1")).toContain("2. Length (current)");
+  });
+  it("re-preparing a part replaces it in place", () => {
+    let ws = applyStage(emptyWorkspace("t"), "u1", "Store", part1, 1, 1);
+    ws = applyStage(ws, "u1", "Store", { ...part1, task: "Map v2" }, 2, 1);
+    expect(ws.stages).toHaveLength(1);
+    expect(ws.stages[0].task).toBe("Map v2");
+  });
+  it("treats an untouched old one-step stage as replaceable, but never one with the learner's work", () => {
+    const old = applyStage(emptyWorkspace("t"), "u1", "Store", { task: "Old", tests: stage1Tests, files: [{ path: "store.go", content: storeStub }] }, 1);
+    expect(untouchedLegacyStage(old, "u1")).toBe(true);
+    expect(untouchedLegacyStage(updateFile(old, "store.go", storeStub + "\n// mine"), "u1")).toBe(false);
+    expect(untouchedLegacyStage(applyStage(emptyWorkspace("t"), "u1", "Store", part1, 1, 1), "u1")).toBe(false);
+  });
+});

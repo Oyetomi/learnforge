@@ -9,6 +9,15 @@ import {
   goPlaygroundBody,
   markStagePassed,
   projectPromptContext,
+  markStageStarted,
+  currentStageFor,
+  nextPart,
+  stageParts,
+  unitBuildDone,
+  unitStages,
+  untouchedLegacyStage,
+  recordPrediction,
+  recordPrinciple,
   stageOfTest,
   removeFile,
   resetFileToStageStart,
@@ -21,7 +30,7 @@ import {
 } from "../../services/learning/project";
 import { loadProject, saveProject } from "../../services/learning/projectStore";
 import { loadLanguageStatus, profileFor, type LanguageStatus } from "../../services/languages";
-import { runHeadline, type Headline } from "../../services/sandbox/runReport";
+import { runHeadline, runOutcome, type Headline, type Prediction } from "../../services/sandbox/runReport";
 
 export interface ProjectRuntime {
   available: boolean;
@@ -42,6 +51,15 @@ export function initialFile(ws: ProjectWorkspace, language: string): string {
   if (entry && ws.files.some((f) => f.path === entry)) return entry;
   const config = /(^|\/)(go\.(mod|sum)|package\.json|tsconfig\.json|Cargo\.toml)$/;
   return ws.files.find((f) => !config.test(f.path))?.path ?? ws.files[0]?.path ?? "";
+}
+
+/** A short hash of the learner's files. */
+function revisionOf(files: { path: string; content: string }[]): string {
+  let hash = 2166136261;
+  for (const f of files)
+    for (const text of [f.path, "\0", f.content, "\0"])
+      for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619) >>> 0;
+  return hash.toString(36);
 }
 
 /** Where this project's code runs: the sandboxed local toolchain, the Go Playground, or nowhere yet. */
@@ -95,6 +113,15 @@ export interface ProjectRun {
   /** True the first time the whole suite passes for the active step. */
   stageJustPassed: boolean;
   stageNumber?: number;
+  /** Which part of the chapter's build this run was for. */
+  part?: { n: number; total: number; title?: string };
+  /** Every part of this chapter's build passes. */
+  unitDone?: boolean;
+  /** The part prepared next, if the chapter has more. */
+  next?: { section: number; title?: string };
+  /** The learner's prediction before this run, if any, and this step's prediction record. */
+  prediction?: { expected: Prediction; why: string; actual: Prediction };
+  predictions?: { made: number; matched: number };
 }
 
 /**
@@ -112,6 +139,12 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
   const [preparation, setPreparation] = useState<StagePreparation | null>(null);
   const [lastSummary, setLastSummary] = useState<SuiteSummary | null>(null);
   const [lastHeadline, setLastHeadline] = useState<Headline | null>(null);
+  /** A prediction made before the next run, and how the last one turned out. */
+  const pendingPrediction = useRef<{ expected: Prediction; why: string } | null>(null);
+  const [lastPrediction, setLastPrediction] = useState<{ expected: Prediction; why: string; actual: Prediction } | null>(null);
+  /** The project revision when tests last ran; a prediction is asked again only after edits. */
+  const [predictedRevision, setPredictedRevision] = useState<string | null>(null);
+  const [predictOff, setPredictOff] = useState(false);
   const [languages, setLanguages] = useState<LanguageStatus[] | null | undefined>(undefined);
   /** A location to show after go-to-definition switches files. */
   const [reveal, setReveal] = useState<{ path: string; line: number; column: number; at: number } | null>(null);
@@ -122,11 +155,25 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
   const unitId = milestone?.curriculum_unit_id;
   const unit = plan && unitId ? curriculumUnits(plan).find((u) => u.id === unitId) : undefined;
   const step = enabled ? unit?.projectStep?.trim() || undefined : undefined;
-  const stage = workspace && unitId ? workspace.stages.find((s) => s.unitId === unitId) : undefined;
+  // A chapter's build comes in parts; the current part is the latest prepared.
+  const stage = workspace && unitId ? currentStageFor(workspace, unitId) : undefined;
+  const following = workspace && unitId ? nextPart(workspace, unitId) : null;
+  const legacy = !!workspace && !!unitId && untouchedLegacyStage(workspace, unitId);
+  const unitStarted = !!workspace && !!unitId && unitStages(workspace, unitId).some((s) => s.startedAt);
+  const unitDone = !!workspace && !!unitId && unitBuildDone(workspace, unitId);
   const stepUnits = plan ? curriculumUnits(plan).filter((u) => u.projectStep?.trim()) : [];
   const totalSteps = stepUnits.length;
   /** 1-based position of this unit's step in the plan (0 for a concepts-only unit). */
   const stepNumber = stepUnits.findIndex((u) => u.id === unitId) + 1;
+  const stepIndex = useMemo(() => new Map(stepUnits.map((u, i) => [u.id, i + 1])), [stepUnits.map((u) => u.id).join()]);
+  /** "Step 3" for a one-part step, "Step 3.2" for part 2 of a chapter's build. */
+  const stageName = useCallback(
+    (s: { unitId: string; number: number; section?: number; outline?: string[] }) => {
+      const n = stepIndex.get(s.unitId) ?? s.number;
+      return s.outline?.length || (s.section ?? 1) > 1 ? `Step ${n}.${s.section ?? 1}` : `Step ${n}`;
+    },
+    [stepIndex]
+  );
 
   const flush = useCallback(async () => {
     if (timer.current) clearTimeout(timer.current);
@@ -194,10 +241,26 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
   useEffect(() => {
     setLastSummary(null);
     setLastHeadline(null);
+    setLastPrediction(null);
+    setPredictedRevision(null);
   }, [unitId]);
+  useEffect(() => {
+    try {
+      setPredictOff(!!trackId && localStorage.getItem(`learnforge:predict-off:${trackId}`) === "1");
+    } catch {
+      setPredictOff(false);
+    }
+  }, [trackId]);
 
+  /** Units whose old one-step stage was already re-prepared as parts this session. */
+  const reprepared = useRef(new Set<string>());
   const prepareStage = useCallback(async () => {
     if (!track || !unitId || !unit?.projectStep?.trim() || !latest.current) return;
+    // Which part: the next one after a passed part, otherwise the current one (or the first).
+    const now = currentStageFor(latest.current, unitId);
+    const upcoming = nextPart(latest.current, unitId);
+    const section = upcoming?.section ?? now?.section ?? 1;
+    if (untouchedLegacyStage(latest.current, unitId)) reprepared.current.add(unitId);
     preparing.current?.abort();
     const controller = new AbortController();
     preparing.current = controller;
@@ -210,15 +273,16 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
         ? async (candidate: PreparedStage, number: number, testPath: string) => {
             const { checkLocalStage } = await import("../../services/sandbox/local");
             const base = latest.current!;
-            const trial = applyStage(base, unitId, unit.title, candidate);
+            const trial = applyStage(base, unitId, unit.title, candidate, Date.now(), section);
             return checkLocalStage(trial, number, testPath);
           }
         : undefined;
-      const { stage: prepared } = await prepareProjectStage(track, unitId, latest.current, controller.signal, check);
+      const { stage: prepared } = await prepareProjectStage(track, unitId, latest.current, controller.signal, check, section);
       if (controller.signal.aborted || !latest.current) return;
-      const next = applyStage(latest.current, unitId, unit.title, prepared);
+      const before = new Set(latest.current.files.map((f) => f.path));
+      const next = applyStage(latest.current, unitId, unit.title, prepared, Date.now(), section);
       commit(next, true);
-      const added = next.stages.find((s) => s.unitId === unitId)?.addedFiles[0]?.path;
+      const added = next.files.find((f) => !before.has(f.path))?.path;
       setActivePath((current) => added ?? (current || next.files[0]?.path || ""));
       setPreparation(null);
     } catch (error) {
@@ -231,12 +295,15 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     }
   }, [track, unitId, unit, commit, runtime.local]);
 
-  // Prepare the step once its lesson is ready, if it has none yet.
+  // Prepare the step once its lesson is ready: its first part, the next part
+  // after one passes, or the first part again for an untouched old one-step stage.
   useEffect(() => {
-    if (!workspace || !step || stage || milestone?.content_status === "outline") return;
+    if (!workspace || !step || milestone?.content_status === "outline") return;
+    const redo = legacy && !!unitId && !reprepared.current.has(unitId);
+    if (stage && !following && !redo) return;
     if (preparation?.unitId === unitId) return;
     void prepareStage();
-  }, [workspace, step, stage, milestone?.content_status, unitId, preparation?.unitId, prepareStage]);
+  }, [workspace, step, stage, following, legacy, milestone?.content_status, unitId, preparation?.unitId, prepareStage]);
 
   useEffect(() => () => preparing.current?.abort(), []);
 
@@ -252,19 +319,13 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
         path: s.testPath,
         readOnly: true,
         stage: s.number,
-        label: `Step ${s.number} · ${unitTitles.get(s.unitId) ?? "tests"}`,
+        label: `${stageName(s)} · ${s.title ?? unitTitles.get(s.unitId) ?? "tests"}`,
       })),
     ];
-  }, [workspace, unitTitles]);
+  }, [workspace, unitTitles, stageName]);
 
   /** Changes whenever any learner file changes (not on tab switches or recorded passes). */
-  const revision = useMemo(() => {
-    let hash = 2166136261;
-    for (const f of workspace?.files ?? [])
-      for (const text of [f.path, "\0", f.content, "\0"])
-        for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619) >>> 0;
-    return hash.toString(36);
-  }, [workspace?.files]);
+  const revision = useMemo(() => revisionOf(workspace?.files ?? []), [workspace?.files]);
 
   const allFiles = useMemo(
     () =>
@@ -297,7 +358,7 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
       const { executeGoProject } = await import("../../services/sandbox/api");
       result = await executeGoProject(goPlaygroundBody(ws), ws.stages.length > 0);
     } else throw new Error(runtime.detail);
-    const current = unitId ? ws.stages.find((s) => s.unitId === unitId) : undefined;
+    const current = unitId ? currentStageFor(ws, unitId) : undefined;
     // The Go Playground reports test functions; group them into steps like local runs.
     if (!result.stepRuns && ws.stages.length && result.testResults?.length) {
       const tests = result.testResults;
@@ -322,7 +383,7 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
         ...result,
         stepRuns: result.stepRuns.map((r) => {
           const st = ws.stages.find((x) => x.number === r.number);
-          return st ? { ...r, label: unitTitles.get(st.unitId) ?? r.label } : r;
+          return st ? { ...r, label: st.title ?? unitTitles.get(st.unitId) ?? r.label } : r;
         }),
       };
     const summary = summarizeSuite(result.testResults, current?.number, result.exitCode);
@@ -334,18 +395,40 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
           const n = stageOfTest(r.name.split("/")[0]);
           const stage = n === null ? undefined : ws.stages.find((s) => s.number === n);
           if (!stage) return r;
-          const title = unitTitles.get(stage.unitId) ?? stage.testPath;
+          const title = stage.title ?? unitTitles.get(stage.unitId) ?? stage.testPath;
           const local = / · /.test(r.name);
           const fn = r.name.replace(/^TestStage\d{2}/, "");
-          return { ...r, name: `Step ${n} · ${title}${!local && fn ? ` · ${fn}` : ""}` };
+          return { ...r, name: `${stageName(stage)} · ${title}${!local && fn ? ` · ${fn}` : ""}` };
         }),
       };
     setLastSummary(summary);
     setLastHeadline(runHeadline(result, current?.number));
+    const prediction = pendingPrediction.current;
+    pendingPrediction.current = null;
+    let made: ProjectRun["prediction"];
+    if (prediction && current && latest.current) {
+      made = { ...prediction, actual: runOutcome(result) };
+      setLastPrediction(made);
+      commit(recordPrediction(latest.current, current.unitId, made.actual === prediction.expected), true);
+    } else setLastPrediction(null);
+    setPredictedRevision(revisionOf(ws.files));
     const stageJustPassed = !!current && summary.allPassed && !current.passedAt;
     if (stageJustPassed && latest.current) commit(markStagePassed(latest.current, unitId!), true);
-    return { result, summary, stageJustPassed, stageNumber: current?.number };
-  }, [flush, unitId, commit, runtime.local, runtime.detail, unitTitles]);
+    const after = latest.current;
+    const predictions = after && current ? after.stages.find((s) => s.number === current.number)?.predictions : undefined;
+    const coming = after && unitId ? nextPart(after, unitId) : null;
+    return {
+      result,
+      summary,
+      stageJustPassed,
+      stageNumber: current?.number,
+      prediction: made,
+      predictions,
+      part: current ? { n: current.section ?? 1, total: stageParts(current), title: current.title } : undefined,
+      unitDone: !!after && !!unitId && unitBuildDone(after, unitId),
+      next: coming ?? undefined,
+    };
+  }, [flush, unitId, commit, runtime.local, runtime.detail, unitTitles, stageName]);
 
   return {
     enabled,
@@ -355,9 +438,47 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     stage,
     totalSteps,
     stepNumber,
+    /** The chapter's build: which part, how many, and their titles. */
+    part: stage ? { n: stage.section ?? 1, total: stageParts(stage), title: stage.title, outline: stage.outline ?? [] } : undefined,
+    /** The learner started building this chapter with the tutor. */
+    started: unitStarted,
+    /** Every part of this chapter's build passes. */
+    unitDone,
     preparation: preparation?.unitId === unitId ? preparation : null,
     lastSummary,
     lastHeadline,
+    lastPrediction,
+    /** Ask for a prediction before this run: a step with tests, edited since the last run, unless turned off. */
+    wantsPrediction: !predictOff && !!stage && predictedRevision !== revision,
+    predict(expected: Prediction, why: string) {
+      pendingPrediction.current = { expected, why: why.trim().slice(0, 500) };
+    },
+    skipPrediction() {
+      pendingPrediction.current = null;
+    },
+    setPredictionsOff(off: boolean) {
+      setPredictOff(off);
+      try {
+        localStorage.setItem(`learnforge:predict-off:${trackId}`, off ? "1" : "0");
+      } catch {
+        /* Preference only. */
+      }
+    },
+    /** The learner starts building this step (with the tutor). */
+    startStep() {
+      if (latest.current && unitId) commit(markStageStarted(latest.current, unitId), true);
+    },
+    /** Keep the principle the tutor named for this step. */
+    recordPrinciple(text: string) {
+      if (!latest.current || !unitId) return;
+      const current = currentStageFor(latest.current, unitId);
+      if (!current || current.principle === text.trim()) return;
+      commit(recordPrinciple(latest.current, unitId, text), true);
+    },
+    principles: (workspace?.stages ?? [])
+      .filter((s) => s.principle)
+      .sort((a, b) => a.number - b.number)
+      .map((s) => ({ number: s.number, principle: s.principle! })),
     status,
     revision,
     runtime,

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, ChevronDown, Circle, Loader2, RotateCcw, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronDown, Circle, Lightbulb, Loader2, RotateCcw, XCircle } from "lucide-react";
 import { MarkdownView } from "../chat/MarkdownView";
 import type { ProjectWorkspaceController } from "./useProjectWorkspace";
 
@@ -64,7 +64,9 @@ export const ProjectStepPanel: React.FC<{ project: ProjectWorkspaceController; i
     body = (
       <p className="project-step-note" role="status">
         <Loader2 size={13} className="animate-spin" aria-hidden="true" />
-        Preparing this step from your current files…
+        {project.stage?.passedAt && project.part && project.part.n < project.part.total
+          ? `Preparing part ${project.part.n + 1}${project.part.outline[project.part.n] ? `: ${project.part.outline[project.part.n]}` : ""} from your code…`
+          : "Preparing this step from your current files…"}
       </p>
     );
   } else if (preparation?.state === "error") {
@@ -98,7 +100,16 @@ export const ProjectStepPanel: React.FC<{ project: ProjectWorkspaceController; i
             aria-controls="project-step-task"
             onClick={() => toggleTask(!taskOpen)}
           >
-            <span className="project-step-step">{step}</span>
+            <span className="project-step-step">
+              {project.part && project.part.total > 1 ? (
+                <>
+                  <small className="project-step-part">Part {project.part.n} of {project.part.total}</small>
+                  {stage.title ?? step}
+                </>
+              ) : (
+                step
+              )}
+            </span>
             <ChevronDown size={14} aria-hidden="true" className="project-step-chevron" data-open={taskOpen} />
           </button>
           {status && (
@@ -108,6 +119,39 @@ export const ProjectStepPanel: React.FC<{ project: ProjectWorkspaceController; i
             </span>
           )}
         </div>
+        {project.part && project.part.total > 1 && (
+          <ol className="project-step-parts" aria-label={`This chapter's build: ${step}`}>
+            {project.part.outline.map((t, i) => {
+              const state = i + 1 < project.part!.n || (i + 1 === project.part!.n && stage.passedAt) ? "done" : i + 1 === project.part!.n ? "current" : "todo";
+              return (
+                <li key={i} data-state={state} aria-current={state === "current" ? "step" : undefined}>
+                  {state === "done" ? <CheckCircle2 size={11} aria-hidden="true" /> : <Circle size={11} aria-hidden="true" />}
+                  {t}
+                </li>
+              );
+            })}
+          </ol>
+        )}
+        {stage.principle && (
+          <p className="project-step-principle">
+            <Lightbulb size={13} aria-hidden="true" />
+            <span>
+              <em>Principle</em> {stage.principle}
+            </span>
+          </p>
+        )}
+        {project.principles.length > 1 && (
+          <details className="project-principles">
+            <summary>Principles so far ({project.principles.length})</summary>
+            <ol>
+              {project.principles.map((p) => (
+                <li key={p.number}>
+                  <span>Step {p.number}</span> {p.principle}
+                </li>
+              ))}
+            </ol>
+          </details>
+        )}
         {taskOpen && (
           <div className="project-step-task" id="project-step-task">
             <MarkdownView content={stage.task} languageHint={project.language} />
@@ -124,14 +168,14 @@ export const ProjectStepPanel: React.FC<{ project: ProjectWorkspaceController; i
     <section className="project-step-panel" aria-label="Project step">
       <header>
         <strong title={project.project?.summary}>{project.project?.title ?? "Project"}</strong>
-        {stage && totalSteps > 0 && (
-          <span className="project-step-progress" aria-label={`Step ${stage.number} of ${totalSteps}`}>
+        {stage && totalSteps > 0 && project.stepNumber > 0 && (
+          <span className="project-step-progress" aria-label={`Step ${project.stepNumber} of ${totalSteps}`}>
             <span className="project-step-segments" aria-hidden="true">
               {Array.from({ length: Math.min(totalSteps, 24) }, (_, i) => (
-                <i key={i} data-state={i + 1 < stage.number ? "done" : i + 1 === stage.number ? "current" : "todo"} />
+                <i key={i} data-state={i + 1 < project.stepNumber ? "done" : i + 1 === project.stepNumber ? "current" : "todo"} />
               ))}
             </span>
-            Step {stage.number} of {totalSteps}
+            Step {project.stepNumber} of {totalSteps}
           </span>
         )}
       </header>

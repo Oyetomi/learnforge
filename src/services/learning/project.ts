@@ -38,6 +38,21 @@ export interface ProjectStage {
   /** The learner's files when the stage started, for Reset. */
   startFiles: ProjectFile[];
   passedAt?: number;
+  /**
+   * A chapter's build comes in small parts, like sections of a book: each part
+   * is its own stage with its own test file. 1-based; absent on older stages.
+   */
+  section?: number;
+  /** This part's title, e.g. "Append every write to a log file". */
+  title?: string;
+  /** The chapter's parts, in order (stored on every part of the chapter). */
+  outline?: string[];
+  /** When the learner started building this step with the tutor. */
+  startedAt?: number;
+  /** The reusable idea this step taught, named by the tutor once it passed. */
+  principle?: string;
+  /** Learner predictions before runs of this step, and how many matched. */
+  predictions?: { made: number; matched: number };
 }
 
 export interface ProjectWorkspace {
@@ -118,11 +133,54 @@ export interface PreparedStage {
   task: string;
   tests: string;
   files: ProjectFile[];
+  /** This part's title. */
+  title?: string;
+  /** The chapter's parts (proposed with the first part). */
+  outline?: string[];
+}
+
+/** The parts of a unit's build so far, in order. */
+export function unitStages(ws: ProjectWorkspace, unitId?: string): ProjectStage[] {
+  return ws.stages.filter((s) => s.unitId === unitId).sort((a, b) => a.number - b.number);
+}
+
+/** The part of a unit's build the learner is on: the latest one prepared. */
+export function currentStageFor(ws: ProjectWorkspace, unitId?: string): ProjectStage | undefined {
+  const list = unitStages(ws, unitId);
+  return list[list.length - 1];
+}
+
+/** How many parts this unit's build has (1 for older single-step stages). */
+export function stageParts(stage: ProjectStage | undefined): number {
+  return Math.max(stage?.outline?.length ?? 1, stage?.section ?? 1);
+}
+
+/** Every part of the unit's build passes. */
+export function unitBuildDone(ws: ProjectWorkspace, unitId?: string): boolean {
+  const current = currentStageFor(ws, unitId);
+  return !!current?.passedAt && (current.section ?? 1) >= stageParts(current);
+}
+
+/** The next part to prepare once the current one passes, if any. */
+export function nextPart(ws: ProjectWorkspace, unitId?: string): { section: number; title?: string } | null {
+  const current = currentStageFor(ws, unitId);
+  if (!current?.passedAt) return null;
+  const section = (current.section ?? 1) + 1;
+  return section <= stageParts(current) ? { section, title: current.outline?.[section - 1] } : null;
+}
+
+/** A stage prepared in the old one-step format that the learner never touched. */
+export function untouchedLegacyStage(ws: ProjectWorkspace, unitId?: string): boolean {
+  const list = unitStages(ws, unitId);
+  const stage = list[0];
+  if (list.length !== 1 || !stage || stage.outline || stage.passedAt || stage.startedAt) return false;
+  const original = new Map([...stage.startFiles, ...stage.addedFiles].map((f) => [f.path, f.content]));
+  return ws.files.every((f) => original.get(f.path) === f.content);
 }
 
 /** Validate a model's stage proposal. Throws with a retryable message. */
 export function parsePreparedStage(value: unknown, number: number, language = "go"): PreparedStage {
-  const v = value as { task?: unknown; test_file?: unknown; new_files?: unknown };
+  const v = value as { task?: unknown; test_file?: unknown; new_files?: unknown; title?: unknown; outline?: unknown };
   const text = (s: unknown, max: number): s is string =>
     typeof s === "string" && !!s.trim() && s.length <= max;
   if (!v || !text(v.task, 4000)) throw new Error("The project step had no task description. Retry.");
@@ -138,7 +196,11 @@ export function parsePreparedStage(value: unknown, number: number, language = "g
     if (language === "go" && path.endsWith(".go") && !path.includes("/") && goPackage(content) !== "main") continue;
     if (!files.some((x) => x.path === path)) files.push({ path, content });
   }
-  return { task: v.task.trim(), tests: v.test_file, files };
+  const title = typeof v.title === "string" && v.title.trim() ? v.title.trim().slice(0, 120) : undefined;
+  const outline = Array.isArray(v.outline)
+    ? v.outline.filter((t): t is string => typeof t === "string" && !!t.trim()).map((t) => t.trim().slice(0, 120)).slice(0, 6)
+    : [];
+  return { task: v.task.trim(), tests: v.test_file, files, ...(title ? { title } : {}), ...(outline.length ? { outline } : {}) };
 }
 
 /**
@@ -151,9 +213,13 @@ export function applyStage(
   unitId: string,
   unitTitle: string,
   prepared: PreparedStage,
-  now = Date.now()
+  now = Date.now(),
+  /** Which part of the unit's build this is (1 unless a later part). */
+  section = 1
 ): ProjectWorkspace {
-  const existing = ws.stages.find((s) => s.unitId === unitId);
+  const existing = ws.stages.find((s) => s.unitId === unitId && (s.section ?? 1) === section);
+  const first = unitStages(ws, unitId)[0];
+  const outline = section === 1 ? prepared.outline : first?.outline;
   const number = existing?.number ?? ws.stages.length + 1;
   const taken = new Set(ws.files.map((f) => f.path));
   const room = Math.max(0, MAX_PROJECT_FILES - ws.files.length);
@@ -162,16 +228,20 @@ export function applyStage(
     unitId,
     number,
     task: prepared.task,
-    testPath: existing?.testPath ?? stageTestPath(number, unitTitle, ws.language),
+    testPath: existing?.testPath ?? stageTestPath(number, prepared.title || unitTitle, ws.language),
     tests: prepared.tests,
     addedFiles: [...(existing?.addedFiles || []), ...added],
     startFiles: existing?.startFiles ?? ws.files,
+    section,
+    ...(prepared.title ? { title: prepared.title } : {}),
+    ...(outline?.length ? { outline } : {}),
+    ...(existing?.startedAt || first?.startedAt ? { startedAt: existing?.startedAt ?? first?.startedAt } : {}),
   };
   return {
     ...ws,
     files: [...ws.files, ...added],
     stages: existing
-      ? ws.stages.map((s) => (s.unitId === unitId ? stage : s))
+      ? ws.stages.map((s) => (s.number === existing.number ? stage : s))
       : [...ws.stages, stage],
     updatedAt: now,
   };
@@ -204,18 +274,48 @@ export function removeFile(ws: ProjectWorkspace, path: string, now = Date.now())
 
 /** Restore one file to how it was when the stage began, or to the stub the stage added. */
 export function resetFileToStageStart(ws: ProjectWorkspace, unitId: string, path: string, now = Date.now()): ProjectWorkspace {
-  const stage = ws.stages.find((s) => s.unitId === unitId);
+  const stage = currentStageFor(ws, unitId);
   const original =
     stage?.startFiles.find((f) => f.path === path) ?? stage?.addedFiles.find((f) => f.path === path);
   return original ? updateFile(ws, path, original.content, now) : ws;
 }
 
-/** Record a fully passing run for the active unit's stage. */
-export function markStagePassed(ws: ProjectWorkspace, unitId: string, now = Date.now()): ProjectWorkspace {
-  if (!ws.stages.some((s) => s.unitId === unitId)) return ws;
+/** The learner started building this step (the tutor kicked it off). */
+export function markStageStarted(ws: ProjectWorkspace, unitId: string, now = Date.now()): ProjectWorkspace {
+  const current = currentStageFor(ws, unitId);
+  if (!current || current.startedAt) return ws;
+  return { ...ws, stages: ws.stages.map((s) => (s.number === current.number ? { ...s, startedAt: now } : s)), updatedAt: now };
+}
+
+/** Remember the reusable principle the tutor named for a passed step. */
+export function recordPrinciple(ws: ProjectWorkspace, unitId: string, principle: string, now = Date.now()): ProjectWorkspace {
+  const text = principle.trim().slice(0, 300);
+  const current = currentStageFor(ws, unitId);
+  if (!text || !current) return ws;
+  return { ...ws, stages: ws.stages.map((s) => (s.number === current.number ? { ...s, principle: text } : s)), updatedAt: now };
+}
+
+/** Count a prediction made before a run of this step. */
+export function recordPrediction(ws: ProjectWorkspace, unitId: string, matched: boolean, now = Date.now()): ProjectWorkspace {
+  const current = currentStageFor(ws, unitId);
   return {
     ...ws,
-    stages: ws.stages.map((s) => (s.unitId === unitId ? { ...s, passedAt: s.passedAt ?? now } : s)),
+    stages: ws.stages.map((s) =>
+      s.number === current?.number
+        ? { ...s, predictions: { made: (s.predictions?.made ?? 0) + 1, matched: (s.predictions?.matched ?? 0) + (matched ? 1 : 0) } }
+        : s
+    ),
+    updatedAt: now,
+  };
+}
+
+/** Record a fully passing run for the active unit's stage. */
+export function markStagePassed(ws: ProjectWorkspace, unitId: string, now = Date.now()): ProjectWorkspace {
+  const current = currentStageFor(ws, unitId);
+  if (!current) return ws;
+  return {
+    ...ws,
+    stages: ws.stages.map((s) => (s.number === current.number ? { ...s, passedAt: s.passedAt ?? now } : s)),
     updatedAt: now,
   };
 }
@@ -281,9 +381,14 @@ export function summarizeSuite(
 
 /** Path-labelled files for the tutor, bounded so large projects stay within context. */
 export function projectPromptContext(ws: ProjectWorkspace, activeUnitId?: string, max = PROMPT_CONTEXT_CHARS): string {
-  const stage = ws.stages.find((s) => s.unitId === activeUnitId);
+  const stage = currentStageFor(ws, activeUnitId);
   const parts: string[] = [];
-  if (stage) parts.push(`Current project step ${stage.number}: ${stage.task}\nTests for this step are in ${stage.testPath}.`);
+  if (stage) {
+    const outline = stage.outline?.length
+      ? `\nThis chapter's build has ${stage.outline.length} parts: ${stage.outline.map((t, i) => `${i + 1}. ${t}${i + 1 < (stage.section ?? 1) ? " (done)" : i + 1 === (stage.section ?? 1) ? " (current)" : ""}`).join("; ")}.`
+      : "";
+    parts.push(`Current project part${stage.title ? ` "${stage.title}"` : ""}:${outline}\n${stage.task}\nTests for this part are in ${stage.testPath}.`);
+  }
   let used = parts.join("").length;
   let omitted = 0;
   for (const f of ws.files) {

@@ -27,13 +27,15 @@ import { handleTabNavigation } from "../layout/keyboard";
 import { editorShortcutApplies } from "./keyboard";
 import { ProjectStepPanel } from "./ProjectStepPanel";
 import { ProjectExplorer } from "./ProjectExplorer";
-import { ProjectRunLog, ProjectRunReport, runHeadline } from "./ProjectRunReport";
+import { PredictionPrompt, ProjectRunLog, ProjectRunReport, runHeadline } from "./ProjectRunReport";
 import { profileFor, suggestPath } from "../../services/languages";
 import { parseDiagnostics } from "../../services/sandbox/diagnostics";
 import { attachLanguageServer, modelPath as projectModelPath, modelUri, type AttachedServer, type ServerStatus } from "./languageServer";
 import type { ProjectWorkspaceController } from "./useProjectWorkspace";
 
 interface EditorPaneProps {
+  /** Project mode: ask the tutor about the last failing run. */
+  onAskTutor?: () => void;
   code: string;
   onChangeCode: (newCode: string) => void;
   language: SupportedLanguage;
@@ -173,6 +175,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   isRunning,
   executionResult,
   onClearConsole,
+  onAskTutor,
   draftStatus,
   milestoneId,
   onNextMilestone,
@@ -181,6 +184,19 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   project,
 }) => {
   const projectMode = !!project?.enabled;
+  // Project runs start with a quick prediction (after edits), unless turned off.
+  const [askingPrediction, setAskingPrediction] = useState(false);
+  const requestRun = () => {
+    if (projectMode && project!.wantsPrediction) {
+      setAskingPrediction(true);
+      return;
+    }
+    onRunCode();
+  };
+  const runAfterPrediction = () => {
+    setAskingPrediction(false);
+    onRunCode();
+  };
   const runLabel = projectMode && project!.tabs.some((t) => t.readOnly) ? "Run tests" : projectMode ? "Run" : "Run code";
   // The explorer follows the learner's choice; until they choose, it shows
   // only when the pane is wide enough to keep a usable editor beside it.
@@ -445,7 +461,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       runtimeAvailable &&
       !document.querySelector("dialog[open]")
     )
-      onRunCode();
+      requestRun();
   };
   const testsCount = executionResult?.testResults?.length || 0;
   const passedTests =
@@ -462,6 +478,12 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     setActiveBottomTab("console");
     setOutputOpen(false);
   }, [milestoneId, language]);
+  useEffect(() => {
+    if (!askingPrediction) return;
+    setOutputOpen(true);
+    setActiveBottomTab("tests");
+  }, [askingPrediction]);
+  useEffect(() => setAskingPrediction(false), [milestoneId]);
   useEffect(() => {
     if (isRunning) {
       executedCode.current = runKey;
@@ -485,7 +507,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
         )
       ) {
         e.preventDefault();
-        if (!isRunning && runtimeAvailable) onRunCode();
+        if (!isRunning && runtimeAvailable) requestRun();
       }
     };
     window.addEventListener("keydown", handleKey);
@@ -563,7 +585,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           )}
           <button
             className="run-button"
-            onClick={onRunCode}
+            onClick={requestRun}
             disabled={isRunning || !runtimeAvailable}
             title={
               runtimeAvailable
@@ -895,8 +917,25 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             {projectMode ? (
               activeBottomTab === "console" ? (
                 <ProjectRunLog result={executionResult} isRunning={isRunning} />
+              ) : askingPrediction && !isRunning ? (
+                <PredictionPrompt
+                  onPredict={(expected, why) => {
+                    project!.predict(expected, why);
+                    runAfterPrediction();
+                  }}
+                  onSkip={() => {
+                    project!.skipPrediction();
+                    runAfterPrediction();
+                  }}
+                  onTurnOff={() => {
+                    project!.setPredictionsOff(true);
+                    project!.skipPrediction();
+                    runAfterPrediction();
+                  }}
+                />
               ) : (
                 <ProjectRunReport
+                  prediction={project!.lastPrediction}
                   result={executionResult}
                   isRunning={isRunning}
                   canRun={runtimeAvailable}
@@ -905,6 +944,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                   runLabel={runLabel}
                   onOpen={(path, line, column) => project!.openAt(path, line, column ?? 1)}
                   onClear={onClearConsole}
+                  onAskTutor={onAskTutor}
                 />
               )
             ) : activeBottomTab === "console" ? (

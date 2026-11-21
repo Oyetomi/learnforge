@@ -579,26 +579,63 @@ describe("project mode in the lesson", () => {
     number: 1,
     total: 13,
     status: { tone: "neutral" as const, label: "Not run yet" },
+    prepared: true,
   };
-  it("always shows a way into the project, with the step and its position", () => {
-    const html = renderToStaticMarkup(
-      <ChatPane {...props} project={project} activeMilestone={{ ...milestone, starter_code: "", lesson: "### Idea\n\nAn explanation." }} />
-    );
+  const lesson = { ...milestone, starter_code: "", lesson: "### Idea\n\nAn explanation." };
+  const check = { id: "c1", milestoneId: "m1", question: "Which fits?",
+    options: [{id: "a", label: "First"}, {id: "b", label: "Second"}],
+    correctOptionIds: ["a"], multiple: false, explanation: "Because." };
+  const answered = [
+    {id: "q", session_id: "s1", milestone_id: "m1", role: "assistant" as const, content: "", created_at: 1, learning_check: check},
+    {id: "a", session_id: "s1", milestone_id: "m1", role: "user" as const, content: "First", created_at: 2,
+      check_attempt: {checkId: "c1", milestoneId: "m1", selectedIds: ["a"], dontKnow: false, thinking: "", confidence: null, correct: true, submittedAt: 2}},
+    {id: "r", session_id: "s1", milestone_id: "m1", role: "assistant" as const, content: "Right.", created_at: 3},
+  ];
+  it("says the step is coming and when to start, before the learner has shown the idea", () => {
+    const html = renderToStaticMarkup(<ChatPane {...props} onStartProject={vi.fn()} project={project} activeMilestone={lesson} />);
     expect(html).toContain("Project · Step 1 of 13");
-    expect(html).toContain("Your project · Step 1 of 13");
-    expect(html).toContain("Create an in-memory store with Put, Get and Delete");
-    // The card's button and the menu item.
-    expect(html.match(/Open project/g)).toHaveLength(2);
-    // The old per-lesson exercise entry stays hidden in project mode.
+    expect(html).toContain("Coming up · Step 1 of 13");
+    expect(html).toContain("First answer a question about this idea");
+    expect(html).toContain("I’m ready, start building now");
     expect(html).not.toContain("Optional coding practice");
+  });
+  it("marks the moment to build once the learner answered on their own", () => {
+    const html = renderToStaticMarkup(<ChatPane {...props} onStartProject={vi.fn()} project={project} activeMilestone={lesson} messages={answered} />);
+    expect(html).toContain("Ready to build · Step 1 of 13");
+    expect(html).toContain("Start building with your tutor");
+  });
+  it("while building, points to the project and the tutor", () => {
+    const html = renderToStaticMarkup(<ChatPane {...props} onStartProject={vi.fn()} project={{ ...project, started: true }} activeMilestone={lesson} />);
+    expect(html).toContain("Building · Step 1 of 13");
+    expect(html).toContain("Ask your tutor anything below while you code");
+    expect(html).toContain("Not run yet");
   });
   it("explains concept-only units instead of offering an empty project", () => {
     const html = renderToStaticMarkup(
-      <ChatPane {...props} project={{ ...project, step: undefined, number: 0 }} activeMilestone={{ ...milestone, starter_code: "", lesson: "### Idea\n\nAn explanation." }} />
+      <ChatPane {...props} project={{ ...project, step: undefined, number: 0 }} activeMilestone={lesson} />
     );
     expect(html).toContain("about ideas rather than code");
-    // Only the menu item; the card has no button for a unit without a step.
-    expect(html.match(/Open project/g)).toHaveLength(1);
-    expect(html).toContain(">Project<");
+    expect(html).not.toContain("Start building");
+  });
+});
+
+describe("compress it", () => {
+  const check = { id: "c1", milestoneId: "m1", question: "Which fits?",
+    options: [{id: "a", label: "First"}, {id: "b", label: "Second"}],
+    correctOptionIds: ["a"], multiple: false, explanation: "Because." };
+  const thread = (correct: boolean) => [
+    {id: "q", session_id: "s1", milestone_id: "m1", role: "assistant" as const, content: "", created_at: 1, learning_check: check},
+    {id: "a", session_id: "s1", milestone_id: "m1", role: "user" as const, content: "First", created_at: 2,
+      check_attempt: {checkId: "c1", milestoneId: "m1", selectedIds: ["a"], dontKnow: false, thinking: "", confidence: null, correct, submittedAt: 2}},
+    {id: "r", session_id: "s1", milestone_id: "m1", role: "assistant" as const, content: "Right: the log keeps order.", created_at: 3},
+  ];
+  it("offers a two-sentence explanation after an independent correct answer", () => {
+    const html = renderToStaticMarkup(<ChatPane {...props} onRequestCompress={vi.fn()} messages={thread(true)} />);
+    expect(html).toContain("Can you say it in two sentences?");
+    expect(html).toContain("Compress it");
+  });
+  it("waits until the learner has answered something correctly on their own", () => {
+    const html = renderToStaticMarkup(<ChatPane {...props} onRequestCompress={vi.fn()} messages={thread(false)} />);
+    expect(html).not.toContain("Can you say it in two sentences?");
   });
 });

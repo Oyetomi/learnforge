@@ -23,3 +23,13 @@ describe("run headline", () => {
     expect(runHeadline({ stdout: "", stderr: "store.c:3:5: error: expected ';'", exitCode: 1, durationMs: 1 }).title).toBe("Doesn’t build yet");
   });
 });
+
+import { runOutcome } from "../runReport";
+describe("run outcome (what a prediction is compared with)", () => {
+  it("distinguishes passing, failing and not building", () => {
+    expect(runOutcome(result([step(1, true), step(2, true)]))).toBe("pass");
+    expect(runOutcome(result([step(1, true), step(2, false, "want 2")]))).toBe("fail");
+    expect(runOutcome(result([step(1, false, "# learnforge\n./x.go:3: undefined: y\nFAIL [build failed]")]))).toBe("build");
+    expect(runOutcome({ stdout: "3", stderr: "", exitCode: 0, durationMs: 1 })).toBe("pass");
+  });
+});

@@ -12,6 +12,16 @@ export interface Headline {
   chip: string;
 }
 
+export type Prediction = "pass" | "fail" | "build";
+
+/** What actually happened, in the same terms as a learner's prediction. */
+export function runOutcome(result: ExecutionResult): Prediction {
+  const steps = result.stepRuns ?? [];
+  if (steps.length ? steps.every((s) => s.passed) : result.exitCode === 0) return "pass";
+  const output = steps.length ? steps.filter((s) => !s.passed).map((s) => s.output).join("\n") : `${result.stdout}\n${result.stderr}`;
+  return BUILD_ERROR.test(output) ? "build" : "fail";
+}
+
 /** One sentence that says what happened and what to do next. */
 export function runHeadline(result: ExecutionResult, currentStep?: number): Headline {
   const steps = result.stepRuns ?? [];

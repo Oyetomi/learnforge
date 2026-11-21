@@ -137,21 +137,42 @@ export default function App() {
   );
   const codeDrafts = useCodeDrafts();
   const project = useProjectWorkspace(selectedTrack, activeMilestone);
-  // A project topic opens its project beside the lesson on wide windows, so
-  // it reads as building one codebase, not a plain curriculum. Closing it is
+  // Keep the principle the tutor names after a step passes (a "Principle:" line).
+  useEffect(() => {
+    if (!project.unitDone || !activeMilestone) return;
+    const reply = [...messages]
+      .reverse()
+      .find((m) => m.role === "assistant" && !m.internal && m.milestone_id === activeMilestone.id && /(^|\n)\W*principle\W*:/i.test(m.content));
+    const match = reply && /(?:^|\n)\W*principle\W*:\W*(.+)/i.exec(reply.content);
+    if (match) project.recordPrinciple(match[1].replace(/[*_`]+/g, "").trim());
+  }, [messages, project.unitDone, activeMilestone?.id]);
+  // Once a step is being built, its project opens beside the lesson on wide
+  // windows. Before that the lesson card says when to start. Closing it is
   // remembered per topic.
   useEffect(() => {
-    if (!project.enabled || !project.step || workspaceView !== "session" || window.innerWidth < 1100) return;
+    if (!project.enabled || !project.started || workspaceView !== "session" || window.innerWidth < 1100) return;
     try {
       if (localStorage.getItem(`learnforge:project-closed:${currentTrackId}`) === "1") return;
     } catch {
       /* Preference only. */
     }
     setIsCodeWorkspaceOpen(true);
-  }, [project.enabled, project.step, workspaceView, currentTrackId]);
+  }, [project.enabled, project.started, workspaceView, currentTrackId]);
+  /** The last project run, trimmed, so the tutor can talk about real results. */
+  const lastRunForTutor = () => {
+    const run = executionResult;
+    if (!project.enabled || !run) return "";
+    const steps = run.stepRuns ?? [];
+    const body = steps.length
+      ? steps
+          .map((s) => `Step ${s.number} (${s.label}): ${s.passed ? "passed" : s.timedOut ? "timed out" : "FAILED"}${s.passed ? "" : `\n${s.output.trim().slice(-1500)}`}`)
+          .join("\n")
+      : `exit code ${run.exitCode}\n${`${run.stdout}\n${run.stderr}`.trim().slice(-1500)}`;
+    return `\n\n=== Last test run ===\n${body}`;
+  };
   /** What the tutor sees of the learner's code: the whole project in project mode. */
   const codeForTutor = () =>
-    !isCodeWorkspaceOpen ? "" : project.enabled ? project.promptContext() : editorCode;
+    project.enabled ? project.promptContext() + lastRunForTutor() : !isCodeWorkspaceOpen ? "" : editorCode;
   const executionId = useRef(0);
   const milestoneIndex = Math.max(
     0,
@@ -726,6 +747,55 @@ export default function App() {
     }
   };
 
+  // Start building the project step: the tutor leads the learner in, so the
+  // project is part of the conversation rather than a separate panel.
+  const handleStartProject = async () => {
+    if (isStreaming || !project.stage || !project.step) return;
+    project.startStep();
+    setIsCodeWorkspaceOpen(true);
+    try {
+      localStorage.setItem(`learnforge:project-closed:${currentTrackId}`, "0");
+    } catch {
+      /* Preference only. */
+    }
+    const part = project.part;
+    const parts = part && part.total > 1 ? ` This chapter's build comes in ${part.total} small parts (${part.outline.map((t, i) => `${i + 1}. ${t}`).join("; ")}); we start with part ${part.n}.` : "";
+    await handleSendMessage(`Let’s build step ${project.stepNumber}: ${project.step}`, {
+      prompt: `I'm starting step ${project.stepNumber} of the course project now ("${project.step}").${parts} The current part's task and my current project files are in the code context. Lead me into it as my tutor, conversationally, in under 170 words, like the start of a chapter in a good build-along book:
+1. In one or two sentences, connect this unit's idea to what I'm about to build and why it matters in a real system${parts ? ", and name the parts we'll go through so I can see where the chapter is heading" : ""}.
+2. Tell me which file to open first and the first small thing to do there — a direction, not code. Mention the exact function or type names the tests expect.
+3. Ask me ONE short question about my plan (for example which data structure or what happens on a duplicate key) that I can answer here before or while I code.
+4. Say I can press Run tests any time for feedback, and ask you anything here while I work.
+Do not write the implementation or show solution code. Do not emit forge-check or forge-visual blocks.`,
+    });
+  };
+
+  // Ask the tutor about the last failing project run.
+  const handleAskAboutRun = async () => {
+    if (isStreaming || !executionResult) return;
+    setMobilePane("lesson");
+    await handleSendMessage("Why isn’t my code passing yet?", {
+      prompt: `I ran the tests and they don't all pass. The results and my files are in the code context. As my tutor: point to the FIRST failure, explain in plain words what the test expected and what my code did instead, and connect it to the idea behind this step. Then give ONE hint or ask ONE guiding question that helps me find the fix myself. Reference the file and line if you can. Do not write the corrected code. Keep it under 150 words.`,
+    });
+  };
+
+  // "Compress it": explain the unit's core idea in at most two sentences. A
+  // short, complete explanation is evidence of having the idea's structure.
+  const handleRequestCompress = async () => {
+    if (isStreaming || !activeMilestone) return;
+    const requestId = ++checkRequestId.current;
+    setIsRequestingCheck(true);
+    setMobilePane("lesson");
+    try {
+      await handleSendMessage(
+        `Ask ONE free-response knowledge check using a forge-check JSON block: the learner explains the core idea of the current lesson in at most two sentences, in plain words, as if to a colleague who hasn't studied it. Commit an expected answer of at most two sentences and 3–4 rubric criteria: (1) names the central mechanism or idea, (2) says why it matters or the trade-off it creates, (3) is complete in two sentences without padding, (4) uses no unexplained jargon. Keep the answer and explanation hidden until I submit. Do not teach first.`,
+        { internal: true, independent: true, practice: "independent" }
+      );
+    } finally {
+      if (requestId === checkRequestId.current) setIsRequestingCheck(false);
+    }
+  };
+
   // Stop Streaming
   const handleStopStreaming = () => {
     unitController.current?.abort();
@@ -836,9 +906,16 @@ export default function App() {
         const run = await project.run();
         if (runId !== executionId.current) return;
         setExecutionResult(run.result);
-        if (run.stageJustPassed && !isStreaming)
+        if (run.stageJustPassed && !isStreaming && !run.unitDone && run.part)
+          // A part of the chapter's build passed: like a book's next section,
+          // say what works now and motivate the next part from the code.
           void handleSendMessage(
-            `All project tests pass for step ${run.stageNumber} and every earlier step. Review the learner's implementation in the project files against this unit's ideas: name one thing the design does well and one trade-off or failure mode the tests do not cover, then check understanding with one applied question. Passing tests alone does not approve readiness.`,
+            `Part ${run.part.n} of ${run.part.total}${run.part.title ? ` ("${run.part.title}")` : ""} of this chapter's project build passes, along with every earlier test. In under 140 words, as my tutor: (1) say concretely what the project can do now that it couldn't before; (2) introduce the next part${run.next?.title ? `, "${run.next.title}",` : ""} the way a good build-along book does — point to a real limitation or risk in my current code that it will fix (for example "notice what happens to our data if the process restarts"); (3) ask me ONE short question about that limitation. The next part's task is being prepared and will appear in the project panel. Do not write code. Do not emit forge-check or forge-visual blocks.`,
+            { internal: true }
+          );
+        else if (run.stageJustPassed && !isStreaming)
+          void handleSendMessage(
+            `All project tests pass for ${run.part && run.part.total > 1 ? `every part of this chapter's build (${run.part.total} parts)` : `step ${run.stageNumber}`} and every earlier step. Review the learner's implementation in the project files against this unit's ideas: name one thing the design does well and one trade-off or failure mode the tests do not cover. Then, on its own line, name the reusable idea this step taught, starting exactly "Principle:" (one sentence about the general idea, not this code), and say which later chapters or steps of the course will use it again. ${run.predictions?.made ? `Before running, the learner predicted the outcome ${run.predictions.made} time(s) and was right ${run.predictions.matched} time(s)${run.prediction?.why ? `; their last reason was: "${run.prediction.why.replace(/"/g, "'")}"` : ""}. If a prediction was wrong, briefly address the misunderstanding it shows. ` : ""}Finish by checking understanding with one applied question. Passing tests alone does not approve readiness.`,
             { internal: true }
           );
       } catch (err: any) {
@@ -1204,11 +1281,17 @@ export default function App() {
                               : project.stage
                               ? { tone: "neutral", label: "Not run yet" }
                               : undefined,
+                            prepared: !!project.stage,
+                            started: project.started,
+                            passed: project.unitDone,
+                            part: project.part && project.part.total > 1 ? project.part : undefined,
                           }
                         : undefined
                     }
                     isRequestingCheck={isRequestingCheck}
                     onRequestCheck={handleRequestCheck}
+                    onRequestCompress={handleRequestCompress}
+                    onStartProject={handleStartProject}
                     onSubmitCheck={handleSubmitCheck}
                     onDisputeCheck={handleDisputeCheck}
                     onContinueCheck={handleContinueCheck}
@@ -1277,6 +1360,7 @@ export default function App() {
                       <EditorPane
                         code={project.enabled ? project.activeContent : editorCode}
                         project={project.enabled ? project : undefined}
+                        onAskTutor={project.enabled ? () => void handleAskAboutRun() : undefined}
                         onChangeCode={handleChangeCode}
                         language={language}
                         onRunCode={handleRunCode}

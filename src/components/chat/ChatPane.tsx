@@ -98,6 +98,8 @@ interface ChatPaneProps {
   trackId: string;
   isRequestingCheck: boolean;
   onRequestCheck: () => void;
+  /** Ask for a "say it in two sentences" check (compression of the unit's idea). */
+  onRequestCompress?: () => void;
   onSubmitCheck: (check: LearningCheck, attempt: CheckAttempt) => void;
   onContinueCheck: (check: LearningCheck) => void;
   onDisputeCheck?: (check: LearningCheck) => void;
@@ -129,7 +131,17 @@ interface ChatPaneProps {
     number: number;
     total: number;
     status?: { tone: "pass" | "fail" | "neutral"; label: string };
+    /** The step's files and tests are ready. */
+    prepared?: boolean;
+    /** The learner already started building this step with the tutor. */
+    started?: boolean;
+    /** Every test for this step passes. */
+    passed?: boolean;
+    /** The chapter's build in parts: the current part and the titles of all of them. */
+    part?: { n: number; total: number; title?: string; outline: string[] };
   };
+  /** Start building the project step: the tutor kicks it off and the project opens. */
+  onStartProject?: () => void;
   onOpenPlan?: () => void;
   planLabel?: string;
   planTitle?: string;
@@ -191,6 +203,8 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   language,
   allowCoding = true,
   project,
+  onStartProject,
+  onRequestCompress,
   onOpenPlan,
   planLabel = "Learning plan",
   planTitle,
@@ -1305,33 +1319,79 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
             </div>
           </div>
         )}
-        {(activity === "lesson" || (activity === "reply" && !busy)) && project && (
-          <section className="lesson-project-card" aria-label="Project step">
-            <header>
-              <span>
-                <Hammer size={13} aria-hidden="true" />
-                {activity === "reply" && project.step
-                  ? `Now build it · Step ${project.number} of ${project.total}`
-                  : project.number
-                  ? `Your project · Step ${project.number} of ${project.total}`
-                  : "Your project"}
-              </span>
-              {project.status && <em className={`is-${project.status.tone}`}>{project.status.label}</em>}
-            </header>
-            <strong>{project.title}</strong>
-            <p>
-              {project.step
-                ? project.step
-                : "This unit is about ideas rather than code, so your project doesn’t change here."}
-            </p>
-            {project.step && (
-              <button type="button" className="dialog-primary-button" onClick={onOpenEditor}>
-                <Code2 size={14} aria-hidden="true" />
-                {isCodeWorkspaceOpen ? "Go to project" : "Open project"}
-              </button>
-            )}
+        {activity === "reply" && !busy && onRequestCompress && (evidence?.independentCorrect ?? 0) > 0 && (
+          <section className="lesson-compress-card" aria-label="Compress it">
+            <div>
+              <strong>Can you say it in two sentences?</strong>
+              <p>If you can explain an idea briefly and completely, you’ve got its structure, not just the answer.</p>
+            </div>
+            <button type="button" className="check-coach-button" onClick={onRequestCompress}>
+              Compress it
+            </button>
           </section>
         )}
+        {(activity === "lesson" || (activity === "reply" && !busy)) && project && (() => {
+          // When to build: after the learner has answered a question on the idea
+          // on their own. Until then the card says what's coming and why to wait.
+          const ready = (evidence?.independentCorrect ?? 0) > 0;
+          const phase = !project.step ? "none" : project.passed ? "passed" : project.started ? "building" : ready ? "ready" : "soon";
+          const heading = {
+            none: "Your project",
+            soon: `Coming up · Step ${project.number} of ${project.total}`,
+            ready: `Ready to build · Step ${project.number} of ${project.total}`,
+            building: `Building · Step ${project.number} of ${project.total}${project.part ? ` · Part ${project.part.n} of ${project.part.total}` : ""}`,
+            passed: `Built · Step ${project.number} of ${project.total}`,
+          }[phase];
+          const note = {
+            none: "This unit is about ideas rather than code, so your project doesn’t change here.",
+            soon: "First answer a question about this idea. Then your tutor walks you into building it.",
+            ready: "You’ve shown you understand the idea. Now build it, with your tutor alongside.",
+            building: "Ask your tutor anything below while you code. Press Run tests whenever you want feedback.",
+            passed: "Every test for this step passes. Answer your tutor’s review question to finish the unit.",
+          }[phase];
+          const start = onStartProject && project.prepared;
+          return (
+            <section className={`lesson-project-card is-${phase}`} aria-label="Project step">
+              <header>
+                <span>
+                  <Hammer size={13} aria-hidden="true" />
+                  {heading}
+                </span>
+                {(phase === "building" || phase === "passed") && project.status && (
+                  <em className={`is-${project.status.tone}`}>{project.status.label}</em>
+                )}
+              </header>
+              <strong>{project.step ? project.step : project.title}</strong>
+              {project.part && phase !== "none" && (
+                <ol className="lesson-project-parts" aria-label="This chapter's build">
+                  {project.part.outline.map((t, i) => (
+                    <li key={i} data-state={i + 1 < project.part!.n || (phase === "passed" && i + 1 === project.part!.n) ? "done" : i + 1 === project.part!.n && phase !== "soon" && phase !== "ready" ? "current" : "todo"}>
+                      {t}
+                    </li>
+                  ))}
+                </ol>
+              )}
+              <p>{note}</p>
+              {phase === "ready" && (
+                <button type="button" className="dialog-primary-button" onClick={onStartProject} disabled={!start}>
+                  <Hammer size={14} aria-hidden="true" />
+                  {start ? "Start building with your tutor" : "Preparing the step…"}
+                </button>
+              )}
+              {phase === "soon" && start && (
+                <button type="button" className="lesson-project-skip" onClick={onStartProject}>
+                  I’m ready, start building now
+                </button>
+              )}
+              {(phase === "building" || phase === "passed") && (
+                <button type="button" className="dialog-primary-button" onClick={onOpenEditor}>
+                  <Code2 size={14} aria-hidden="true" />
+                  {isCodeWorkspaceOpen ? "Go to project" : "Open project"}
+                </button>
+              )}
+            </section>
+          );
+        })()}
         {activity === "lesson" &&
           allowCoding &&
           !project &&

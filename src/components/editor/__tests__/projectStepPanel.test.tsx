@@ -14,9 +14,11 @@ const controller = (overrides: Partial<ProjectWorkspaceController>) =>
     step: "Ship the log to a follower",
     stage: undefined,
     totalSteps: 9,
+    stepNumber: 3,
     preparation: null,
     lastSummary: null,
     lastHeadline: null,
+    principles: [],
     retryPreparation: vi.fn(),
     ...overrides,
   }) as unknown as ProjectWorkspaceController;
@@ -63,6 +65,38 @@ describe("project step panel", () => {
     const html = renderToStaticMarkup(<ProjectStepPanel project={controller({})} />);
     expect(html).toContain("once the lesson is ready");
     expect(html).not.toContain('role="alert"');
+  });
+
+  it("shows the step's principle and the principles built so far", () => {
+    const html = renderToStaticMarkup(
+      <ProjectStepPanel
+        project={controller({
+          stage: { ...stage, passedAt: 1, principle: "Append-only writes make crash recovery simple." },
+          principles: [
+            { number: 2, principle: "An index trades write cost for fast reads." },
+            { number: 3, principle: "Append-only writes make crash recovery simple." },
+          ],
+        })}
+      />
+    );
+    expect(html).toContain("Append-only writes make crash recovery simple.");
+    expect(html).toContain("Principles so far (2)");
+  });
+
+  it("shows a chapter's build as parts, like a book's sections", () => {
+    const html = renderToStaticMarkup(
+      <ProjectStepPanel
+        project={controller({
+          stage: { ...stage, section: 2, title: "Write every Put to a log file", outline: ["In-memory map", "Write every Put to a log file", "Rebuild the map on start"] },
+          part: { n: 2, total: 3, title: "Write every Put to a log file", outline: ["In-memory map", "Write every Put to a log file", "Rebuild the map on start"] },
+        })}
+      />
+    );
+    expect(html).toContain("Part 2 of 3");
+    expect(html).toContain("Write every Put to a log file");
+    expect(html).toContain('data-state="done"');
+    expect(html).toContain('aria-current="step"');
+    expect(html).toContain("Rebuild the map on start");
   });
 
   it("explains concept-only units", () => {

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronRight, Clock, Copy, Hammer, Loader2, Play, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, Clock, Copy, Hammer, Loader2, MessageCircle, Play, XCircle } from "lucide-react";
 import type { ExecutionResult, StepRun } from "../../types";
 import { parseDiagnostics, type RunDiagnostic } from "../../services/sandbox/diagnostics";
-import { BUILD_ERROR, runHeadline, type Tone } from "../../services/sandbox/runReport";
+import { BUILD_ERROR, runHeadline, type Prediction, type Tone } from "../../services/sandbox/runReport";
 export { runHeadline };
 
 const ICON: Record<Tone, React.ReactNode> = {
@@ -95,8 +95,55 @@ function StepRow({ step, current, known, onOpen }: { step: StepRun; current: boo
   );
 }
 
+const PREDICTIONS: { id: Prediction; label: string; hint: string }[] = [
+  { id: "pass", label: "All tests pass", hint: "My code already does what the step asks." },
+  { id: "fail", label: "Some tests fail", hint: "It builds, but something isn’t right yet." },
+  { id: "build", label: "It won’t build", hint: "Something is missing or doesn’t compile." },
+];
+const PREDICTION_TEXT: Record<Prediction, string> = { pass: "all tests to pass", fail: "some tests to fail", build: "it not to build" };
+
+/**
+ * Before a run: say what you expect. Predicting the outcome is a test of
+ * understanding in itself; one click picks and runs.
+ */
+export function PredictionPrompt({
+  onPredict,
+  onSkip,
+  onTurnOff,
+}: {
+  onPredict: (expected: Prediction, why: string) => void;
+  onSkip: () => void;
+  onTurnOff: () => void;
+}) {
+  const [why, setWhy] = useState("");
+  return (
+    <div className="run-predict" role="group" aria-labelledby="run-predict-title">
+      <strong id="run-predict-title">Before you run: what do you expect?</strong>
+      <p>Predicting the result checks your understanding. Pick one and the tests run.</p>
+      <div className="run-predict-options">
+        {PREDICTIONS.map((p) => (
+          <button key={p.id} type="button" onClick={() => onPredict(p.id, why)}>
+            <span>{p.label}</span>
+            <small>{p.hint}</small>
+          </button>
+        ))}
+      </div>
+      <label className="run-predict-why">
+        <span>Why? (optional)</span>
+        <input value={why} onChange={(e) => setWhy(e.target.value)} placeholder="For example: Get doesn't copy the value yet" maxLength={500} />
+      </label>
+      <div className="run-predict-skip">
+        <button type="button" onClick={onSkip}>Run without predicting</button>
+        <button type="button" onClick={onTurnOff}>Don’t ask in this topic</button>
+      </div>
+    </div>
+  );
+}
+
 interface Props {
   result: ExecutionResult | null;
+  /** The prediction made before this result, and what actually happened. */
+  prediction?: { expected: Prediction; why: string; actual: Prediction } | null;
   isRunning: boolean;
   canRun: boolean;
   currentStep?: number;
@@ -104,10 +151,12 @@ interface Props {
   runLabel: string;
   onOpen: (path: string, line: number, column?: number) => void;
   onClear: () => void;
+  /** Ask the tutor about this result (shown when something failed). */
+  onAskTutor?: () => void;
 }
 
 /** Results of a project run: a headline, then one row per step with clickable problems. */
-export const ProjectRunReport: React.FC<Props> = ({ result, isRunning, canRun, currentStep, known, runLabel, onOpen, onClear }) => {
+export const ProjectRunReport: React.FC<Props> = ({ result, prediction, isRunning, canRun, currentStep, known, runLabel, onOpen, onClear, onAskTutor }) => {
   if (isRunning)
     return (
       <div className="run-report is-empty" role="status">
@@ -153,6 +202,22 @@ export const ProjectRunReport: React.FC<Props> = ({ result, isRunning, canRun, c
           Clear
         </button>
       </header>
+      {onAskTutor && headline.tone !== "pass" && (
+        <div className="run-ask-tutor">
+          <span>Stuck? Your tutor can see your files and this result.</span>
+          <button type="button" onClick={onAskTutor}>
+            <MessageCircle size={13} aria-hidden="true" /> Ask the tutor why
+          </button>
+        </div>
+      )}
+      {prediction && (
+        <p className={`run-prediction ${prediction.expected === prediction.actual ? "is-match" : "is-miss"}`} role="status">
+          {prediction.expected === prediction.actual
+            ? `You predicted ${PREDICTION_TEXT[prediction.expected]}, and you were right.`
+            : `You expected ${PREDICTION_TEXT[prediction.expected]}; the result was ${PREDICTION_TEXT[prediction.actual].replace(/^it /, "")}. Worth a look at why.`}
+          {prediction.why && <small>Your reason: “{prediction.why}”</small>}
+        </p>
+      )}
       {steps.length > 0 ? (
         <ol className="run-steps">
           {[...steps]
