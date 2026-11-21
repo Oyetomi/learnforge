@@ -954,3 +954,27 @@
     padding: 14px 12px 0;
   }
 }
+
+/* Arrow markers are numbers that match the message list, so labels never cover state text. */
+.timeline-arrow-pill {
+  min-width: 17px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.timeline-message-number {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  min-width: 17px;
+  height: 17px;
+  margin-right: 8px;
+  padding: 0 4px;
+  border: 1px solid var(--figure-border);
+  border-radius: 999px;
+  background: var(--tl-pill-bg);
+  color: var(--figure-ink);
+  font: 500 10px/1 var(--font-code, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+}

@@ -136,6 +136,15 @@ function fallbackOverlayGeometry(spec: TimelineModelSpec): OverlayGeometry {
   };
 }
 
+/**
+ * Arrows sit in a band at the right edge of the step column, so they never run
+ * through the centred state labels; the full message text is in the list below.
+ */
+function arrowX(index: number, count: number, width: number): number {
+  const gap = Math.min(18, width * 0.08);
+  return width - 14 - (count - 1 - index) * gap;
+}
+
 interface ArrowOverlayProps {
   spec: TimelineModelSpec;
   activeStep: number;
@@ -249,7 +258,7 @@ function ActiveStepArrows({
           )
             ? geom.rowCenters[msg.to]
             : ((actorIndexById[msg.to] ?? 0) + 0.5) * DEFAULT_ROW_HEIGHT;
-          const x = ((idx + 1) / (count + 1)) * geom.width;
+          const x = arrowX(idx, count, geom.width);
           const dir = toY >= fromY ? 1 : -1;
           const pad = Math.min(12, Math.abs(toY - fromY) * 0.22);
           const y1 = fromY + dir * pad;
@@ -309,7 +318,7 @@ function ActiveStepArrows({
           8,
           Math.min(92, ((midY + stagger) / geom.height) * 100)
         );
-        const leftPct = ((idx + 1) / (count + 1)) * 100;
+        const leftPct = (arrowX(idx, count, geom.width) / geom.width) * 100;
         const kindKey = msg.kind ?? "default";
 
         return (
@@ -322,7 +331,7 @@ function ActiveStepArrows({
             }}
             title={msg.label}
           >
-            {msg.label}
+            {idx + 1}
           </span>
         );
       })}
@@ -437,11 +446,11 @@ function TimelineContent({
     <figure
       className="timeline-diagram"
       data-theme={theme}
-      aria-label="Interactive concurrency and protocol timeline"
+      aria-label="Interactive timeline"
     >
       <div className="timeline-header">
         <span className="timeline-context">
-          Execution timeline · select any time column to trace actor states
+          Timeline · select a step to see what each part is doing
         </span>
         <button
           type="button"
@@ -454,7 +463,7 @@ function TimelineContent({
         </button>
       </div>
 
-      <div className="timeline-legend" aria-label="Execution state legend">
+      <div className="timeline-legend" aria-label="State legend">
         {legendStates.map((stateKind) => (
           <span
             key={stateKind}
@@ -484,8 +493,8 @@ function TimelineContent({
             className="timeline-corner"
             style={{ gridColumn: 1, gridRow: 1 }}
           >
-            <span>Actor</span>
-            <span className="timeline-corner-axis">Time</span>
+            <span>Who</span>
+            <span className="timeline-corner-axis">Step</span>
           </div>
 
           {spec.steps.map((step, stepIndex) => {
@@ -506,16 +515,17 @@ function TimelineContent({
                   className={`timeline-col-btn${isActive ? " is-active" : ""}`}
                   aria-current={isActive ? "step" : undefined}
                   aria-pressed={isActive}
-                  aria-label={`Jump to step ${stepIndex + 1} (t${stepIndex + 1}): ${step.label}`}
+                  aria-label={`Jump to step ${stepIndex + 1}: ${step.label}`}
                   title={step.label}
                   onClick={() => selectStep(stepIndex)}
                   onKeyDown={(event) => handleColumnKeyDown(event, stepIndex)}
                 >
-                  <span className="timeline-col-tick">t{stepIndex + 1}</span>
+                  <span className="timeline-col-tick">{stepIndex + 1}</span>
                   {msgCount > 0 && (
                     <span
                       className="timeline-col-msg-dot"
                       aria-label={`${msgCount} ${msgCount === 1 ? "message" : "messages"}`}
+                      title={`${msgCount} ${msgCount === 1 ? "message" : "messages"} in this step`}
                     >
                       {msgCount}
                     </span>
@@ -633,7 +643,7 @@ function TimelineContent({
           aria-label={`Messages at step ${clampedStep + 1}`}
         >
           <span className="timeline-messages-heading">
-            Messages at t{clampedStep + 1}
+            Messages in step {clampedStep + 1}
           </span>
           <ul className="timeline-messages-list">
             {activeMessages.map((msg, idx) => {
@@ -656,6 +666,7 @@ function TimelineContent({
                   key={`${msg.from}-${msg.to}-${idx}`}
                   className={`timeline-message-row is-kind-${msg.kind ?? "default"}`}
                 >
+                  <span className="timeline-message-number" aria-hidden="true">{idx + 1}</span>
                   <span className="timeline-message-route">
                     <strong>{fromActor}</strong>
                     <ArrowRight
@@ -684,7 +695,7 @@ function TimelineContent({
         aria-atomic="true"
       >
         <div className="timeline-caption-title">
-          <span className="timeline-caption-tick">t{clampedStep + 1}</span>
+          <span className="timeline-caption-tick">Step {clampedStep + 1}</span>
           <strong>
             <VisualRichText text={currentStep.label} language={codeLanguage} />
           </strong>

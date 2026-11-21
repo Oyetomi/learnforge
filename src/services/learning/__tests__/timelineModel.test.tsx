@@ -451,7 +451,7 @@ describe("TimelineDiagram SSR rendering", () => {
     expect(html).toContain("t4");
     expect(html).toContain("timeline-arrows-svg");
     expect(html).toContain("jobs &lt;- Job{ID: 1}");
-    expect(html).toContain("Messages at t1");
+    expect(html).toContain("Messages in step 1");
     expect(html).toContain("Sender blocks on unbuffered channel");
     expect(html).toContain("Step 1 of 4");
     expect(html).toContain('data-code-line="3" data-active-line="true"');
@@ -581,7 +581,7 @@ describe("TimelineDiagram interactive controls", () => {
 
     // Click column t4 button directly -> jump to Step 4 of 4 (codeLine 5).
     const t4Button = view.buttons.find((btn) =>
-      String(btn.props["aria-label"] ?? "").includes("(t4)")
+      String(btn.props["aria-label"] ?? "").startsWith("Jump to step 4:")
     )!;
     (t4Button.props.onClick as () => void)();
     expect(onInteract).toHaveBeenCalledTimes(2);
