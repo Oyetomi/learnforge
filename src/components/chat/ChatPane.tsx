@@ -14,6 +14,7 @@ import {
   CircleHelp,
   MessageCircleQuestion,
   Settings2,
+  Hammer,
 } from "lucide-react";
 import type {
   ChatMessage,
@@ -121,6 +122,14 @@ interface ChatPaneProps {
   onOpenSettings?: () => void;
   language?: string;
   allowCoding?: boolean;
+  /** Project mode: the shared project and this unit's step, shown in the lesson. */
+  project?: {
+    title: string;
+    step?: string;
+    number: number;
+    total: number;
+    status?: { tone: "pass" | "fail" | "neutral"; label: string };
+  };
   onOpenPlan?: () => void;
   planLabel?: string;
   planTitle?: string;
@@ -181,6 +190,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
   onOpenSettings,
   language,
   allowCoding = true,
+  project,
   onOpenPlan,
   planLabel = "Learning plan",
   planTitle,
@@ -766,6 +776,23 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
               }} aria-expanded={activity === "check" && !reviewAttempt ? inlineLessonOpen : undefined}>
               {activity === "check" && !reviewAttempt ? inlineLessonOpen ? "Hide lesson" : "Peek at lesson" : "Review lesson"}</button>
           )}
+          {project && (
+            <button
+              type="button"
+              className={`session-project-button ${project.status ? `is-${project.status.tone}` : ""}`}
+              aria-pressed={isCodeWorkspaceOpen}
+              title={project.step ? `${project.title}: ${project.step}` : project.title}
+              onClick={onToggleCode}
+            >
+              <Hammer size={14} aria-hidden="true" />
+              {isCodeWorkspaceOpen
+                ? "Hide project"
+                : project.number
+                ? `Project · Step ${project.number} of ${project.total}`
+                : "Project"}
+              {project.status && !isCodeWorkspaceOpen && <span className="session-project-dot" aria-label={project.status.label} />}
+            </button>
+          )}
           <details className="session-details" ref={sessionMenu} onKeyDown={event => {
             if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeSessionMenu(); }
           }}>
@@ -776,7 +803,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
               <SessionRouteStrip milestones={milestones} activeMilestone={activeMilestone} messages={messages} />
               <button onClick={() => { closeSessionMenu(); setHistoryOpen(true); }}><History size={14} /> Saved explanations</button>
               {allowCoding && <button aria-pressed={isCodeWorkspaceOpen} onClick={() => { closeSessionMenu(); onToggleCode(); }}>
-                <Code2 size={14} />{isCodeWorkspaceOpen ? "Hide code" : "Coding practice"}
+                <Code2 size={14} />{project ? (isCodeWorkspaceOpen ? "Hide project" : "Open project") : isCodeWorkspaceOpen ? "Hide code" : "Coding practice"}
               </button>}
               {onOpenSettings && <button onClick={() => { closeSessionMenu(); onOpenSettings(); }}><Settings2 size={14} /> AI connection</button>}
             </div>
@@ -1278,8 +1305,36 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
             </div>
           </div>
         )}
+        {(activity === "lesson" || (activity === "reply" && !busy)) && project && (
+          <section className="lesson-project-card" aria-label="Project step">
+            <header>
+              <span>
+                <Hammer size={13} aria-hidden="true" />
+                {activity === "reply" && project.step
+                  ? `Now build it · Step ${project.number} of ${project.total}`
+                  : project.number
+                  ? `Your project · Step ${project.number} of ${project.total}`
+                  : "Your project"}
+              </span>
+              {project.status && <em className={`is-${project.status.tone}`}>{project.status.label}</em>}
+            </header>
+            <strong>{project.title}</strong>
+            <p>
+              {project.step
+                ? project.step
+                : "This unit is about ideas rather than code, so your project doesn’t change here."}
+            </p>
+            {project.step && (
+              <button type="button" className="dialog-primary-button" onClick={onOpenEditor}>
+                <Code2 size={14} aria-hidden="true" />
+                {isCodeWorkspaceOpen ? "Go to project" : "Open project"}
+              </button>
+            )}
+          </section>
+        )}
         {activity === "lesson" &&
           allowCoding &&
+          !project &&
           activeMilestone?.starter_code.trim() && (
             <details className="lesson-code-practice">
               <summary>Optional coding practice</summary>

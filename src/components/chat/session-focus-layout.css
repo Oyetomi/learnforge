@@ -79,3 +79,30 @@
 }
 /* The stage line is one line of context: truncate rather than wrap in narrow windows. */
 .session-focus-stage { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Project mode: always-visible way into the project from any lesson screen */
+.session-focus-actions > .session-project-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px;
+  border: 1px solid #e5aa7255;
+  border-radius: 8px;
+  background: #e5aa720f;
+  color: var(--c-accent-text);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 160ms ease-out, border-color 160ms ease-out;
+}
+.session-focus-actions > .session-project-button:hover { background: #e5aa721f; border-color: var(--c-accent-base); }
+.session-focus-actions > .session-project-button[aria-pressed="true"] { background: var(--c-surface-2); border-color: var(--c-line); color: var(--c-text-strong); }
+.session-focus-actions > .session-project-button:focus-visible { outline: 2px solid var(--c-accent-base); outline-offset: 2px; }
+.session-project-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c-text-disabled); }
+.session-project-button.is-pass .session-project-dot { background: var(--c-success-soft); }
+.session-project-button.is-fail .session-project-dot { background: var(--c-danger-vivid); }
+@media (max-width: 600px) {
+  .session-focus-actions > .session-project-button { max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .session-focus-actions > .session-project-button { transition: none; }
+}

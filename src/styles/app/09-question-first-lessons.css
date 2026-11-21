@@ -556,3 +556,36 @@
   font-size: 11px;
   margin-top: 14px;
 }
+
+/* Project mode: this unit's project step, after the lesson */
+.lesson-project-card {
+  display: grid;
+  gap: 8px;
+  margin-top: 22px;
+  padding: 16px 18px;
+  border: 1px solid #e5aa7240;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #e5aa720b, transparent 70%), var(--c-surface-1);
+}
+.lesson-project-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--c-accent-text);
+  font-size: 11px;
+}
+.lesson-project-card header span { display: inline-flex; align-items: center; gap: 6px; }
+.lesson-project-card header em {
+  padding: 1px 8px;
+  border: 1px solid var(--c-line);
+  border-radius: 999px;
+  color: var(--c-text-quiet);
+  font-size: 10px;
+  font-style: normal;
+}
+.lesson-project-card header em.is-pass { color: var(--c-success-soft); border-color: #a5ceb255; }
+.lesson-project-card header em.is-fail { color: #f4a3a3; border-color: #f8717155; }
+.lesson-project-card strong { color: var(--c-text-heading); font-size: 13px; font-weight: 600; }
+.lesson-project-card p { margin: 0; color: var(--c-text-body); font-size: 13px; line-height: 1.7; }
+.lesson-project-card .dialog-primary-button { justify-self: start; display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; }

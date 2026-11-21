@@ -123,7 +123,10 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
   const unit = plan && unitId ? curriculumUnits(plan).find((u) => u.id === unitId) : undefined;
   const step = enabled ? unit?.projectStep?.trim() || undefined : undefined;
   const stage = workspace && unitId ? workspace.stages.find((s) => s.unitId === unitId) : undefined;
-  const totalSteps = plan ? curriculumUnits(plan).filter((u) => u.projectStep?.trim()).length : 0;
+  const stepUnits = plan ? curriculumUnits(plan).filter((u) => u.projectStep?.trim()) : [];
+  const totalSteps = stepUnits.length;
+  /** 1-based position of this unit's step in the plan (0 for a concepts-only unit). */
+  const stepNumber = stepUnits.findIndex((u) => u.id === unitId) + 1;
 
   const flush = useCallback(async () => {
     if (timer.current) clearTimeout(timer.current);
@@ -351,6 +354,7 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     step,
     stage,
     totalSteps,
+    stepNumber,
     preparation: preparation?.unitId === unitId ? preparation : null,
     lastSummary,
     lastHeadline,

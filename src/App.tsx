@@ -137,6 +137,18 @@ export default function App() {
   );
   const codeDrafts = useCodeDrafts();
   const project = useProjectWorkspace(selectedTrack, activeMilestone);
+  // A project topic opens its project beside the lesson on wide windows, so
+  // it reads as building one codebase, not a plain curriculum. Closing it is
+  // remembered per topic.
+  useEffect(() => {
+    if (!project.enabled || !project.step || workspaceView !== "session" || window.innerWidth < 1100) return;
+    try {
+      if (localStorage.getItem(`learnforge:project-closed:${currentTrackId}`) === "1") return;
+    } catch {
+      /* Preference only. */
+    }
+    setIsCodeWorkspaceOpen(true);
+  }, [project.enabled, project.step, workspaceView, currentTrackId]);
   /** What the tutor sees of the learner's code: the whole project in project mode. */
   const codeForTutor = () =>
     !isCodeWorkspaceOpen ? "" : project.enabled ? project.promptContext() : editorCode;
@@ -1178,6 +1190,23 @@ export default function App() {
                     trackId={currentTrackId}
                     language={currentSession?.language || undefined}
                     allowCoding={!!currentSession?.language}
+                    project={
+                      project.enabled
+                        ? {
+                            title: project.project?.title ?? "Project",
+                            step: project.step,
+                            number: project.stepNumber,
+                            total: project.totalSteps,
+                            status: project.lastHeadline
+                              ? { tone: project.lastHeadline.tone === "pass" ? "pass" : "fail", label: project.lastHeadline.chip }
+                              : project.stage?.passedAt
+                              ? { tone: "pass", label: "All tests pass" }
+                              : project.stage
+                              ? { tone: "neutral", label: "Not run yet" }
+                              : undefined,
+                          }
+                        : undefined
+                    }
                     isRequestingCheck={isRequestingCheck}
                     onRequestCheck={handleRequestCheck}
                     onSubmitCheck={handleSubmitCheck}
@@ -1185,7 +1214,17 @@ export default function App() {
                     onContinueCheck={handleContinueCheck}
                     isCodeWorkspaceOpen={isCodeWorkspaceOpen}
                     onToggleCode={() => {
-                      setIsCodeWorkspaceOpen((open) => !open);
+                      setIsCodeWorkspaceOpen((open) => {
+                        // In a project topic, remember that the learner closed the
+                        // project so it doesn't reopen on its own.
+                        if (project.enabled)
+                          try {
+                            localStorage.setItem(`learnforge:project-closed:${currentTrackId}`, open ? "1" : "0");
+                          } catch {
+                            /* Preference only. */
+                          }
+                        return !open;
+                      });
                       setMobilePane("lesson");
                     }}
                     messages={messages}

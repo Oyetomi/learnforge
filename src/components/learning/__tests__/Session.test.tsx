@@ -571,3 +571,34 @@ it("keeps a short reference beside its question and reserves a reading screen fo
   expect(long).toContain("Continue to question");
   expect(long).not.toContain("Which response fits?");
 });
+
+describe("project mode in the lesson", () => {
+  const project = {
+    title: "ForgeKV",
+    step: "Create an in-memory store with Put, Get and Delete",
+    number: 1,
+    total: 13,
+    status: { tone: "neutral" as const, label: "Not run yet" },
+  };
+  it("always shows a way into the project, with the step and its position", () => {
+    const html = renderToStaticMarkup(
+      <ChatPane {...props} project={project} activeMilestone={{ ...milestone, starter_code: "", lesson: "### Idea\n\nAn explanation." }} />
+    );
+    expect(html).toContain("Project · Step 1 of 13");
+    expect(html).toContain("Your project · Step 1 of 13");
+    expect(html).toContain("Create an in-memory store with Put, Get and Delete");
+    // The card's button and the menu item.
+    expect(html.match(/Open project/g)).toHaveLength(2);
+    // The old per-lesson exercise entry stays hidden in project mode.
+    expect(html).not.toContain("Optional coding practice");
+  });
+  it("explains concept-only units instead of offering an empty project", () => {
+    const html = renderToStaticMarkup(
+      <ChatPane {...props} project={{ ...project, step: undefined, number: 0 }} activeMilestone={{ ...milestone, starter_code: "", lesson: "### Idea\n\nAn explanation." }} />
+    );
+    expect(html).toContain("about ideas rather than code");
+    // Only the menu item; the card has no button for a unit without a step.
+    expect(html.match(/Open project/g)).toHaveLength(1);
+    expect(html).toContain(">Project<");
+  });
+});
