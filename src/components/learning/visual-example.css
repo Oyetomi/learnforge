@@ -2129,25 +2129,480 @@
 
 .forge-mermaid-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  gap: 8px 12px;
   padding: 9px 14px;
   background: var(--c-surface-sunken);
   border-bottom: 1px solid #26303c;
 }
 
-.forge-mermaid-stage {
-  padding: 16px;
-  display: flex;
+.forge-mermaid-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.forge-mermaid-toolbar .canvas-sandbox-btn.is-active {
+  border-color: rgba(212, 176, 140, 0.65);
+  background: rgba(212, 176, 140, 0.14);
+  color: #f7e6d0;
+}
+
+.forge-mermaid-zoom {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--c-line);
+  border-radius: 6px;
+  background: var(--c-surface-1);
+  overflow: hidden;
+}
+
+.forge-mermaid-zoom button {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
+  min-width: 26px;
+  min-height: 26px;
+  padding: 0 7px;
+  border: 0;
+  background: transparent;
+  color: var(--c-text-body);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.forge-mermaid-zoom button + button {
+  border-left: 1px solid var(--c-line);
+}
+
+.forge-mermaid-zoom button:hover:not(:disabled) {
+  background: rgba(212, 176, 140, 0.12);
+  color: #f0dfcb;
+}
+
+.forge-mermaid-zoom button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.forge-mermaid-zoom-pct {
+  min-width: 44px !important;
+  font-family: var(--font-code, monospace) !important;
+}
+
+.forge-mermaid-stage {
+  display: block;
+  padding: 16px;
   overflow-x: auto;
 }
 
+.forge-mermaid-zoom-inner {
+  display: block;
+  min-width: 100%;
+}
+
 .forge-mermaid-stage svg {
+  display: block;
+  margin: 0 auto;
   max-width: 100%;
   height: auto;
 }
 
 .forge-mermaid-card.is-expanded .forge-mermaid-stage svg {
   max-width: none;
+}
+
+.forge-mermaid-zoom-inner.is-zoomed svg {
+  width: var(--mermaid-zoom-width, 100%) !important;
+  max-width: none !important;
+  height: auto !important;
+}
+
+.forge-mermaid-card[data-theme="light"] {
+  border-color: #c4c8be;
+  background: #faf8f2;
+  color: #202827;
+}
+
+.forge-mermaid-card[data-theme="light"] .forge-mermaid-toolbar {
+  background: #efece3;
+  border-bottom-color: #d2d6cc;
+}
+
+.forge-mermaid-card[data-theme="light"] .canvas-sandbox-badge {
+  background: #e5dfd1;
+  border-color: #b7a790;
+  color: #4b3823;
+}
+
+.forge-mermaid-card[data-theme="light"] .canvas-sandbox-btn {
+  background: #faf8f2;
+  border-color: #bfc5ba;
+  color: #303b35;
+}
+
+.forge-mermaid-card[data-theme="light"] .canvas-sandbox-btn:hover {
+  border-color: #7d8f82;
+  background: #edf3eb;
+  color: #1f2e26;
+}
+
+.forge-mermaid-card[data-theme="light"] .canvas-sandbox-btn.is-active {
+  border-color: #566f5e;
+  background: #e2ece0;
+  color: #1f3328;
+}
+
+.forge-mermaid-card[data-theme="light"] .forge-mermaid-zoom {
+  background: #faf8f2;
+  border-color: #bfc5ba;
+}
+
+.forge-mermaid-card[data-theme="light"] .forge-mermaid-zoom button {
+  color: #303b35;
+}
+
+.forge-mermaid-card[data-theme="light"] .forge-mermaid-zoom button + button {
+  border-left-color: #d2d6cc;
+}
+
+.forge-mermaid-card[data-theme="light"] .forge-mermaid-zoom button:hover:not(:disabled) {
+  background: #edf3eb;
+  color: #1f2e26;
+}
+
+/* ==========================================================================
+   Layered Architecture Diagrams: Progressive Disclosure, Groups & Shapes
+   ========================================================================== */
+
+.schematic-layer-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #2e3642;
+  background: linear-gradient(180deg, rgba(22, 28, 37, 0.94) 0%, rgba(16, 21, 28, 0.96) 100%);
+}
+
+.schematic-layer-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.schematic-layer-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #d4b08c;
+}
+
+.schematic-layer-pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.schematic-layer-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  min-height: 28px;
+  border-radius: 999px;
+  border: 1px solid #343d4b;
+  background: #141a23;
+  color: var(--c-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.schematic-layer-pill:hover {
+  border-color: #6f7c8e;
+  color: var(--c-text-heading);
+}
+
+.schematic-layer-step {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--c-text-quiet);
+}
+
+.schematic-layer-pill.is-revealed {
+  border-color: rgba(143, 201, 187, 0.42);
+  color: #cbe6df;
+}
+
+.schematic-layer-pill.is-revealed .schematic-layer-step {
+  color: #8fc9bb;
+}
+
+.schematic-layer-pill.is-active {
+  border-color: #d4b08c;
+  background: linear-gradient(180deg, var(--c-accent-wash) 0%, #262019 100%);
+  color: #f7e6d0;
+}
+
+.schematic-layer-pill.is-active .schematic-layer-step {
+  color: #e4c39f;
+}
+
+.schematic-layer-pill.is-show-all {
+  border-style: dashed;
+}
+
+.schematic-layer-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 14px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--c-text-body);
+}
+
+.schematic-layer-counter {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-text-quiet);
+}
+
+/* Grouped Architectural Container Boundaries */
+.schematic-group-layout {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.schematic-ungrouped-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.schematic-groups-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 32px 24px;
+  align-items: start;
+}
+
+.schematic-group-layout.is-tb .schematic-groups-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.schematic-group-box {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 14px 16px;
+  border-radius: 14px;
+  border: 1.5px dashed rgba(126, 139, 155, 0.45);
+  background: rgba(18, 24, 33, 0.56);
+}
+
+.schematic-group-box.tone-accent {
+  border-color: rgba(212, 176, 140, 0.48);
+  background: rgba(45, 36, 26, 0.24);
+}
+
+.schematic-group-box.tone-teal {
+  border-color: rgba(143, 201, 187, 0.46);
+  background: rgba(23, 44, 42, 0.24);
+}
+
+.schematic-group-box.tone-blue {
+  border-color: rgba(146, 182, 223, 0.46);
+  background: rgba(24, 38, 56, 0.26);
+}
+
+.schematic-group-box.tone-coral {
+  border-color: rgba(229, 152, 136, 0.46);
+  background: rgba(52, 31, 29, 0.24);
+}
+
+.schematic-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.schematic-group-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--c-text-secondary);
+}
+
+.schematic-group-box.tone-accent .schematic-group-label {
+  color: #e4c39f;
+}
+
+.schematic-group-box.tone-teal .schematic-group-label {
+  color: #9ad4c6;
+}
+
+.schematic-group-box.tone-blue .schematic-group-label {
+  color: #a4c4e8;
+}
+
+.schematic-group-box.tone-coral .schematic-group-label {
+  color: #eba899;
+}
+
+.schematic-group-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--c-text-quiet);
+}
+
+.schematic-group-nodes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.schematic-group-layout.is-tb .schematic-group-nodes {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+}
+
+/* Semantic Node Shape Silhouettes & Glyphs */
+.schematic-shape-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--c-text-secondary);
+  flex-shrink: 0;
+}
+
+.schematic-card.is-selected .schematic-shape-glyph {
+  border-color: rgba(212, 176, 140, 0.35);
+  color: #f0dfcb;
+}
+
+.schematic-card.shape-database {
+  border-radius: 18px 18px 14px 14px / 11px 11px 9px 9px;
+  border-top: 3px double rgba(143, 201, 187, 0.65);
+  border-bottom: 2px solid rgba(143, 201, 187, 0.45);
+}
+
+.schematic-card.shape-database .schematic-shape-glyph {
+  color: #9ad4c6;
+  background: rgba(143, 201, 187, 0.12);
+  border-color: rgba(143, 201, 187, 0.28);
+}
+
+.schematic-card.shape-queue {
+  border-radius: 8px;
+  border-left: 4px solid rgba(212, 176, 140, 0.65);
+  border-right: 4px solid rgba(212, 176, 140, 0.65);
+}
+
+.schematic-card.shape-queue .schematic-shape-glyph {
+  color: #e4c39f;
+  background: rgba(212, 176, 140, 0.12);
+  border-color: rgba(212, 176, 140, 0.28);
+}
+
+.schematic-card.shape-interface {
+  border-style: dashed;
+  border-width: 1.5px;
+  border-radius: 10px;
+}
+
+.schematic-card.shape-interface .schematic-shape-glyph {
+  color: #e4c39f;
+  background: rgba(212, 176, 140, 0.1);
+  border-color: rgba(212, 176, 140, 0.3);
+}
+
+.schematic-card.shape-module {
+  border-radius: 6px 12px 12px 12px;
+  border-top: 3px solid rgba(146, 182, 223, 0.65);
+}
+
+.schematic-card.shape-module .schematic-shape-glyph {
+  color: #a4c4e8;
+  background: rgba(146, 182, 223, 0.12);
+  border-color: rgba(146, 182, 223, 0.28);
+}
+
+.schematic-card.shape-worker {
+  border-radius: 10px;
+  border-left: 3px dashed rgba(229, 152, 136, 0.72);
+}
+
+.schematic-card.shape-worker .schematic-shape-glyph {
+  color: #eba899;
+  background: rgba(229, 152, 136, 0.12);
+  border-color: rgba(229, 152, 136, 0.28);
+}
+
+.schematic-card.shape-client {
+  border-radius: 16px;
+  border-top: 3px solid rgba(212, 176, 140, 0.55);
+}
+
+.schematic-card.shape-client .schematic-shape-glyph {
+  color: #f0dfcb;
+  background: rgba(212, 176, 140, 0.11);
+  border-color: rgba(212, 176, 140, 0.26);
+}
+
+.schematic-card.shape-service {
+  border-radius: 10px;
+  border-left: 3px solid rgba(146, 182, 223, 0.65);
+}
+
+.schematic-card.shape-service .schematic-shape-glyph {
+  color: #a4c4e8;
+  background: rgba(146, 182, 223, 0.12);
+  border-color: rgba(146, 182, 223, 0.28);
+}
+
+@media (max-width: 720px) {
+  .schematic-groups-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
 }

@@ -17,6 +17,8 @@ import {
 } from "../../services/learning/speech";
 import { deriveSchematicFromLegacyItems } from "../../services/learning/conceptDiagram";
 import { ScientificFigure } from "./ScientificFigure";
+import { MemoryDiagram } from "./MemoryDiagram";
+import { TimelineDiagram } from "./TimelineDiagram";
 import { SlopeGraph } from "./SlopeGraph";
 import { ParameterExplorer } from "./ParameterExplorer";
 import { CanvasSandbox } from "./CanvasSandbox";
@@ -170,6 +172,8 @@ export function VisualExample({
     "canvas",
     "explorer",
     "state-model",
+    "memory-model",
+    "timeline",
     "simulation",
     "phrase-builder",
   ].includes(visual.kind);
@@ -325,6 +329,20 @@ export function VisualExample({
 
           {visual.kind === "state-model" && visual.stateModel ? (
             <ScientificFigure model={visual.stateModel} language={language} onInteract={markSupport} notes={visual.items} takeaway={visual.takeaway} />
+          ) : visual.kind === "memory-model" && visual.memoryModel ? (
+            <MemoryDiagram
+              key={`${visualId}:${resetCount}`}
+              spec={visual.memoryModel}
+              language={language}
+              onInteract={markSupport}
+            />
+          ) : visual.kind === "timeline" && visual.timeline ? (
+            <TimelineDiagram
+              key={`${visualId}:${resetCount}`}
+              spec={visual.timeline}
+              language={language}
+              onInteract={markSupport}
+            />
           ) : visual.kind === "canvas" && visual.canvas ? (
             <CanvasSandbox
               key={`${visualId}:${resetCount}`}

@@ -1,9 +1,32 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Archive,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  Box,
+  Brackets,
+  ChevronLeft,
+  ChevronRight,
+  Cpu,
+  Database,
+  Flag,
+  GitBranch,
+  Layers,
+  Lightbulb,
+  ListOrdered,
+  Monitor,
+  Package,
+  RefreshCw,
+  Server,
+  User,
+} from "lucide-react";
 import type {
   ConceptDiagramEdge,
+  ConceptDiagramGroup,
   ConceptDiagramNode,
   ConceptDiagramSpec,
+  DiagramNodeShape,
   DiagramNodeTone,
 } from "../../services/learning/conceptDiagram";
 import { VisualRichText } from "./VisualRichText";
@@ -15,6 +38,69 @@ const TONE_STROKES: Record<DiagramNodeTone, string> = {
   coral: "#e59888",
   neutral: "#7e8b9b",
 };
+
+function renderShapeGlyph(shape: DiagramNodeShape | undefined): React.ReactNode {
+  switch (shape) {
+    case "concept":
+      return <Lightbulb size={13} aria-hidden="true" />;
+    case "actor":
+      return <User size={13} aria-hidden="true" />;
+    case "process":
+      return <RefreshCw size={13} aria-hidden="true" />;
+    case "store":
+      return <Archive size={13} aria-hidden="true" />;
+    case "decision":
+      return <GitBranch size={13} aria-hidden="true" />;
+    case "outcome":
+      return <Flag size={13} aria-hidden="true" />;
+    case "database":
+      return <Database size={13} aria-hidden="true" />;
+    case "queue":
+      return <ListOrdered size={13} aria-hidden="true" />;
+    case "client":
+      return <Monitor size={13} aria-hidden="true" />;
+    case "service":
+      return <Server size={13} aria-hidden="true" />;
+    case "interface":
+      return <Brackets size={13} aria-hidden="true" />;
+    case "module":
+      return <Package size={13} aria-hidden="true" />;
+    case "worker":
+      return <Cpu size={13} aria-hidden="true" />;
+    case "box":
+      return <Box size={13} aria-hidden="true" />;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Filters a diagram specification to the nodes and edges visible at a given
+ * progressive disclosure layer (`<= activeLayer`). Always preserves edge
+ * endpoint integrity and falls back to all nodes if a layer filter would leave
+ * the stage empty.
+ */
+export function filterConceptDiagramByLayer(
+  spec: ConceptDiagramSpec,
+  activeLayer: number
+): ConceptDiagramSpec {
+  if (!spec.layers || spec.layers.length < 2) return spec;
+  const clamped = Math.min(Math.max(1, Math.floor(activeLayer)), spec.layers.length);
+  const filteredNodes = spec.nodes.filter((n) => (n.layer ?? 1) <= clamped);
+  const nodes = filteredNodes.length > 0 ? filteredNodes : spec.nodes;
+  const visibleIds = new Set(nodes.map((n) => n.id));
+  const edges = spec.edges.filter(
+    (e) =>
+      (e.layer ?? 1) <= clamped &&
+      visibleIds.has(e.from) &&
+      visibleIds.has(e.to)
+  );
+  return {
+    ...spec,
+    nodes,
+    edges,
+  };
+}
 
 interface AnalyzedTopology {
   orderedNodes: ConceptDiagramNode[];
@@ -145,6 +231,8 @@ export interface ConceptSchematicGraphProps {
   onSelectIndex: (index: number) => void;
   language?: string;
   showStepControls?: boolean;
+  /** Optional initial progressive disclosure layer (defaults to 1 when `spec.layers` is present). */
+  initialLayer?: number;
 }
 
 export function ConceptSchematicGraph({
@@ -152,11 +240,42 @@ export function ConceptSchematicGraph({
   selectedIndex,
   onSelectIndex,
   language,
+  initialLayer,
 }: ConceptSchematicGraphProps) {
   const markerUid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const accentMarkerId = `schematic-arrow-accent-${markerUid}`;
   const mutedMarkerId = `schematic-arrow-muted-${markerUid}`;
-  const topology = useMemo(() => analyzeDiagramTopology(spec), [spec]);
+
+  const layers = spec.layers && spec.layers.length >= 2 ? spec.layers : undefined;
+  const totalLayers = layers ? layers.length : 1;
+  const specSignature = useMemo(
+    () => `${spec.nodes.map((n) => n.id).join("|")}::${totalLayers}`,
+    [spec.nodes, totalLayers]
+  );
+
+  const [activeLayer, setActiveLayer] = useState<number>(() =>
+    layers ? Math.min(Math.max(1, initialLayer ?? 1), layers.length) : 1
+  );
+
+  useEffect(() => {
+    setActiveLayer(
+      layers ? Math.min(Math.max(1, initialLayer ?? 1), layers.length) : 1
+    );
+  }, [specSignature, initialLayer, totalLayers]);
+
+  const effectiveActiveLayer = layers
+    ? Math.min(Math.max(1, activeLayer), layers.length)
+    : 1;
+
+  const visibleSpec = useMemo(
+    () =>
+      layers
+        ? filterConceptDiagramByLayer(spec, effectiveActiveLayer)
+        : spec,
+    [spec, layers, effectiveActiveLayer]
+  );
+
+  const topology = useMemo(() => analyzeDiagramTopology(visibleSpec), [visibleSpec]);
   const { orderedNodes, tiers, isChain, chainEdges } = topology;
 
   const safeIndex = Math.min(
@@ -165,18 +284,97 @@ export function ConceptSchematicGraph({
   );
   const current = orderedNodes[safeIndex];
 
+  const selectLayer = (nextLayer: number) => {
+    const clamped = Math.min(Math.max(1, nextLayer), totalLayers);
+    setActiveLayer(clamped);
+    if (!layers) return;
+    const nextSpec = filterConceptDiagramByLayer(spec, clamped);
+    if (nextSpec.nodes.length > 0 && selectedIndex >= nextSpec.nodes.length) {
+      onSelectIndex(nextSpec.nodes.length - 1);
+    }
+  };
+
   const indexById = useMemo(() => {
     const map = new Map<string, number>();
     orderedNodes.forEach((n, idx) => map.set(n.id, idx));
     return map;
   }, [orderedNodes]);
 
-  // Measured SVG Bezier lines for general branching DAGs (!isChain && edges.length > 0)
+  const groupLayout = useMemo(() => {
+    if (!spec.groups || spec.groups.length === 0) {
+      return {
+        hasGroups: false,
+        groups: [] as {
+          group: ConceptDiagramGroup;
+          nodes: ConceptDiagramNode[];
+          minIdx: number;
+        }[],
+        leadingUngrouped: [] as ConceptDiagramNode[],
+        trailingUngrouped: [] as ConceptDiagramNode[],
+      };
+    }
+
+    const byGroupId = new Map<string, ConceptDiagramNode[]>();
+    for (const node of orderedNodes) {
+      if (!node.group) continue;
+      const bucket = byGroupId.get(node.group);
+      if (bucket) bucket.push(node);
+      else byGroupId.set(node.group, [node]);
+    }
+
+    const activeGroups = spec.groups
+      .map((group) => {
+        const nodes = byGroupId.get(group.id) || [];
+        const minIdx =
+          nodes.length > 0
+            ? Math.min(...nodes.map((n) => indexById.get(n.id) ?? 0))
+            : Number.POSITIVE_INFINITY;
+        return { group, nodes, minIdx };
+      })
+      .filter((entry) => entry.nodes.length > 0)
+      .sort((a, b) => a.minIdx - b.minIdx);
+
+    if (activeGroups.length === 0) {
+      return {
+        hasGroups: false,
+        groups: [],
+        leadingUngrouped: [],
+        trailingUngrouped: [],
+      };
+    }
+
+    const activeGroupIds = new Set(activeGroups.map((entry) => entry.group.id));
+    const firstGroupMinIdx = activeGroups[0].minIdx;
+    const leadingUngrouped: ConceptDiagramNode[] = [];
+    const trailingUngrouped: ConceptDiagramNode[] = [];
+
+    for (const node of orderedNodes) {
+      if (node.group && activeGroupIds.has(node.group)) continue;
+      const idx = indexById.get(node.id) ?? 0;
+      if (idx < firstGroupMinIdx) leadingUngrouped.push(node);
+      else trailingUngrouped.push(node);
+    }
+
+    return {
+      hasGroups: true,
+      groups: activeGroups,
+      leadingUngrouped,
+      trailingUngrouped,
+    };
+  }, [spec.groups, orderedNodes, indexById]);
+
+  const usesDagStage =
+    groupLayout.hasGroups || (!isChain && visibleSpec.edges.length > 0);
+
+  // Measured SVG Bezier lines for general branching DAGs and grouped containers
   const dagStageRef = useRef<HTMLDivElement>(null);
   const [dagLines, setDagLines] = useState<DagOverlayLine[]>([]);
 
   const measureDagEdges = useCallback(() => {
-    if (isChain || spec.edges.length === 0 || !dagStageRef.current) return;
+    if (!usesDagStage || visibleSpec.edges.length === 0 || !dagStageRef.current) {
+      setDagLines([]);
+      return;
+    }
     const stageEl = dagStageRef.current;
     const stageRect = stageEl.getBoundingClientRect();
     if (stageRect.width <= 0) return;
@@ -186,7 +384,7 @@ export function ConceptSchematicGraph({
         ? CSS.escape(value)
         : value.replace(/["\\]/g, "\\$&");
     const lines: DagOverlayLine[] = [];
-    for (const edge of spec.edges) {
+    for (const edge of visibleSpec.edges) {
       const fromEl = stageEl.querySelector<HTMLElement>(
         `[data-schematic-node="${escapeAttr(edge.from)}"]`
       );
@@ -198,8 +396,17 @@ export function ConceptSchematicGraph({
       const r2 = toEl.getBoundingClientRect();
 
       const sameRow = Math.abs(r1.top - r2.top) < 28;
+      const overlapsVertically =
+        Math.min(r1.bottom, r2.bottom) - Math.max(r1.top, r2.top) > 12;
+      const horizontalSeparation = Math.max(
+        r2.left - r1.right,
+        r1.left - r2.right
+      );
+      const connectHorizontally =
+        sameRow || (overlapsVertically && horizontalSeparation > 12);
+
       let x1: number, y1: number, x2: number, y2: number, d: string;
-      if (sameRow) {
+      if (connectHorizontally) {
         const leftToRight = r1.left < r2.left;
         x1 = (leftToRight ? r1.right : r1.left) - stageRect.left;
         y1 = r1.top + r1.height / 2 - stageRect.top;
@@ -240,20 +447,25 @@ export function ConceptSchematicGraph({
       });
     }
     setDagLines(lines);
-  }, [isChain, spec.edges, orderedNodes, current?.id]);
+  }, [usesDagStage, visibleSpec.edges, orderedNodes, current?.id]);
 
   useEffect(() => {
-    if (isChain || spec.edges.length === 0) return;
+    if (!usesDagStage || visibleSpec.edges.length === 0) {
+      setDagLines([]);
+      return;
+    }
     measureDagEdges();
     if (typeof ResizeObserver === "undefined" || !dagStageRef.current) return;
     const ro = new ResizeObserver(() => measureDagEdges());
     ro.observe(dagStageRef.current);
     return () => ro.disconnect();
-  }, [isChain, spec.edges.length, measureDagEdges]);
+  }, [usesDagStage, visibleSpec.edges.length, measureDagEdges]);
 
   const renderNodeCard = (node: ConceptDiagramNode, idx: number, fullSpan = false) => {
     const selected = idx === safeIndex;
     const tone = node.tone || "neutral";
+    const shapeClass = node.shape ? `shape-${node.shape}` : "";
+    const shapeGlyph = renderShapeGlyph(node.shape);
     const showDistinctTitle =
       !node.code ||
       (node.label &&
@@ -261,7 +473,7 @@ export function ConceptSchematicGraph({
 
     const connectedToSelected =
       !selected &&
-      spec.edges.some(
+      visibleSpec.edges.some(
         (e) =>
           (e.from === current?.id && e.to === node.id) ||
           (e.to === current?.id && e.from === node.id)
@@ -271,7 +483,8 @@ export function ConceptSchematicGraph({
       <div
         key={node.id}
         data-schematic-node={node.id}
-        className={`schematic-card tone-${tone} ${
+        data-schematic-shape={node.shape}
+        className={`schematic-card tone-${tone} ${shapeClass} ${
           selected ? "is-selected" : ""
         } ${connectedToSelected ? "is-neighbor" : ""} ${
           fullSpan ? "is-full-span" : ""
@@ -289,6 +502,15 @@ export function ConceptSchematicGraph({
             </span>
             {node.badge && (
               <span className="schematic-card-badge">{node.badge}</span>
+            )}
+            {shapeGlyph && (
+              <span
+                className={`schematic-shape-glyph ${shapeClass}`}
+                aria-hidden="true"
+                title={node.shape}
+              >
+                {shapeGlyph}
+              </span>
             )}
           </span>
           {showDistinctTitle && (
@@ -346,9 +568,9 @@ export function ConceptSchematicGraph({
     );
   };
 
-  // Build 2-column serpentine rows for sequential chains (`01 -> 02` then `▼` then `04 <- 03`)
+  // Build 2-column serpentine rows for sequential chains (`01 -> 02` then down then `04 <- 03`)
   const serpentineRows = useMemo(() => {
-    if (!isChain) return [];
+    if (!isChain || groupLayout.hasGroups) return [];
     const rows: {
       rowIndex: number;
       reversed: boolean;
@@ -380,11 +602,11 @@ export function ConceptSchematicGraph({
       });
     }
     return rows;
-  }, [isChain, orderedNodes, chainEdges]);
+  }, [isChain, groupLayout.hasGroups, orderedNodes, chainEdges]);
 
   const currentRelationships = useMemo(() => {
     if (!current) return [];
-    return spec.edges
+    return visibleSpec.edges
       .filter((e) => e.from === current.id || e.to === current.id)
       .map((e) => {
         const incoming = e.to === current.id;
@@ -399,16 +621,209 @@ export function ConceptSchematicGraph({
           otherTitle: otherNode?.label || otherId,
         };
       });
-  }, [current, spec.edges, indexById, orderedNodes]);
+  }, [current, visibleSpec.edges, indexById, orderedNodes]);
+
+  const activeLayerMeta = layers ? layers[effectiveActiveLayer - 1] : undefined;
 
   return (
     <div className="concept-schematic-studio">
+      {layers && (
+        <div
+          className="schematic-layer-bar"
+          role="region"
+          aria-label="Progressive architecture layers"
+        >
+          <div className="schematic-layer-controls">
+            <span className="schematic-layer-heading">
+              <Layers size={13} aria-hidden="true" />
+              <span>Layers</span>
+            </span>
+            <div
+              className="schematic-layer-pills"
+              role="group"
+              aria-label="Select architecture layer"
+            >
+              {layers.map((layer, idx) => {
+                const layerNum = idx + 1;
+                const isCurrent = effectiveActiveLayer === layerNum;
+                const isRevealed = layerNum < effectiveActiveLayer;
+                return (
+                  <button
+                    key={`${layerNum}-${layer.label}`}
+                    type="button"
+                    className={`schematic-layer-pill ${
+                      isCurrent ? "is-active" : isRevealed ? "is-revealed" : ""
+                    }`}
+                    aria-pressed={isCurrent}
+                    onClick={() => selectLayer(layerNum)}
+                  >
+                    <span className="schematic-layer-step">Layer {layerNum}</span>
+                    <span>{layer.label}</span>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                className={`schematic-layer-pill is-show-all ${
+                  effectiveActiveLayer === layers.length ? "is-active" : ""
+                }`}
+                aria-pressed={effectiveActiveLayer === layers.length}
+                onClick={() => selectLayer(layers.length)}
+              >
+                Show all
+              </button>
+            </div>
+          </div>
+          <div className="schematic-layer-summary">
+            <span>
+              {activeLayerMeta?.summary ? (
+                <VisualRichText
+                  text={activeLayerMeta.summary}
+                  language={language}
+                />
+              ) : (
+                `Layer ${effectiveActiveLayer} of ${layers.length}: ${
+                  activeLayerMeta?.label ?? ""
+                }`
+              )}
+            </span>
+            <small className="schematic-layer-counter">
+              {orderedNodes.length} of {spec.nodes.length} components
+            </small>
+          </div>
+        </div>
+      )}
+
       <div
         className="concept-schematic-stage"
         role="group"
         aria-label="Interactive architecture blueprint"
       >
-        {spec.edges.length === 0 ? (
+        {usesDagStage ? (
+          <div className="schematic-dag-stage" ref={dagStageRef}>
+            {visibleSpec.edges.length > 0 && (
+              <>
+                <svg className="schematic-dag-svg" aria-hidden="true">
+                  <defs>
+                    <marker
+                      id={accentMarkerId}
+                      viewBox="0 0 10 10"
+                      refX="8"
+                      refY="5"
+                      markerWidth="6"
+                      markerHeight="6"
+                      orient="auto-start-reverse"
+                    >
+                      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#d4b08c" />
+                    </marker>
+                    <marker
+                      id={mutedMarkerId}
+                      viewBox="0 0 10 10"
+                      refX="8"
+                      refY="5"
+                      markerWidth="6"
+                      markerHeight="6"
+                      orient="auto-start-reverse"
+                    >
+                      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#5b687a" />
+                    </marker>
+                  </defs>
+                  {dagLines.map((line) => (
+                    <path
+                      key={line.id}
+                      d={line.d}
+                      fill="none"
+                      stroke={line.stroke}
+                      strokeWidth={line.highlighted ? 2.1 : 1.4}
+                      strokeDasharray={line.animated ? "5 4" : undefined}
+                      className={
+                        line.animated ? "schematic-svg-animated" : undefined
+                      }
+                      markerEnd={
+                        line.highlighted
+                          ? `url(#${accentMarkerId})`
+                          : `url(#${mutedMarkerId})`
+                      }
+                    />
+                  ))}
+                </svg>
+                {dagLines.map((line) =>
+                  line.label ? (
+                    <span
+                      key={`${line.id}-lbl`}
+                      className={`schematic-dag-edge-pill ${
+                        line.highlighted ? "is-active" : ""
+                      }`}
+                      style={{ left: `${line.lx}px`, top: `${line.ly}px` }}
+                    >
+                      {line.label}
+                    </span>
+                  ) : null
+                )}
+              </>
+            )}
+
+            {groupLayout.hasGroups ? (
+              <div
+                className={`schematic-group-layout ${
+                  spec.direction === "TB" ? "is-tb" : "is-lr"
+                }`}
+              >
+                {groupLayout.leadingUngrouped.length > 0 && (
+                  <div className="schematic-ungrouped-row">
+                    {groupLayout.leadingUngrouped.map((node) =>
+                      renderNodeCard(node, indexById.get(node.id) ?? 0)
+                    )}
+                  </div>
+                )}
+                <div className="schematic-groups-grid">
+                  {groupLayout.groups.map(({ group, nodes }) => {
+                    const groupTone = group.tone || "neutral";
+                    return (
+                      <section
+                        key={group.id}
+                        data-schematic-group={group.id}
+                        className={`schematic-group-box tone-${groupTone}`}
+                        aria-label={group.label}
+                      >
+                        <header className="schematic-group-header">
+                          <span className="schematic-group-label">
+                            {group.label}
+                          </span>
+                          <span className="schematic-group-count">
+                            {nodes.length}
+                          </span>
+                        </header>
+                        <div className="schematic-group-nodes">
+                          {nodes.map((node) =>
+                            renderNodeCard(node, indexById.get(node.id) ?? 0)
+                          )}
+                        </div>
+                      </section>
+                    );
+                  })}
+                </div>
+                {groupLayout.trailingUngrouped.length > 0 && (
+                  <div className="schematic-ungrouped-row">
+                    {groupLayout.trailingUngrouped.map((node) =>
+                      renderNodeCard(node, indexById.get(node.id) ?? 0)
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="schematic-dag-tiers">
+                {tiers.map((tier, tIdx) => (
+                  <div key={tIdx} className="schematic-dag-tier">
+                    {tier.map((node) =>
+                      renderNodeCard(node, indexById.get(node.id) ?? 0)
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : visibleSpec.edges.length === 0 ? (
           <div className="schematic-contrast-grid">
             {orderedNodes.map((node, idx) => renderNodeCard(node, idx))}
           </div>
@@ -423,7 +838,7 @@ export function ConceptSchematicGraph({
             </div>
             {renderNodeCard(orderedNodes[1], 1)}
           </div>
-        ) : isChain ? (
+        ) : (
           <div className="schematic-serpentine">
             {serpentineRows.map((row) => {
               const singleItem = row.items.length === 1;
@@ -476,73 +891,6 @@ export function ConceptSchematicGraph({
                 </React.Fragment>
               );
             })}
-          </div>
-        ) : (
-          <div className="schematic-dag-stage" ref={dagStageRef}>
-            <svg className="schematic-dag-svg" aria-hidden="true">
-              <defs>
-                <marker
-                  id={accentMarkerId}
-                  viewBox="0 0 10 10"
-                  refX="8"
-                  refY="5"
-                  markerWidth="6"
-                  markerHeight="6"
-                  orient="auto-start-reverse"
-                >
-                  <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#d4b08c" />
-                </marker>
-                <marker
-                  id={mutedMarkerId}
-                  viewBox="0 0 10 10"
-                  refX="8"
-                  refY="5"
-                  markerWidth="6"
-                  markerHeight="6"
-                  orient="auto-start-reverse"
-                >
-                  <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#5b687a" />
-                </marker>
-              </defs>
-              {dagLines.map((line) => (
-                <path
-                  key={line.id}
-                  d={line.d}
-                  fill="none"
-                  stroke={line.stroke}
-                  strokeWidth={line.highlighted ? 2.1 : 1.4}
-                  strokeDasharray={line.animated ? "5 4" : undefined}
-                  className={line.animated ? "schematic-svg-animated" : undefined}
-                  markerEnd={
-                    line.highlighted
-                      ? `url(#${accentMarkerId})`
-                      : `url(#${mutedMarkerId})`
-                  }
-                />
-              ))}
-            </svg>
-            {dagLines.map((line) =>
-              line.label ? (
-                <span
-                  key={`${line.id}-lbl`}
-                  className={`schematic-dag-edge-pill ${
-                    line.highlighted ? "is-active" : ""
-                  }`}
-                  style={{ left: `${line.lx}px`, top: `${line.ly}px` }}
-                >
-                  {line.label}
-                </span>
-              ) : null
-            )}
-            <div className="schematic-dag-tiers">
-              {tiers.map((tier, tIdx) => (
-                <div key={tIdx} className="schematic-dag-tier">
-                  {tier.map((node) =>
-                    renderNodeCard(node, indexById.get(node.id) ?? 0)
-                  )}
-                </div>
-              ))}
-            </div>
           </div>
         )}
       </div>

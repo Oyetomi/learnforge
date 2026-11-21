@@ -6,6 +6,33 @@
 
 export type DiagramNodeTone = "accent" | "teal" | "blue" | "coral" | "neutral";
 
+export type DiagramNodeShape =
+  | "box"
+  | "concept"
+  | "actor"
+  | "process"
+  | "store"
+  | "decision"
+  | "outcome"
+  | "database"
+  | "queue"
+  | "client"
+  | "service"
+  | "interface"
+  | "module"
+  | "worker";
+
+export interface ConceptDiagramGroup {
+  id: string;
+  label: string;
+  tone?: DiagramNodeTone;
+}
+
+export interface ConceptDiagramLayer {
+  label: string;
+  summary?: string;
+}
+
 export interface ConceptDiagramNode {
   id: string;
   label: string;
@@ -18,6 +45,12 @@ export interface ConceptDiagramNode {
   /** Plain/LaTeX/code explanation shown when inspected. */
   detail: string;
   tone?: DiagramNodeTone;
+  /** Optional architectural silhouette / semantic icon. */
+  shape?: DiagramNodeShape;
+  /** Optional group container id matching a declared entry in `spec.groups`. */
+  group?: string;
+  /** Optional 1-indexed progressive disclosure layer matching `spec.layers`. */
+  layer?: number;
 }
 
 export interface ConceptDiagramEdge {
@@ -26,12 +59,16 @@ export interface ConceptDiagramEdge {
   to: string;
   label?: string;
   animated?: boolean;
+  /** Optional 1-indexed progressive disclosure layer matching `spec.layers`. */
+  layer?: number;
 }
 
 export interface ConceptDiagramSpec {
   direction: "LR" | "TB";
   nodes: ConceptDiagramNode[];
   edges: ConceptDiagramEdge[];
+  groups?: ConceptDiagramGroup[];
+  layers?: ConceptDiagramLayer[];
 }
 
 const VALID_TONES = new Set<DiagramNodeTone>([
@@ -42,22 +79,90 @@ const VALID_TONES = new Set<DiagramNodeTone>([
   "neutral",
 ]);
 
+const VALID_SHAPES = new Set<DiagramNodeShape>([
+  "box",
+  "concept",
+  "actor",
+  "process",
+  "store",
+  "decision",
+  "outcome",
+  "database",
+  "queue",
+  "client",
+  "service",
+  "interface",
+  "module",
+  "worker",
+]);
+
 const clean = (v: unknown, max: number): string =>
   typeof v === "string" && v.trim().length > 0 && v.trim().length <= max
     ? v.trim()
     : "";
+
+const validLayer = (v: unknown, maxLayer: number): number | undefined => {
+  if (maxLayer < 2 || typeof v !== "number" || !Number.isInteger(v)) {
+    return undefined;
+  }
+  return v >= 1 && v <= maxLayer ? v : undefined;
+};
 
 export function validateConceptDiagram(
   value: unknown
 ): ConceptDiagramSpec | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Record<string, unknown>;
-  if (!Array.isArray(raw.nodes) || raw.nodes.length < 2 || raw.nodes.length > 10) {
+  if (!Array.isArray(raw.nodes) || raw.nodes.length < 2 || raw.nodes.length > 12) {
     return null;
   }
 
   const direction: "LR" | "TB" =
     raw.direction === "TB" || raw.direction === "TD" ? "TB" : "LR";
+
+  // Optional architectural container groups (up to 6 unique valid group ids)
+  const validGroups: ConceptDiagramGroup[] = [];
+  const declaredGroupIds = new Set<string>();
+  if (Array.isArray(raw.groups)) {
+    for (const item of raw.groups) {
+      if (validGroups.length >= 6) break;
+      if (!item || typeof item !== "object") continue;
+      const g = item as Record<string, unknown>;
+      const id = clean(g.id, 48);
+      const label = clean(g.label, 60);
+      if (!id || !label || declaredGroupIds.has(id)) continue;
+      declaredGroupIds.add(id);
+      const toneCandidate =
+        typeof g.tone === "string" ? (g.tone.trim() as DiagramNodeTone) : undefined;
+      const tone =
+        toneCandidate && VALID_TONES.has(toneCandidate) ? toneCandidate : undefined;
+      validGroups.push({
+        id,
+        label,
+        ...(tone ? { tone } : {}),
+      });
+    }
+  }
+  const groups = validGroups.length > 0 ? validGroups : undefined;
+
+  // Optional progressive disclosure layers (2..6 layers)
+  const validLayers: ConceptDiagramLayer[] = [];
+  if (Array.isArray(raw.layers)) {
+    for (const item of raw.layers) {
+      if (validLayers.length >= 6) break;
+      if (!item || typeof item !== "object") continue;
+      const l = item as Record<string, unknown>;
+      const label = clean(l.label, 60);
+      if (!label) continue;
+      const summary = clean(l.summary, 240) || undefined;
+      validLayers.push({
+        label,
+        ...(summary ? { summary } : {}),
+      });
+    }
+  }
+  const layers = validLayers.length >= 2 ? validLayers : undefined;
+  const maxLayer = layers ? layers.length : 0;
 
   const nodes: ConceptDiagramNode[] = [];
   const seenIds = new Set<string>();
@@ -76,6 +181,18 @@ export function validateConceptDiagram(
     const code = clean(n.code, 260) || undefined;
     const toneRaw = String(n.tone || "neutral") as DiagramNodeTone;
     const tone: DiagramNodeTone = VALID_TONES.has(toneRaw) ? toneRaw : "neutral";
+    const shapeCandidate =
+      typeof n.shape === "string" ? (n.shape.trim() as DiagramNodeShape) : undefined;
+    const shape =
+      shapeCandidate && VALID_SHAPES.has(shapeCandidate)
+        ? shapeCandidate
+        : undefined;
+    const groupCandidate = clean(n.group, 48);
+    const group =
+      groupCandidate && declaredGroupIds.has(groupCandidate)
+        ? groupCandidate
+        : undefined;
+    const layer = validLayer(n.layer, maxLayer);
 
     nodes.push({
       id,
@@ -85,12 +202,15 @@ export function validateConceptDiagram(
       ...(code ? { code } : {}),
       detail,
       tone,
+      ...(shape ? { shape } : {}),
+      ...(group ? { group } : {}),
+      ...(layer !== undefined ? { layer } : {}),
     });
   }
 
   const edges: ConceptDiagramEdge[] = [];
   const rawEdges = Array.isArray(raw.edges) ? raw.edges : [];
-  if (rawEdges.length > 20) return null;
+  if (rawEdges.length > 24) return null;
 
   for (let i = 0; i < rawEdges.length; i++) {
     const e = rawEdges[i];
@@ -104,16 +224,24 @@ export function validateConceptDiagram(
     const id = clean(rec.id, 64) || `e-${from}-${to}-${i}`;
     const label = clean(rec.label, 64) || undefined;
     const animated = rec.animated !== false;
+    const layer = validLayer(rec.layer, maxLayer);
     edges.push({
       id,
       from,
       to,
       ...(label ? { label } : {}),
       animated,
+      ...(layer !== undefined ? { layer } : {}),
     });
   }
 
-  return { direction, nodes, edges };
+  return {
+    direction,
+    nodes,
+    edges,
+    ...(groups ? { groups } : {}),
+    ...(layers ? { layers } : {}),
+  };
 }
 
 function inferRoleFromItem(

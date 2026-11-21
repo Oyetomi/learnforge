@@ -21,7 +21,12 @@ import {
   validateConceptDiagram,
 } from "../conceptDiagram";
 import { extractVisualExample, validateVisualExample } from "../visuals";
-import { analyzeDiagramTopology } from "../../../components/learning/ConceptSchematicGraph";
+import {
+  analyzeDiagramTopology,
+  ConceptSchematicGraph,
+  filterConceptDiagramByLayer,
+} from "../../../components/learning/ConceptSchematicGraph";
+import { buildMermaidConfig } from "../../../components/learning/MermaidDiagram";
 import { VisualExample } from "../../../components/learning/VisualExample";
 import { MarkdownView } from "../../../components/chat/MarkdownView";
 import { CanvasSandbox } from "../../../components/learning/CanvasSandbox";
@@ -615,5 +620,313 @@ ctx.fillRect(0, 0, width, height);","items":[{"label":"Shared slot","description
     expect(parsed?.kind).toBe("canvas");
     expect(parsed?.canvas?.js).toContain("setupForgeCanvas");
     expect(parsed?.items.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("validates layered architecture diagrams with groups, semantic shapes, and 12-node / 24-edge bounds", () => {
+    const goWorkspaceSpec = validateConceptDiagram({
+      direction: "LR",
+      groups: [
+        { id: "edge", label: "API Module (api/)", tone: "accent" },
+        { id: "core", label: "Domain Module (domain/)", tone: "blue" },
+        { id: "async", label: "Worker Module (worker/)", tone: "coral" },
+        { id: "data", label: "Persistence (store/)", tone: "teal" },
+        // Duplicate group id should be ignored cleanly
+        { id: "edge", label: "Duplicate Edge" },
+      ],
+      layers: [
+        {
+          label: "Happy Path",
+          summary: "Client sends an HTTP request through the API handlers into domain logic.",
+        },
+        {
+          label: "Persistence",
+          summary: "Domain repository contracts resolve against the SQL store.",
+        },
+        {
+          label: "Async Workers",
+          summary: "Outbox events fan out through a job queue to background workers.",
+        },
+      ],
+      nodes: [
+        {
+          id: "client",
+          label: "Browser Client",
+          badge: "CALLER",
+          detail: "Issues JSON requests over HTTPS.",
+          tone: "neutral",
+          shape: "client",
+          layer: 1,
+        },
+        {
+          id: "handlers",
+          label: "HTTP Handlers",
+          badge: "SERVICE",
+          detail: "Parses requests and delegates to domain services.",
+          tone: "accent",
+          shape: "service",
+          group: "edge",
+          layer: 1,
+        },
+        {
+          id: "domain",
+          label: "Order Domain",
+          badge: "MODULE",
+          detail: "Pure business rules shared across go.work modules.",
+          tone: "blue",
+          shape: "module",
+          group: "core",
+          layer: 1,
+        },
+        {
+          id: "repo",
+          label: "OrderStore",
+          badge: "INTERFACE",
+          detail: "Minimal persistence contract owned by domain.",
+          tone: "blue",
+          shape: "interface",
+          group: "core",
+          layer: 2,
+        },
+        {
+          id: "store",
+          label: "Postgres Store",
+          badge: "DATABASE",
+          detail: "Implements OrderStore with transactional writes.",
+          tone: "teal",
+          shape: "database",
+          group: "data",
+          layer: 2,
+        },
+        {
+          id: "queue",
+          label: "Job Queue",
+          badge: "QUEUE",
+          detail: "Buffers fulfillment jobs between API and worker.",
+          tone: "accent",
+          shape: "queue",
+          group: "async",
+          layer: 3,
+        },
+        {
+          id: "worker",
+          label: "Fulfillment Worker",
+          badge: "WORKER",
+          detail: "Consumes queued jobs with idempotent retries.",
+          tone: "coral",
+          shape: "worker",
+          group: "async",
+          layer: 3,
+        },
+      ],
+      edges: [
+        { from: "client", to: "handlers", label: "POST /orders", layer: 1 },
+        { from: "handlers", to: "domain", label: "CreateOrder()", layer: 1 },
+        { from: "domain", to: "repo", label: "depends on", layer: 2 },
+        { from: "store", to: "repo", label: "implements", layer: 2 },
+        { from: "domain", to: "queue", label: "enqueue", layer: 3 },
+        { from: "queue", to: "worker", label: "dispatch", layer: 3 },
+      ],
+    });
+
+    expect(goWorkspaceSpec).not.toBeNull();
+    expect(goWorkspaceSpec?.groups).toHaveLength(4);
+    expect(goWorkspaceSpec?.layers).toHaveLength(3);
+    expect(goWorkspaceSpec?.nodes.find((n) => n.id === "store")?.shape).toBe("database");
+    expect(goWorkspaceSpec?.nodes.find((n) => n.id === "worker")?.group).toBe("async");
+    expect(goWorkspaceSpec?.edges.find((e) => e.from === "queue")?.layer).toBe(3);
+
+    // Invalid shape, undeclared group, and out-of-range layers are sanitized cleanly
+    const sanitized = validateConceptDiagram({
+      direction: "TB",
+      groups: [{ id: "g1", label: "Valid Group", tone: "teal" }],
+      layers: [{ label: "Only One Layer" }],
+      nodes: [
+        {
+          id: "a",
+          label: "Node A",
+          detail: "First node",
+          shape: "not-a-shape",
+          group: "missing-group",
+          layer: 2,
+        },
+        {
+          id: "b",
+          label: "Node B",
+          detail: "Second node",
+          shape: "module",
+          group: "g1",
+          layer: 1,
+        },
+      ],
+      edges: [{ from: "a", to: "b", layer: 99 }],
+    });
+    expect(sanitized).not.toBeNull();
+    expect(sanitized?.layers).toBeUndefined();
+    expect(sanitized?.nodes[0].shape).toBeUndefined();
+    expect(sanitized?.nodes[0].group).toBeUndefined();
+    expect(sanitized?.nodes[0].layer).toBeUndefined();
+    expect(sanitized?.nodes[1].shape).toBe("module");
+    expect(sanitized?.nodes[1].group).toBe("g1");
+    expect(sanitized?.edges[0].layer).toBeUndefined();
+
+    // 12 nodes and 24 edges are accepted; 13 nodes or 25 edges are rejected
+    const twelveNodes = Array.from({ length: 12 }, (_, i) => ({
+      id: `n${i}`,
+      label: `Node ${i}`,
+      detail: `Detail ${i}`,
+    }));
+    const twentyFourEdges = Array.from({ length: 24 }, (_, i) => ({
+      from: `n${i % 11}`,
+      to: `n${(i % 11) + 1}`,
+    }));
+    expect(
+      validateConceptDiagram({ direction: "LR", nodes: twelveNodes, edges: twentyFourEdges })
+    ).not.toBeNull();
+    expect(
+      validateConceptDiagram({
+        direction: "LR",
+        nodes: [...twelveNodes, { id: "n12", label: "Extra", detail: "Too many" }],
+        edges: [],
+      })
+    ).toBeNull();
+    expect(
+      validateConceptDiagram({
+        direction: "LR",
+        nodes: twelveNodes,
+        edges: [...twentyFourEdges, { from: "n0", to: "n2" }],
+      })
+    ).toBeNull();
+  });
+
+  it("renders grouped containers, semantic shape classes, and progressive layer disclosure in ConceptSchematicGraph", () => {
+    const layeredSpec = validateConceptDiagram({
+      direction: "LR",
+      groups: [
+        { id: "api", label: "API Boundary", tone: "accent" },
+        { id: "data", label: "Storage Layer", tone: "teal" },
+        { id: "bg", label: "Background Jobs", tone: "coral" },
+      ],
+      layers: [
+        { label: "Request Path", summary: "Client enters through the API service." },
+        { label: "Data Store", summary: "API writes records to Postgres." },
+        { label: "Async Queue", summary: "Background worker drains queued tasks." },
+      ],
+      nodes: [
+        {
+          id: "client",
+          label: "Web Client",
+          badge: "CLIENT",
+          detail: "Originates requests.",
+          shape: "client",
+          layer: 1,
+        },
+        {
+          id: "api-svc",
+          label: "API Server",
+          badge: "SERVICE",
+          detail: "Validates payloads and routes calls.",
+          tone: "accent",
+          shape: "service",
+          group: "api",
+          layer: 1,
+        },
+        {
+          id: "pg",
+          label: "Postgres DB",
+          badge: "STORE",
+          detail: "Durable relational store.",
+          tone: "teal",
+          shape: "database",
+          group: "data",
+          layer: 2,
+        },
+        {
+          id: "jobs",
+          label: "Work Queue",
+          badge: "QUEUE",
+          detail: "Buffered task channel.",
+          tone: "accent",
+          shape: "queue",
+          group: "bg",
+          layer: 3,
+        },
+        {
+          id: "worker",
+          label: "Job Worker",
+          badge: "WORKER",
+          detail: "Processes queued jobs asynchronously.",
+          tone: "coral",
+          shape: "worker",
+          group: "bg",
+          layer: 3,
+        },
+      ],
+      edges: [
+        { from: "client", to: "api-svc", label: "HTTP", layer: 1 },
+        { from: "api-svc", to: "pg", label: "INSERT", layer: 2 },
+        { from: "api-svc", to: "jobs", label: "publish", layer: 3 },
+        { from: "jobs", to: "worker", label: "consume", layer: 3 },
+      ],
+    })!;
+
+    // Default render starts on Layer 1: clean happy path only
+    const layer1Html = renderToStaticMarkup(
+      <ConceptSchematicGraph
+        spec={layeredSpec}
+        selectedIndex={4}
+        onSelectIndex={() => {}}
+      />
+    );
+    expect(layer1Html).toContain("schematic-layer-bar");
+    expect(layer1Html).toContain("schematic-layer-pill");
+    expect(layer1Html).toContain("Show all");
+    expect(layer1Html).toContain("Client enters through the API service.");
+    expect(layer1Html).toContain("2 of 5 components");
+    expect(layer1Html).toContain("schematic-group-box tone-accent");
+    expect(layer1Html).toContain("API Boundary");
+    expect(layer1Html).toContain("shape-client");
+    expect(layer1Html).toContain("shape-service");
+    expect(layer1Html).toContain("schematic-shape-glyph");
+    // Layer 2 and 3 nodes/groups stay hidden at Layer 1
+    expect(layer1Html).not.toContain("Postgres DB");
+    expect(layer1Html).not.toContain("Storage Layer");
+    expect(layer1Html).not.toContain("Job Worker");
+
+    // Progressive layer helper filters nodes and edges cleanly
+    const l2Spec = filterConceptDiagramByLayer(layeredSpec, 2);
+    expect(l2Spec.nodes.map((n) => n.id)).toEqual(["client", "api-svc", "pg"]);
+    expect(l2Spec.edges.map((e) => e.to)).toEqual(["api-svc", "pg"]);
+
+    // Full layer reveal shows all groups and semantic shapes
+    const layer3Html = renderToStaticMarkup(
+      <ConceptSchematicGraph
+        spec={layeredSpec}
+        selectedIndex={0}
+        onSelectIndex={() => {}}
+        initialLayer={3}
+      />
+    );
+    expect(layer3Html).toContain("5 of 5 components");
+    expect(layer3Html).toContain("schematic-group-box tone-teal");
+    expect(layer3Html).toContain("schematic-group-box tone-coral");
+    expect(layer3Html).toContain("shape-database");
+    expect(layer3Html).toContain("shape-queue");
+    expect(layer3Html).toContain("shape-worker");
+    expect(layer3Html).toContain("Postgres DB");
+    expect(layer3Html).toContain("Job Worker");
+  });
+
+  it("builds Mermaid 12 dark/light-paper, sketch/classic, and ELK/dagre configurations cleanly", () => {
+    const darkClassicElk = buildMermaidConfig("dark", false, true);
+    expect(darkClassicElk.look).toBe("classic");
+    expect(darkClassicElk.layout).toBe("elk");
+    expect(darkClassicElk.themeVariables?.darkMode).toBe(true);
+    expect(darkClassicElk.themeVariables?.background).toBe("#0e1217");
+
+    const lightSketchFallback = buildMermaidConfig("light", true, false);
+    expect(lightSketchFallback.look).toBe("handDrawn");
+    expect(lightSketchFallback.layout).toBe("dagre");
+    expect(lightSketchFallback.themeVariables?.darkMode).toBe(false);
+    expect(lightSketchFallback.themeVariables?.background).toBe("#faf8f2");
   });
 });

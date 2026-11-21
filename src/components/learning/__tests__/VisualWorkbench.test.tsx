@@ -17,6 +17,35 @@ vi.mock("../CanvasSandbox", () => ({
 vi.mock("../ScientificFigure", () => ({
   ScientificFigure: () => <div>Figure-owned explanation and history controls</div>,
 }));
+vi.mock("../MemoryDiagram", () => ({
+  MemoryDiagram: ({
+    spec,
+    language,
+  }: {
+    spec: { frames?: unknown[] };
+    language?: string;
+  }) => (
+    <div data-testid="memory-diagram">
+      Memory diagram ({Array.isArray(spec.frames) ? spec.frames.length : 0} frames
+      {language ? `, ${language}` : ""})
+    </div>
+  ),
+}));
+vi.mock("../TimelineDiagram", () => ({
+  TimelineDiagram: ({
+    spec,
+    language,
+  }: {
+    spec: { actors?: unknown[]; steps?: unknown[] };
+    language?: string;
+  }) => (
+    <div data-testid="timeline-diagram">
+      Timeline diagram ({Array.isArray(spec.actors) ? spec.actors.length : 0} actors,{" "}
+      {Array.isArray(spec.steps) ? spec.steps.length : 0} steps
+      {language ? `, ${language}` : ""})
+    </div>
+  ),
+}));
 vi.mock("../SlopeGraph", () => ({
   SlopeGraph: () => <div>Graph-owned explanation and point controls</div>,
 }));
@@ -84,6 +113,70 @@ describe("visual workbench information hierarchy", () => {
     const html = renderToStaticMarkup(<VisualExample visual={stateVisual} visualId="state" />);
     expect(html).toContain("Figure-owned explanation and history controls");
     expect(html).not.toContain('class="visual-workbench-explanation"');
+    expect(html).not.toContain("Reset model");
+  });
+
+  it("mounts MemoryDiagram for memory-model visuals without duplicating reset controls", () => {
+    const memoryVisual = {
+      ...visual,
+      kind: "memory-model",
+      memoryModel: {
+        version: 1,
+        frames: [
+          {
+            id: "f1",
+            label: "Allocate header",
+            explanation: "Stack holds the header.",
+            blocks: [
+              {
+                id: "b1",
+                label: "main",
+                region: "stack",
+                kind: "frame",
+                fields: [{ name: "count", value: "1" }],
+              },
+            ],
+          },
+        ],
+      },
+    } as unknown as VisualSpec;
+    const html = renderToStaticMarkup(
+      <VisualExample visual={memoryVisual} visualId="mem-1" language="rust" />
+    );
+    expect(html).toContain('data-testid="memory-diagram"');
+    expect(html).toContain("Memory diagram (1 frames, rust)");
+    expect(html).not.toContain("Reset model");
+  });
+
+  it("mounts TimelineDiagram for timeline visuals without duplicating reset controls", () => {
+    const timelineVisual = {
+      ...visual,
+      kind: "timeline",
+      timeline: {
+        version: 1,
+        actors: [
+          { id: "client", label: "Client" },
+          { id: "server", label: "Server" },
+        ],
+        steps: [
+          {
+            id: "s1",
+            label: "Send request",
+            explanation: "Client dispatches a request.",
+            lanes: [
+              { actorId: "client", state: "running" },
+              { actorId: "server", state: "waiting" },
+            ],
+            messages: [{ from: "client", to: "server", label: "GET /items" }],
+          },
+        ],
+      },
+    } as unknown as VisualSpec;
+    const html = renderToStaticMarkup(
+      <VisualExample visual={timelineVisual} visualId="tl-1" language="typescript" />
+    );
+    expect(html).toContain('data-testid="timeline-diagram"');
+    expect(html).toContain("Timeline diagram (2 actors, 1 steps, typescript)");
     expect(html).not.toContain("Reset model");
   });
 });

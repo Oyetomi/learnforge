@@ -9,6 +9,7 @@ import {
   hideCustomCanvasBlocks,
   visualForScientificPresentation,
   validateVisualExample,
+  VISUAL_INSTRUCTIONS,
   type VisualExample,
 } from "../visuals";
 import { hideLearningCheckBlocks, learningEvidence } from "../checks";
@@ -77,6 +78,214 @@ describe("visual teaching boundary", () => {
     expect(visualForScientificPresentation(validateVisualExample({ ...visual, kind: "canvas", canvas: { html: "<canvas></canvas>", js: "console.log('custom');" } }))).toBeNull();
     expect(visualForScientificPresentation(null)).toBeNull();
   });
+  it("validates and extracts memory-model and timeline visuals and accepts them for scientific presentation", () => {
+    const memoryModel = {
+      version: 1,
+      language: "rust",
+      source: "let mut buf = vec![10, 20];\nbuf.push(30);",
+      frames: [
+        {
+          id: "f1",
+          label: "Initial allocation",
+          explanation: "Stack frame owns a handle to the heap buffer.",
+          codeLine: 1,
+          blocks: [
+            {
+              id: "main",
+              label: "buf header",
+              region: "stack",
+              kind: "slice",
+              fields: [
+                { name: "ptr", value: "-> buf[0]", pointsTo: "buf:0" },
+                { name: "len", value: "2" },
+              ],
+              meta: "cap=4",
+            },
+            {
+              id: "buf",
+              label: "buf data",
+              region: "heap",
+              kind: "array",
+              cells: [
+                { index: "0", value: "10" },
+                { index: "1", value: "20" },
+                { index: "2", value: "", inactive: true },
+              ],
+            },
+          ],
+        },
+        {
+          id: "f2",
+          label: "Append element",
+          explanation: "The heap buffer grows in place.",
+          codeLine: 2,
+          blocks: [
+            {
+              id: "main",
+              label: "buf header",
+              region: "stack",
+              kind: "slice",
+              fields: [
+                { name: "ptr", value: "-> buf[0]", pointsTo: "buf:0" },
+                { name: "len", value: "3", changed: true },
+              ],
+              meta: "cap=4",
+            },
+            {
+              id: "buf",
+              label: "buf data",
+              region: "heap",
+              kind: "array",
+              cells: [
+                { index: "0", value: "10" },
+                { index: "1", value: "20" },
+                { index: "2", value: "30", highlight: true },
+              ],
+              changed: true,
+            },
+          ],
+        },
+      ],
+    };
+
+    const memoryVisual = validateVisualExample({
+      ...visual,
+      kind: "memory-model",
+      memoryModel,
+    });
+    expect(memoryVisual).not.toBeNull();
+    expect(memoryVisual?.kind).toBe("memory-model");
+    expect(memoryVisual?.memoryModel?.frames).toHaveLength(2);
+    expect(visualForScientificPresentation(memoryVisual)).toBe(memoryVisual);
+
+    const memoryHtml = renderToStaticMarkup(
+      <VisualCard visual={memoryVisual!} visualId="mem-render" language="rust" />
+    );
+    expect(memoryHtml).toContain("Initial allocation");
+    expect(memoryHtml).not.toContain("Reset model");
+
+    const inferredMemory = validateVisualExample({
+      title: "Stack and heap layout",
+      summary: "Step through how memory blocks change.",
+      takeaway: "Separating stack handles from heap storage clarifies ownership.",
+      ...memoryModel,
+    });
+    expect(inferredMemory?.kind).toBe("memory-model");
+    expect(inferredMemory?.memoryModel?.frames).toHaveLength(2);
+
+    const extractedMemory = extractVisualExample(
+      "Trace the memory steps.\n```forge-visual\n" +
+        JSON.stringify({ ...visual, kind: "memory-model", memoryModel }) +
+        "\n```"
+    );
+    expect(extractedMemory?.kind).toBe("memory-model");
+    expect(extractedMemory?.memoryModel?.frames[1].label).toBe("Append element");
+
+    expect(
+      validateVisualExample({
+        ...visual,
+        kind: "memory-model",
+        memoryModel: { version: 1, frames: [] },
+      })
+    ).toBeNull();
+    expect(
+      visualForScientificPresentation({ ...visual, kind: "memory-model" })
+    ).toBeNull();
+
+    const timeline = {
+      version: 1,
+      actors: [
+        { id: "producer", label: "Producer", role: "client" },
+        { id: "consumer", label: "Consumer", role: "worker" },
+      ],
+      steps: [
+        {
+          id: "s1",
+          label: "Dispatch message",
+          explanation: "Producer sends work while Consumer waits.",
+          lanes: [
+            { actorId: "producer", state: "running", label: "Sending" },
+            { actorId: "consumer", state: "waiting", label: "Idle" },
+          ],
+          messages: [{ from: "producer", to: "consumer", label: "job #1", kind: "send" }],
+        },
+        {
+          id: "s2",
+          label: "Process work",
+          explanation: "Consumer runs the received job.",
+          lanes: [
+            { actorId: "producer", state: "done", label: "Sent" },
+            { actorId: "consumer", state: "running", label: "Working" },
+          ],
+        },
+      ],
+    };
+
+    const timelineVisual = validateVisualExample({
+      ...visual,
+      kind: "timeline",
+      timeline,
+    });
+    expect(timelineVisual).not.toBeNull();
+    expect(timelineVisual?.kind).toBe("timeline");
+    expect(timelineVisual?.timeline?.actors).toHaveLength(2);
+    expect(timelineVisual?.timeline?.steps).toHaveLength(2);
+    expect(visualForScientificPresentation(timelineVisual)).toBe(timelineVisual);
+
+    const timelineHtml = renderToStaticMarkup(
+      <VisualCard visual={timelineVisual!} visualId="tl-render" />
+    );
+    expect(timelineHtml).toContain("Dispatch message");
+    expect(timelineHtml).not.toContain("Reset model");
+
+    const inferredTimeline = validateVisualExample({
+      title: "Producer and consumer handoff",
+      summary: "Follow how work moves across concurrent lanes.",
+      takeaway: "Blocking ends once the matching receiver picks up the message.",
+      ...timeline,
+    });
+    expect(inferredTimeline?.kind).toBe("timeline");
+    expect(inferredTimeline?.timeline?.steps).toHaveLength(2);
+
+    const extractedTimeline = extractVisualExample(
+      "Watch the timeline.\n```forge-visual\n" +
+        JSON.stringify({ ...visual, kind: "timeline", timeline }) +
+        "\n```"
+    );
+    expect(extractedTimeline?.kind).toBe("timeline");
+    expect(extractedTimeline?.timeline?.steps[0].label).toBe("Dispatch message");
+
+    expect(
+      validateVisualExample({
+        ...visual,
+        kind: "timeline",
+        timeline: { version: 1, actors: [], steps: [] },
+      })
+    ).toBeNull();
+    expect(
+      visualForScientificPresentation({ ...visual, kind: "timeline" })
+    ).toBeNull();
+
+    // Ensure diagram remains non-scientific and VISUAL_INSTRUCTIONS documents the new archetypes neutrally
+    const diagramVisual = validateVisualExample({
+      ...visual,
+      kind: "diagram",
+      diagram: {
+        direction: "LR",
+        nodes: [
+          { id: "a", label: "Client", detail: "Sends requests." },
+          { id: "b", label: "Service", detail: "Processes requests." },
+        ],
+        edges: [{ from: "a", to: "b", label: "HTTP" }],
+      },
+    });
+    expect(visualForScientificPresentation(diagramVisual)).toBeNull();
+    expect(VISUAL_INSTRUCTIONS).toContain('kind="memory-model"');
+    expect(VISUAL_INSTRUCTIONS).toContain('kind="timeline"');
+    expect(VISUAL_INSTRUCTIONS).toContain("language- and subject-neutral");
+    expect(VISUAL_INSTRUCTIONS).not.toContain("For Go channel");
+  });
+
   it("keeps custom canvas responses out of a paper-figure turn, including while streaming", () => {
     for (const language of ["forge-canvas", "canvas-sim"]) {
       for (const fence of ["```", "````", "~~~", "~~~~"]) {

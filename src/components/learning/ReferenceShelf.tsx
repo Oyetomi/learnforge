@@ -2,18 +2,20 @@ import React, { useEffect, useRef } from "react";
 import { ExternalLink } from "lucide-react";
 import type { LearningReference } from "../../types";
 import { recordVisualSupport } from "../../services/learning/preferences";
+import { BookFigureGallery } from "./BookFigureGallery";
 import "./reference-shelf.css";
 
 export const ReferenceShelf: React.FC<{
   references?: LearningReference[];
   pendingCheckId?: string;
-}> = ({ references, pendingCheckId }) => {
+  trackId?: string;
+}> = ({ references, pendingCheckId, trackId }) => {
   const shelf = useRef<HTMLDetailsElement>(null);
   const markVisibleNotes = () => {
     if (
       pendingCheckId &&
       shelf.current?.open &&
-      shelf.current.querySelector(".reference-document[open]")
+      shelf.current.querySelector(".reference-document[open], .book-figure-viewer")
     )
       recordVisualSupport(pendingCheckId, "help:source-notes");
   };
@@ -36,6 +38,15 @@ export const ReferenceShelf: React.FC<{
         provider during teaching. Opening notes during a question counts as
         supported practice.
       </p>
+      <BookFigureGallery
+        trackId={trackId}
+        references={references}
+        onOpenFigure={() => {
+          if (pendingCheckId) {
+            recordVisualSupport(pendingCheckId, "help:source-notes");
+          }
+        }}
+      />
       {references.map((source) => {
         const lines = source.content.split("\n");
         return (

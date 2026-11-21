@@ -855,6 +855,7 @@ export const ChatPane: React.FC<ChatPaneProps> = ({
           </div>
         )}
         <ReferenceShelf
+          trackId={trackId}
           references={activeMilestone?.references}
           pendingCheckId={latest && !attempt ? latest.id : undefined}
         />
