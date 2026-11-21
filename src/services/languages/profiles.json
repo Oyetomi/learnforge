@@ -25,11 +25,11 @@
     "scaffold": [
       {
         "path": "go.mod",
-        "content": "module learnforge\n\ngo 1.21\n"
+        "content": "module learnforge\n\ngo 1.22\n"
       }
     ],
-    "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}([a-z][a-z0-9_]{0,40}\\.go|go\\.mod|go\\.sum)$",
-    "testPattern": "_test\\.go$",
+    "sourcePattern": "^([a-z][a-z0-9_-]{0,40}/){0,4}([a-z][a-z0-9_-]{0,40}\\.(go|txt|json|xml|csv|md)|go\\.mod|go\\.sum|go\\.work)$",
+    "testPattern": "^(?:[a-z][a-z0-9_-]{0,40}/){0,4}stage\\d{2}_[a-z0-9_]+_test\\.go$",
     "testFile": "stage{nn}_{slug}_test.go",
     "testNamePrefix": true,
     "entry": "main.go",
@@ -50,13 +50,66 @@
         "./..."
       ]
     ],
+    "tools": [
+      {
+        "id": "test_all",
+        "label": "All tests",
+        "commands": [
+          [
+            "{go}",
+            "test",
+            "-v",
+            "-count=1",
+            "./..."
+          ]
+        ]
+      },
+      {
+        "id": "cover",
+        "label": "Coverage",
+        "commands": [
+          [
+            "{go}",
+            "test",
+            "-cover",
+            "-count=1",
+            "./..."
+          ]
+        ]
+      },
+      {
+        "id": "bench",
+        "label": "Benchmarks",
+        "commands": [
+          [
+            "{go}",
+            "test",
+            "-bench=.",
+            "-benchmem",
+            "-run=^$",
+            "./..."
+          ]
+        ]
+      },
+      {
+        "id": "vet",
+        "label": "go vet",
+        "commands": [
+          [
+            "{go}",
+            "vet",
+            "./..."
+          ]
+        ]
+      }
+    ],
     "lsp": [
       [
         "{gopls}"
       ]
     ],
     "lspInstall": "go install golang.org/x/tools/gopls@latest",
-    "sourceGuide": "One Go module named learnforge (go.mod at the root, editable). The root package is package main; subfolders are packages imported as \"learnforge/<folder>\". Standard library only.",
+    "sourceGuide": "One Go module named learnforge (go.mod at the root, editable) or a multi-module workspace with go.work when the project requires it. The root package is package main; subfolders (including cmd/ and internal/) are packages imported as \"learnforge/<folder>\". Data fixtures (.txt, .json, .xml) and learner-written *_test.go files are allowed. Standard library only.",
     "testGuide": "One Go test file: package main, import \"testing\". Every top-level function is named TestStage{nn}… or stage{nn}… (helpers). No top-level types, variables or constants.",
     "lspProbe": [
       "version"

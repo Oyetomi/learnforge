@@ -17,8 +17,52 @@ import {
 export { supportsProjectMode };
 
 export interface ProjectPlan {
+  /** Durable identifier within a curriculum (defaults to "main" on legacy single-project plans). */
+  id?: string;
   title: string;
   summary: string;
+  /** Whether the project comes directly from a supplied book/source or was designed for the goal. */
+  source?: "book" | "designed";
+}
+
+function fnv1aHash(input: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash = Math.imul(hash ^ input.charCodeAt(i), 16777619) >>> 0;
+  }
+  return hash.toString(36).padStart(7, "0").slice(0, 7);
+}
+
+/**
+ * Storage and sandbox folder key for a track's project workspace.
+ * Single-project plans keep the bare `trackId` for backward compatibility.
+ * Multi-project plans derive a deterministic `[A-Za-z0-9_-]` key <= 100 chars.
+ */
+export function projectWorkspaceKey(trackId: string, projectId?: string, multiProject = false): string {
+  const trimmed = projectId?.trim();
+  if (!multiProject || !trimmed || trimmed === "main") return trackId;
+  const clean =
+    trimmed
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "p";
+  const safeTrack = trackId.replace(/[^A-Za-z0-9_-]+/g, "_") || "track";
+  const combined = `${safeTrack}--${clean}`;
+  if (combined.length <= 100) return combined;
+  const suffix = `_${fnv1aHash(`${trackId}--${trimmed}`)}`;
+  const prefix = combined.slice(0, 100 - suffix.length);
+  return `${prefix}${suffix}`;
+}
+
+/** All workspace keys that may exist for a track, deduplicated. */
+export function allTrackWorkspaceKeys(trackId: string, projects: { id: string }[]): string[] {
+  const keys = new Set<string>([trackId]);
+  if (projects.length > 1) {
+    for (const p of projects) {
+      keys.add(projectWorkspaceKey(trackId, p.id, true));
+    }
+  }
+  return [...keys];
 }
 
 export interface ProjectFile {

@@ -37,7 +37,9 @@ import { CurriculumWorkspace } from "./components/curriculum/CurriculumWorkspace
 import { PdfReadingCompanion } from "./components/reading/PdfReadingCompanion";
 import { PdfBookRail } from "./components/reading/PdfBookRail";
 import { deleteReadingData } from "./services/learning/readingStore";
-import { deleteProject } from "./services/learning/projectStore";
+import { deleteTrackProjects } from "./services/learning/projectStore";
+import { allTrackWorkspaceKeys } from "./services/learning/project";
+import { curriculumForTrack, hasProjectMode, planProjects } from "./services/learning/curriculumPlan";
 import { cancelLocalRun, deleteLocalProject } from "./services/sandbox/local";
 import { prepareCurriculumUnit } from "./services/ai/curriculumOutline";
 import { NewTopicModal } from "./components/curriculum/NewTopicModal";
@@ -360,9 +362,14 @@ export default function App() {
     if (deleting.has(currentTrackId)) { handleStopStreaming(); void cancelLocalRun(); setWorkspaceView("curriculum"); }
     // Await removal of original PDFs and bookmarks before reporting permanent deletion.
     for (const id of ids) if (tracks.find(t=>t.id===id)?.curriculum?.sourceDocument) await deleteReadingData(id);
-    for (const id of ids) if (tracks.find(t=>t.id===id)?.curriculum?.project) {
-      await deleteProject(id);
-      await deleteLocalProject(id).catch(() => {});
+    for (const id of ids) {
+      const track = tracks.find((t) => t.id === id);
+      const plan = track ? curriculumForTrack(track) : undefined;
+      if (!track || (plan && hasProjectMode(plan))) {
+        const keys = plan ? allTrackWorkspaceKeys(id, planProjects(plan)) : [id];
+        await deleteTrackProjects(id, keys);
+        await Promise.all(keys.map((k) => deleteLocalProject(k).catch(() => {})));
+      }
     }
     const erased = ids.flatMap((id) =>
       deleteTopicData(db, tracks.find((t) => t.id === id) || { id, title: "" })

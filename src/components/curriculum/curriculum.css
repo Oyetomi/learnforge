@@ -150,16 +150,25 @@
   color: var(--muted);
   margin: 12px 0;
 }
-.curriculum-approval textarea {
+.curriculum-approval textarea,
+.curriculum-approval input[type="text"],
+.curriculum-approval select {
   width: 100%;
-  min-height: 64px;
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 10px;
+  padding: 8px 10px;
   color: var(--heading);
   background: var(--bg);
   font-size: 12px;
+}
+.curriculum-approval textarea {
+  min-height: 64px;
+  padding: 10px;
   resize: vertical;
+}
+.curriculum-approval select {
+  cursor: pointer;
+  color-scheme: dark;
 }
 .curriculum-scope-card {
   padding: 20px;
@@ -1141,8 +1150,59 @@
   letter-spacing: 0.03em;
   text-transform: uppercase;
 }
+.curriculum-module-review li small.curriculum-project-step span.is-named {
+  text-transform: none;
+  letter-spacing: 0.01em;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .curriculum-module-review li small.curriculum-project-step.is-none { color: var(--c-text-quiet); }
 .curriculum-module-review li small.curriculum-project-step.is-none span { border-color: var(--c-line); color: var(--c-text-quiet); }
+.curriculum-scope-card h4.curriculum-project-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.curriculum-project-source {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.curriculum-projects-list {
+  display: grid;
+  gap: 12px;
+}
+.curriculum-project-item + .curriculum-project-item {
+  padding-top: 10px;
+  border-top: 1px solid var(--c-line);
+}
+.curriculum-project-item > .curriculum-project-source {
+  margin-bottom: 4px;
+}
+.curriculum-project-edit label {
+  margin: 8px 0;
+}
+.curriculum-project-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--heading);
+}
+.curriculum-project-meta .curriculum-project-lang {
+  margin-left: auto;
+  color: var(--c-accent-text);
+  font-size: 11px;
+}
 .curriculum-scope-card p.curriculum-project-title {
   display: flex;
   align-items: baseline;

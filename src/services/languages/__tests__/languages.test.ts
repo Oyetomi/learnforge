@@ -43,10 +43,46 @@ describe("language profiles", () => {
   });
 
   it("rejects unsafe paths everywhere", () => {
-    for (const bad of ["../x.py", "/etc/x", "a/../b.rs", ".hidden.go", "a b.go"]) expect(safeRelativePath(bad)).toBe(false);
-    expect(isSourcePath(get("go"), "other_test.go")).toBe(false);
+    for (const bad of [
+      "../x.py",
+      "../x.go",
+      "/etc/passwd",
+      "a/../b.rs",
+      ".hidden.go",
+      "a/b/c/d/e/f.go",
+      "a b.go",
+    ]) {
+      expect(safeRelativePath(bad), bad).toBe(false);
+    }
+    const go = get("go");
+    expect(isSourcePath(go, "notes.exe")).toBe(false);
+    expect(isSourcePath(go, "a/b/c/d/e/f.go")).toBe(false);
     expect(supportsProjectMode("rust")).toBe(true);
     expect(supportsProjectMode("lua")).toBe(false);
+  });
+
+  it("supports multi-module Go sources, fixtures, learner tests, and profile tools while reserving stage tests", () => {
+    const go = get("go");
+    for (const src of [
+      "api/internal/handlers/handlers.go",
+      "api/cmd/api/main.go",
+      "chapter11/api/cmd/api/main.go",
+      "go.work",
+      "test-config.json",
+      "sample.txt",
+      "testdata/feed.xml",
+      "calculator_test.go",
+      "api/internal/handlers/handlers_test.go",
+    ]) {
+      expect(safeRelativePath(src), src).toBe(true);
+      expect(isSourcePath(go, src), src).toBe(true);
+      expect(isTestPath(go, src), src).toBe(false);
+    }
+    for (const testPath of ["stage01_x_test.go", "api/stage01_x_test.go"]) {
+      expect(isTestPath(go, testPath), testPath).toBe(true);
+      expect(isSourcePath(go, testPath), testPath).toBe(false);
+    }
+    expect(go.tools?.map((t) => t.id)).toEqual(["test_all", "cover", "bench", "vet"]);
   });
 });
 
@@ -124,5 +160,79 @@ describe("local project runs", () => {
     expect(result.testResults?.map((t) => t.passed)).toEqual([false, true]);
     expect(result.testResults?.[0].error).toContain("boom");
     expect(summarizeSuite(result.testResults, 2, result.exitCode)).toMatchObject({ brokenEarlier: [1], currentPassed: true, allPassed: false });
+  });
+
+  it("syncs files and runs a sandboxed language tool action via runLocalProjectTool", async () => {
+    const calls: { cmd: string; args: any }[] = [];
+    vi.doMock("@tauri-apps/api/core", () => ({
+      invoke: vi.fn(async (cmd: string, args: any) => {
+        calls.push({ cmd, args });
+        if (cmd === "project_sync") return "/projects/go-track";
+        return {
+          steps: [
+            {
+              command: "go test -cover -count=1 ./...",
+              stdout: "\u001b[32mok  \tlearnforge\t0.12s\tcoverage: 100.0% of statements\u001b[0m\n",
+              stderr: "",
+              exitCode: 0,
+              timedOut: false,
+              durationMs: 120,
+            },
+          ],
+          exitCode: 0,
+          timedOut: false,
+          durationMs: 120,
+        };
+      }),
+    }));
+    const { runLocalProjectTool } = await import("../../sandbox/local");
+    const ws = emptyWorkspace("go-track", "go");
+    const result = await runLocalProjectTool(ws, "cover");
+    expect(calls.map((c) => c.cmd)).toEqual(["project_sync", "project_exec"]);
+    expect(calls[1].args).toMatchObject({
+      trackId: "go-track",
+      profileId: "go",
+      action: "tool",
+      stage: null,
+      toolId: "cover",
+    });
+    expect(result.stdout).toBe("ok  \tlearnforge\t0.12s\tcoverage: 100.0% of statements");
+    expect(result.stderr).toBe("");
+    expect(result.exitCode).toBe(0);
+    expect(result.timedOut).toBe(false);
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("respects cancellation during runLocalProjectTool", async () => {
+    const calls: { cmd: string; args: any }[] = [];
+    let markSyncStarted!: () => void;
+    const syncStarted = new Promise<void>((resolve) => {
+      markSyncStarted = resolve;
+    });
+    let releaseSync!: () => void;
+    vi.doMock("@tauri-apps/api/core", () => ({
+      invoke: vi.fn(async (cmd: string, args: any) => {
+        calls.push({ cmd, args });
+        if (cmd === "project_sync") {
+          markSyncStarted();
+          await new Promise<void>((resolve) => {
+            releaseSync = resolve;
+          });
+          return "/projects/go-track";
+        }
+        return { steps: [], exitCode: 0, timedOut: false, durationMs: 0 };
+      }),
+    }));
+    const { cancelLocalRun, runLocalProjectTool } = await import("../../sandbox/local");
+    const ws = emptyWorkspace("go-track", "go");
+    const pending = runLocalProjectTool(ws, "vet");
+    await syncStarted;
+    await cancelLocalRun();
+    releaseSync();
+    const result = await pending;
+    expect(calls.map((c) => c.cmd)).toEqual(["project_sync"]);
+    expect(result.exitCode).toBe(-1);
+    expect(result.stderr).toBe("Stopped.");
+    expect(result.error).toBe("Stopped.");
   });
 });

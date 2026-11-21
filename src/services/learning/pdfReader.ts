@@ -1,4 +1,5 @@
 import type { PDFDocumentProxy, TextContent } from "pdfjs-dist/types/src/display/api";
+import type { LearningReference } from "../../types";
 import { sectionsFromContents, withPageRanges, type PdfBook, type PdfSection } from "./pdfContents";
 type ReadOptions = { signal?: AbortSignal; onProgress?: (page: number, total: number) => void };
 
@@ -248,7 +249,7 @@ export async function readSelectedPdfChapters(book: PdfBook, ids: string[], opti
     const pages = [...book.pages], read = new Set(book.readPages || []), shortened = new Set(book.shortenedPages || []);
     for (const section of sections) {
       let characters = 0, visited = 0;
-      for (let page = section.pageStart!; page <= section.pageEnd! && characters < 18000 && visited < 40; page++, visited++) {
+      for (let page = section.pageStart!; page <= section.pageEnd! && characters < 160000 && visited < 120; page++, visited++) {
         options.signal?.throwIfAborted();
         if (!read.has(page)) {
           const text = await pageText(pdf, page);
@@ -261,5 +262,92 @@ export async function readSelectedPdfChapters(book: PdfBook, ids: string[], opti
       }
     }
     return { ...book, pages, readPages: [...read], shortenedPages: [...shortened], truncated: shortened.size > 0 };
+  });
+}
+
+/** On-demand full-chapter extraction for selected PDF sections. */
+export async function readPdfSectionPages(
+  input: Blob | Uint8Array,
+  sections: PdfSection[],
+  bookName: string,
+  options: ReadOptions = {}
+): Promise<LearningReference[]> {
+  options.signal?.throwIfAborted();
+  const candidates = sections.filter(
+    (s) =>
+      typeof s.pageStart === "number" &&
+      typeof s.pageEnd === "number" &&
+      Number.isInteger(s.pageStart) &&
+      Number.isInteger(s.pageEnd) &&
+      s.pageStart >= 1 &&
+      s.pageEnd >= s.pageStart
+  );
+  if (!candidates.length) return [];
+  return withPdf(input, options, async (pdf, activity) => {
+    const references: LearningReference[] = [];
+    const pageCache = new Map<number, string>();
+    const cleanBookName = bookName.replace(/[\r\n]+/g, " ").trim();
+    for (const section of candidates) {
+      const pageStart = section.pageStart!;
+      const pageEnd = section.pageEnd!;
+      if (pageStart < 1 || pageEnd < pageStart || pageEnd > pdf.numPages) continue;
+      const parts: string[] = [];
+      let characters = 0;
+      let visited = 0;
+      let truncated = false;
+      for (let n = pageStart; n <= pageEnd; n++) {
+        if (visited >= 120 || characters >= 180000) {
+          truncated = true;
+          break;
+        }
+        options.signal?.throwIfAborted();
+        let raw = pageCache.get(n);
+        if (raw === undefined) {
+          raw = await pageText(pdf, n);
+          pageCache.set(n, raw);
+        }
+        visited++;
+        if (raw.length > 16000) truncated = true;
+        const clipped = raw.slice(0, 16000);
+        if (clipped.trim()) {
+          const prefix = parts.length ? "\n\n" : "";
+          const header = `PDF page ${n}\n`;
+          const remaining = 180000 - characters - prefix.length - header.length;
+          if (remaining <= 0) {
+            truncated = true;
+            activity();
+            options.onProgress?.(n, pdf.numPages);
+            break;
+          }
+          if (clipped.length > remaining) {
+            const fit = clipped.slice(0, remaining);
+            if (fit.trim()) {
+              parts.push(`${header}${fit}`);
+              characters += prefix.length + header.length + fit.length;
+            }
+            truncated = true;
+            activity();
+            options.onProgress?.(n, pdf.numPages);
+            break;
+          }
+          parts.push(`${header}${clipped}`);
+          characters += prefix.length + header.length + clipped.length;
+        }
+        activity();
+        options.onProgress?.(n, pdf.numPages);
+      }
+      if (!parts.length) continue;
+      const cleanTitle = section.title.replace(/[\r\n]+/g, " ").trim();
+      references.push({
+        id: `pdf-full:${section.id}`,
+        sectionId: section.id,
+        name: `${cleanBookName} · ${cleanTitle}`,
+        content: parts.join("\n\n"),
+        truncated,
+        pdfPageStart: pageStart,
+        pdfPageEnd: pageEnd,
+      });
+    }
+    return references;
   });
 }

@@ -76,3 +76,51 @@ export async function deleteProject(trackId: string): Promise<void> {
     /* Nothing stored. */
   }
 }
+
+/**
+ * Remove the base workspace, all explicitly supplied project keys, and any
+ * persisted `${trackId}--*` workspaces so multi-project tracks never leak.
+ */
+export async function deleteTrackProjects(
+  trackId: string,
+  workspaceKeys: string[] = []
+): Promise<void> {
+  if (!trackId) return;
+  const prefix = `${trackId}--`;
+  const targets = new Set<string>([trackId, ...workspaceKeys.filter(Boolean)]);
+  for (const key of [...memory.keys()]) {
+    if (key === trackId || key.startsWith(prefix)) {
+      targets.add(key);
+    }
+  }
+  for (const key of targets) {
+    memory.delete(key);
+  }
+  try {
+    const db = await openStore();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(STORE, "readwrite");
+        const store = tx.objectStore(STORE);
+        const keysReq = store.getAllKeys();
+        keysReq.onsuccess = () => {
+          for (const rawKey of keysReq.result || []) {
+            if (typeof rawKey === "string" && (rawKey === trackId || rawKey.startsWith(prefix))) {
+              targets.add(rawKey);
+              memory.delete(rawKey);
+            }
+          }
+          for (const key of targets) {
+            store.delete(key);
+          }
+        };
+        tx.oncomplete = () => resolve();
+        tx.onabort = tx.onerror = () => reject(tx.error || keysReq.error);
+      });
+    } finally {
+      db.close();
+    }
+  } catch {
+    /* Nothing stored or IndexedDB unavailable. */
+  }
+}

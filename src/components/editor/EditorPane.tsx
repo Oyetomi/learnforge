@@ -14,6 +14,7 @@ import {
   AlertCircle,
   ChevronRight,
   PanelLeft,
+  Trash2,
 } from "lucide-react";
 import { SupportedLanguage, ExecutionResult } from "../../types";
 import { OutputConsole } from "./OutputConsole";
@@ -247,6 +248,53 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     "console"
   );
   const [outputOpen, setOutputOpen] = useState(false);
+  const [runningToolId, setRunningToolId] = useState<string | null>(null);
+  const [toolOutput, setToolOutput] = useState<{
+    toolId: string;
+    label: string;
+    result: ExecutionResult;
+  } | null>(null);
+  const toolRunSeq = useRef(0);
+  const availableTools = projectMode ? project!.availableTools ?? [] : [];
+  const runningToolLabel =
+    availableTools.find((t) => t.id === runningToolId)?.label ?? "tool";
+  const runProjectTool = async (tool: { id: string; label: string }) => {
+    if (
+      !projectMode ||
+      !project ||
+      isRunning ||
+      runningToolId !== null ||
+      !runtimeAvailable ||
+      !project.loaded
+    )
+      return;
+    const seq = ++toolRunSeq.current;
+    setRunningToolId(tool.id);
+    setToolOutput(null);
+    setOutputOpen(true);
+    setActiveBottomTab("console");
+    try {
+      const result = await project.runTool(tool.id);
+      if (toolRunSeq.current !== seq) return;
+      setToolOutput({ toolId: tool.id, label: tool.label, result });
+    } catch (err) {
+      if (toolRunSeq.current !== seq) return;
+      const message = err instanceof Error ? err.message : "Could not run tool.";
+      setToolOutput({
+        toolId: tool.id,
+        label: tool.label,
+        result: {
+          stdout: "",
+          stderr: message,
+          exitCode: 1,
+          durationMs: 0,
+          error: message,
+        },
+      });
+    } finally {
+      if (toolRunSeq.current === seq) setRunningToolId(null);
+    }
+  };
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetUndo, setResetUndo] = useState<string | null>(null);
   const resetFocus = useRef(false);
@@ -476,6 +524,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   runCommand.current = () => {
     if (
       !isRunning &&
+      runningToolId === null &&
       runtimeAvailable &&
       !document.querySelector("dialog[open]")
     )
@@ -500,7 +549,10 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     setResetUndo(null);
     setActiveBottomTab("console");
     setOutputOpen(false);
-  }, [milestoneId, language]);
+    toolRunSeq.current += 1;
+    setRunningToolId(null);
+    setToolOutput(null);
+  }, [milestoneId, language, project?.trackId]);
   useEffect(() => {
     if (!askingPrediction) return;
     setOutputOpen(true);
@@ -510,6 +562,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   useEffect(() => {
     if (isRunning) {
       executedCode.current = runKey;
+      setToolOutput(null);
       setOutputOpen(true);
       setActiveBottomTab("console");
     }
@@ -530,12 +583,12 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
         )
       ) {
         e.preventDefault();
-        if (!isRunning && runtimeAvailable) requestRun();
+        if (!isRunning && runningToolId === null && runtimeAvailable) requestRun();
       }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [onRunCode, isRunning, runtimeAvailable, projectMode, project?.wantsPrediction]);
+  }, [onRunCode, isRunning, runningToolId, runtimeAvailable, projectMode, project?.wantsPrediction]);
   return (
     <section
       className="editor-pane workspace-panel"
@@ -606,14 +659,14 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
               <span>Reset</span>
             </button>
           )}
-          {isRunning && localRuntime && (
+          {(isRunning || runningToolId !== null) && localRuntime && (
             <button
               type="button"
               className="reset-button"
               onClick={() => {
                 void import("../../services/sandbox/local").then(({ cancelLocalRun }) => cancelLocalRun());
               }}
-              aria-label="Stop running tests"
+              aria-label={runningToolId !== null ? `Stop running ${runningToolLabel}` : "Stop running tests"}
             >
               <X size={13} />
               <span>Stop</span>
@@ -622,7 +675,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           <button
             className="run-button"
             onClick={requestRun}
-            disabled={isRunning || !runtimeAvailable}
+            disabled={isRunning || runningToolId !== null || !runtimeAvailable}
             title={
               runtimeAvailable
                 ? `Run code (⌘ Enter / Ctrl Enter). ${runtime.detail}`
@@ -893,7 +946,11 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
               }}
             >
               <Terminal size={14} />
-              {projectMode ? "Log" : "Output"}{failed && !projectMode && <span className="output-error-dot" />}
+              {projectMode ? "Log" : "Output"}
+              {((failed && !projectMode) ||
+                (projectMode && !!toolOutput && toolOutput.result.exitCode !== 0)) && (
+                <span className="output-error-dot" />
+              )}
             </button>
             <button
               role="tab"
@@ -926,6 +983,63 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
               )}
             </button>
           </div>
+          {projectMode && availableTools.length > 0 && (
+            <span
+              className="project-tool-actions"
+              role="group"
+              aria-label="Project tools"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                marginLeft: "auto",
+                marginRight: 6,
+                minWidth: 0,
+                overflowX: "auto",
+              }}
+            >
+              {availableTools.map((tool) => {
+                const isThisRunning = runningToolId === tool.id;
+                const disabled =
+                  isRunning ||
+                  runningToolId !== null ||
+                  !runtimeAvailable ||
+                  !project!.loaded;
+                return (
+                  <button
+                    key={tool.id}
+                    type="button"
+                    className="project-tool-button"
+                    disabled={disabled}
+                    onClick={() => void runProjectTool(tool)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      padding: "3px 8px",
+                      border: "1px solid var(--c-line)",
+                      borderRadius: "var(--radius-sm)",
+                      background: isThisRunning ? "var(--c-surface-2)" : "transparent",
+                      color: isThisRunning
+                        ? "var(--c-accent-text)"
+                        : "var(--c-text-secondary)",
+                      font: "inherit",
+                      fontSize: "11px",
+                      lineHeight: 1.3,
+                      whiteSpace: "nowrap",
+                      cursor: disabled ? "default" : "pointer",
+                      opacity: disabled && !isThisRunning ? 0.5 : 1,
+                    }}
+                  >
+                    {isThisRunning && (
+                      <Loader2 size={11} className="animate-spin" aria-hidden="true" />
+                    )}
+                    <span>{tool.label}</span>
+                  </button>
+                );
+              })}
+            </span>
+          )}
           <button
             className="icon-button"
             onClick={() => setOutputOpen((v) => !v)}
@@ -935,11 +1049,17 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             {outputOpen ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
           </button>
         </div>
-        {outputOpen && resultIsStale && (
-          <p className="editor-stale-results" role="status">
-            Code changed since this run. Run again to check the current version.
-          </p>
-        )}
+        {outputOpen &&
+          resultIsStale &&
+          !(
+            projectMode &&
+            activeBottomTab === "console" &&
+            (runningToolId !== null || toolOutput !== null)
+          ) && (
+            <p className="editor-stale-results" role="status">
+              Code changed since this run. Run again to check the current version.
+            </p>
+          )}
         {outputOpen && (
           <div
             className="output-content"
@@ -952,7 +1072,73 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           >
             {projectMode ? (
               activeBottomTab === "console" ? (
-                <ProjectRunLog result={executionResult} isRunning={isRunning} />
+                runningToolId !== null ? (
+                  <div className="console-panel">
+                    <div className="output-empty" role="status">
+                      <Loader2 size={20} className="animate-spin" aria-hidden="true" />
+                      <strong>Running {runningToolLabel}…</strong>
+                      <p>Tool output will appear here.</p>
+                    </div>
+                  </div>
+                ) : toolOutput ? (
+                  <div className="console-panel">
+                    <div
+                      className={`execution-summary ${
+                        toolOutput.result.exitCode !== 0 ? "has-error" : ""
+                      }`}
+                    >
+                      <span>
+                        {toolOutput.result.exitCode === 0 ? (
+                          <CheckCircle2 size={13} aria-hidden="true" />
+                        ) : (
+                          <AlertCircle size={13} aria-hidden="true" />
+                        )}
+                        {toolOutput.label} ·{" "}
+                        {toolOutput.result.timedOut
+                          ? "timed out"
+                          : toolOutput.result.exitCode === 0
+                          ? "complete"
+                          : "failed"}
+                        {toolOutput.result.durationMs > 0 && (
+                          <small>{Math.round(toolOutput.result.durationMs)} ms</small>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setToolOutput(null)}
+                        className="icon-button"
+                        aria-label="Clear tool output"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                    <div className="console-stream">
+                      {toolOutput.result.stdout && (
+                        <pre>{toolOutput.result.stdout}</pre>
+                      )}
+                      {(toolOutput.result.stderr || toolOutput.result.error) && (
+                        <pre
+                          className={
+                            toolOutput.result.exitCode === 0
+                              ? "console-diagnostic"
+                              : "console-error"
+                          }
+                        >
+                          {toolOutput.result.stderr || toolOutput.result.error}
+                        </pre>
+                      )}
+                      {!toolOutput.result.stdout &&
+                        !toolOutput.result.stderr &&
+                        !toolOutput.result.error && (
+                          <p className="quiet-output">
+                            Finished without printing output.
+                          </p>
+                        )}
+                    </div>
+                  </div>
+                ) : (
+                  <ProjectRunLog result={executionResult} isRunning={isRunning} />
+                )
               ) : askingPrediction && !isRunning ? (
                 <PredictionPrompt
                   onPredict={(expected, why) => {
@@ -1020,8 +1206,12 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
         )}
       </div>
       <span className="sr-only" role="status">
-        {isRunning
+        {runningToolId !== null
+          ? `Running ${runningToolLabel}`
+          : isRunning
           ? "Running code"
+          : toolOutput && activeBottomTab === "console"
+          ? `${toolOutput.label} ${toolOutput.result.exitCode === 0 ? "complete" : "failed"}.`
           : executionResult && projectMode
           ? (({ title, detail }) => `${title}. ${detail ?? ""}`)(runHeadline(executionResult, project!.stage?.number))
           : executionResult

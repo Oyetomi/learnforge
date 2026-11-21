@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CourseTrack } from "../../services/ai/types";
 import type { ExecutionResult, Milestone } from "../../types";
-import { curriculumForTrack, curriculumUnits } from "../../services/learning/curriculumPlan";
+import {
+  curriculumForTrack,
+  curriculumUnits,
+  hasProjectMode,
+  planProjects,
+  projectForUnit,
+  unitsForProject,
+} from "../../services/learning/curriculumPlan";
 import {
   addFile,
   applyStage,
@@ -9,6 +16,7 @@ import {
   goPlaygroundBody,
   markStagePassed,
   projectPromptContext,
+  projectWorkspaceKey,
   markStageStarted,
   currentStageFor,
   nextPart,
@@ -49,7 +57,7 @@ export function initialFile(ws: ProjectWorkspace, language: string): string {
   if (stub) return stub;
   const entry = profileFor(language)?.entry;
   if (entry && ws.files.some((f) => f.path === entry)) return entry;
-  const config = /(^|\/)(go\.(mod|sum)|package\.json|tsconfig\.json|Cargo\.toml)$/;
+  const config = /(^|\/)(go\.(mod|sum|work)|package\.json|tsconfig\.json|Cargo\.toml)$/;
   return ws.files.find((f) => !config.test(f.path))?.path ?? ws.files[0]?.path ?? "";
 }
 
@@ -132,13 +140,25 @@ export interface ProjectRun {
 export function useProjectWorkspace(track: CourseTrack | undefined, milestone: Milestone | null) {
   const plan = useMemo(() => (track ? curriculumForTrack(track) : null), [track]);
   const [languages, setLanguages] = useState<LanguageStatus[] | null | undefined>(undefined);
-  const hasProjectPlan = !!plan?.project;
+  const hasProjectPlan = !!plan && hasProjectMode(plan);
   // Re-evaluate once custom profiles from languages.json arrive via loadLanguageStatus().
   const enabled = useMemo(
     () => hasProjectPlan && supportsProjectMode(track?.language),
     [hasProjectPlan, track?.language, languages]
   );
-  const trackId = enabled ? track!.id : "";
+  const unitId = milestone?.curriculum_unit_id;
+  const allProjects = useMemo(() => (plan ? planProjects(plan) : []), [plan]);
+  const multiProject = allProjects.length > 1;
+  const activeProject = useMemo(
+    () => (plan ? projectForUnit(plan, unitId) ?? allProjects[0] : undefined),
+    [plan, unitId, allProjects]
+  );
+  const projectIndex = activeProject ? allProjects.findIndex((p) => p.id === activeProject.id) + 1 : 0;
+  const totalProjects = allProjects.length;
+  const workspaceId =
+    enabled && activeProject ? projectWorkspaceKey(track!.id, activeProject.id, multiProject) : "";
+  const predictPrefKey = enabled ? track!.id : "";
+
   const [workspace, setWorkspace] = useState<ProjectWorkspace | null>(null);
   const [activePath, setActivePath] = useState("");
   const [status, setStatus] = useState<ProjectSaveStatus>("saved");
@@ -155,20 +175,24 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
   const [reveal, setReveal] = useState<{ path: string; line: number; column: number; at: number } | null>(null);
   const latest = useRef<ProjectWorkspace | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastFlush = useRef<Promise<void>>(Promise.resolve());
   const preparing = useRef<AbortController | null>(null);
 
-  const unitId = milestone?.curriculum_unit_id;
+  const activeWorkspace = workspace && workspace.trackId === workspaceId ? workspace : null;
   const unit = plan && unitId ? curriculumUnits(plan).find((u) => u.id === unitId) : undefined;
   const step = enabled ? unit?.projectStep?.trim() || undefined : undefined;
   // A chapter's build comes in parts; the current part is the latest prepared.
-  const stage = workspace && unitId ? currentStageFor(workspace, unitId) : undefined;
-  const following = workspace && unitId ? nextPart(workspace, unitId) : null;
-  const legacy = !!workspace && !!unitId && untouchedLegacyStage(workspace, unitId);
-  const unitStarted = !!workspace && !!unitId && unitStages(workspace, unitId).some((s) => s.startedAt);
-  const unitDone = !!workspace && !!unitId && unitBuildDone(workspace, unitId);
-  const stepUnits = plan ? curriculumUnits(plan).filter((u) => u.projectStep?.trim()) : [];
+  const stage = activeWorkspace && unitId ? currentStageFor(activeWorkspace, unitId) : undefined;
+  const following = activeWorkspace && unitId ? nextPart(activeWorkspace, unitId) : null;
+  const legacy = !!activeWorkspace && !!unitId && untouchedLegacyStage(activeWorkspace, unitId);
+  const unitStarted = !!activeWorkspace && !!unitId && unitStages(activeWorkspace, unitId).some((s) => s.startedAt);
+  const unitDone = !!activeWorkspace && !!unitId && unitBuildDone(activeWorkspace, unitId);
+  const stepUnits = useMemo(
+    () => (plan && activeProject ? unitsForProject(plan, activeProject.id).filter((u) => u.projectStep?.trim()) : []),
+    [plan, activeProject]
+  );
   const totalSteps = stepUnits.length;
-  /** 1-based position of this unit's step in the plan (0 for a concepts-only unit). */
+  /** 1-based position of this unit's step in the active project (0 for a concepts-only unit). */
   const stepNumber = stepUnits.findIndex((u) => u.id === unitId) + 1;
   const stepIndex = useMemo(() => new Map(stepUnits.map((u, i) => [u.id, i + 1])), [stepUnits.map((u) => u.id).join()]);
   /** "Step 3" for a one-part step, "Step 3.2" for part 2 of a chapter's build. */
@@ -183,8 +207,15 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
   const flush = useCallback(async () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
-    if (!latest.current) return;
-    setStatus((await saveProject(latest.current)) ? "saved" : "memory");
+    const ws = latest.current;
+    if (!ws) return;
+    const pending = saveProject(ws).then((ok) => {
+      if (!latest.current || latest.current.trackId === ws.trackId) {
+        setStatus(ok ? "saved" : "memory");
+      }
+    });
+    lastFlush.current = pending;
+    await pending;
   }, []);
 
   const commit = useCallback(
@@ -210,28 +241,39 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     };
   }, [hasProjectPlan]);
   const runtime = projectRuntime(track?.language || "go", languages);
+  const availableTools = useMemo(
+    () => (runtime.local ? (profileFor(track?.language)?.tools ?? []) : []),
+    [runtime.local, track?.language, languages]
+  );
 
-  // Load (or start) the workspace when the topic changes.
+  // Load (or start) the workspace when the active project workspace changes.
   useEffect(() => {
     setWorkspace(null);
     latest.current = null;
+    setActivePath("");
     setPreparation(null);
     setLastSummary(null);
+    setLastHeadline(null);
+    setLastPrediction(null);
+    setPredictedRevision(null);
     preparing.current?.abort();
-    if (!trackId) return;
+    if (!workspaceId) return;
     let cancelled = false;
-    void loadProject(trackId).then((saved) => {
-      if (cancelled) return;
-      const ws = saved ?? emptyWorkspace(trackId, track?.language || "go");
-      latest.current = ws;
-      setWorkspace(ws);
-      setActivePath(initialFile(ws, track?.language || "go"));
-    });
+    void lastFlush.current
+      .catch(() => {})
+      .then(() => loadProject(workspaceId))
+      .then((saved) => {
+        if (cancelled) return;
+        const ws = saved ?? emptyWorkspace(workspaceId, track?.language || "go");
+        latest.current = ws;
+        setWorkspace(ws);
+        setActivePath(initialFile(ws, track?.language || "go"));
+      });
     return () => {
       cancelled = true;
       void flush();
     };
-  }, [trackId, flush]);
+  }, [workspaceId, flush]);
 
   useEffect(() => {
     const save = () => void flush();
@@ -251,16 +293,18 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
   }, [unitId, stage?.number]);
   useEffect(() => {
     try {
-      setPredictOff(!!trackId && localStorage.getItem(`learnforge:predict-off:${trackId}`) === "1");
+      setPredictOff(!!predictPrefKey && localStorage.getItem(`learnforge:predict-off:${predictPrefKey}`) === "1");
     } catch {
       setPredictOff(false);
     }
-  }, [trackId]);
+  }, [predictPrefKey]);
 
   /** Units whose old one-step stage was already re-prepared as parts this session. */
   const reprepared = useRef(new Set<string>());
   const prepareStage = useCallback(async () => {
     if (!track || !unitId || !unit?.projectStep?.trim() || !latest.current) return;
+    if (latest.current.trackId !== workspaceId) return;
+    const targetWorkspaceId = workspaceId;
     // Which part: the next one after a passed part, otherwise the current one (or the first).
     const now = currentStageFor(latest.current, unitId);
     const upcoming = nextPart(latest.current, unitId);
@@ -291,7 +335,7 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
           }
         : undefined;
       const { stage: prepared } = await prepareProjectStage(track, unitId, latest.current, controller.signal, check, section);
-      if (controller.signal.aborted || !latest.current) return;
+      if (controller.signal.aborted || !latest.current || latest.current.trackId !== targetWorkspaceId) return;
       const before = new Set(latest.current.files.map((f) => f.path));
       const next = applyStage(latest.current, unitId, unit.title, prepared, Date.now(), section);
       commit(next, true);
@@ -309,17 +353,17 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
         message: error instanceof Error ? error.message : "The project step could not be prepared.",
       });
     }
-  }, [track, unitId, unit, commit, runtime.local]);
+  }, [track, unitId, unit, workspaceId, commit, runtime.local]);
 
   // Prepare the step once its lesson is ready and toolchain status is known
   // (so local compile-checking is never skipped on initial load).
   useEffect(() => {
-    if (!workspace || !step || milestone?.content_status === "outline" || languages === undefined) return;
+    if (!activeWorkspace || !step || milestone?.content_status === "outline" || languages === undefined) return;
     const redo = legacy && !!unitId && !reprepared.current.has(unitId);
     if (stage && !following && !redo) return;
     if (preparation?.unitId === unitId) return;
     void prepareStage();
-  }, [workspace, step, stage, following, legacy, milestone?.content_status, languages, unitId, preparation?.unitId, prepareStage]);
+  }, [activeWorkspace, step, stage, following, legacy, milestone?.content_status, languages, unitId, preparation?.unitId, prepareStage]);
 
   useEffect(() => () => preparing.current?.abort(), []);
 
@@ -328,38 +372,50 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     [plan]
   );
   const tabs: ProjectTab[] = useMemo(() => {
-    if (!workspace) return [];
+    if (!activeWorkspace) return [];
     return [
-      ...workspace.files.map((f) => ({ path: f.path, readOnly: false })),
-      ...[...workspace.stages].sort((a, b) => a.number - b.number).map((s) => ({
+      ...activeWorkspace.files.map((f) => ({ path: f.path, readOnly: false })),
+      ...[...activeWorkspace.stages].sort((a, b) => a.number - b.number).map((s) => ({
         path: s.testPath,
         readOnly: true,
         stage: s.number,
         label: `${stageName(s)} · ${s.title ?? unitTitles.get(s.unitId) ?? "tests"}`,
       })),
     ];
-  }, [workspace, unitTitles, stageName]);
+  }, [activeWorkspace, unitTitles, stageName]);
 
   /** Changes whenever any learner file changes (not on tab switches or recorded passes). */
-  const revision = useMemo(() => revisionOf(workspace?.files ?? []), [workspace?.files]);
+  const revision = useMemo(() => revisionOf(activeWorkspace?.files ?? []), [activeWorkspace?.files]);
 
   const allFiles = useMemo(
     () =>
-      !workspace
+      !activeWorkspace
         ? []
         : [
-            ...workspace.files.map((f) => ({ path: f.path, content: f.content, readOnly: false })),
-            ...workspace.stages.map((st) => ({ path: st.testPath, content: st.tests, readOnly: true })),
+            ...activeWorkspace.files.map((f) => ({ path: f.path, content: f.content, readOnly: false })),
+            ...activeWorkspace.stages.map((st) => ({ path: st.testPath, content: st.tests, readOnly: true })),
           ],
-    [workspace]
+    [activeWorkspace]
   );
 
   const activeTab = tabs.find((t) => t.path === activePath) ?? tabs[0];
-  const activeContent = !workspace || !activeTab
+  const activeContent = !activeWorkspace || !activeTab
     ? ""
     : activeTab.readOnly
-    ? workspace.stages.find((s) => s.testPath === activeTab.path)?.tests ?? ""
-    : workspace.files.find((f) => f.path === activeTab.path)?.content ?? "";
+    ? activeWorkspace.stages.find((s) => s.testPath === activeTab.path)?.tests ?? ""
+    : activeWorkspace.files.find((f) => f.path === activeTab.path)?.content ?? "";
+
+  const runTool = useCallback(
+    async (toolId: string): Promise<ExecutionResult> => {
+      await flush();
+      const ws = latest.current;
+      if (!ws) throw new Error("The project is still loading.");
+      if (!runtime.local) throw new Error(runtime.detail);
+      const { runLocalProjectTool } = await import("../../services/sandbox/local");
+      return runLocalProjectTool(ws, toolId);
+    },
+    [flush, runtime.local, runtime.detail]
+  );
 
   const run = useCallback(async (): Promise<ProjectRun> => {
     await flush();
@@ -448,8 +504,13 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
 
   return {
     enabled,
-    loaded: !!workspace,
-    project: plan?.project,
+    loaded: !!activeWorkspace,
+    project: activeProject,
+    projectIndex,
+    totalProjects,
+    allProjects,
+    availableTools,
+    runTool,
     step,
     stage,
     totalSteps,
@@ -475,7 +536,7 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     setPredictionsOff(off: boolean) {
       setPredictOff(off);
       try {
-        localStorage.setItem(`learnforge:predict-off:${trackId}`, off ? "1" : "0");
+        localStorage.setItem(`learnforge:predict-off:${predictPrefKey}`, off ? "1" : "0");
       } catch {
         /* Preference only. */
       }
@@ -491,7 +552,7 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
       if (!current || current.principle === text.trim()) return;
       commit(recordPrinciple(latest.current, unitId, text), true);
     },
-    principles: (workspace?.stages ?? [])
+    principles: (activeWorkspace?.stages ?? [])
       .filter((s) => s.principle)
       .sort((a, b) => a.number - b.number)
       .map((s) => ({ number: s.number, principle: s.principle! })),
@@ -499,7 +560,7 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     revision,
     runtime,
     language: track?.language || "go",
-    trackId,
+    trackId: workspaceId,
     allFiles,
     reveal,
     /** Switch to a file and show a position (go-to-definition into another file). */

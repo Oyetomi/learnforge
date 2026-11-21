@@ -23,6 +23,14 @@ pub struct ScaffoldFile {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ProfileTool {
+    pub id: String,
+    pub label: String,
+    pub commands: Vec<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Profile {
     pub id: String,
     pub name: String,
@@ -47,6 +55,8 @@ pub struct Profile {
     /// (nothing runs). Used before a prepared step is shown to the learner.
     #[serde(default)]
     pub check: Vec<Vec<String>>,
+    #[serde(default)]
+    pub tools: Vec<ProfileTool>,
     #[serde(default)]
     pub lsp: Vec<Vec<String>>,
     #[serde(default)]
@@ -134,6 +144,20 @@ impl Profile {
                 return Err(format!("{}: unsafe scaffold path {:?}.", self.id, s.path));
             }
         }
+        for tool in &self.tools {
+            let tool_id_ok = !tool.id.is_empty()
+                && tool.id.len() <= 32
+                && tool.id.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_' || c == b'-');
+            if !tool_id_ok {
+                return Err(format!("{}: invalid tool id {:?}.", self.id, tool.id));
+            }
+            if tool.label.trim().is_empty() {
+                return Err(format!("{}: tool {:?} needs a label.", self.id, tool.id));
+            }
+            if tool.commands.is_empty() || tool.commands.iter().any(|argv| argv.is_empty()) {
+                return Err(format!("{}: tool {:?} needs at least one non-empty command.", self.id, tool.id));
+            }
+        }
         Ok(())
     }
 
@@ -150,12 +174,12 @@ fn matches(pattern: &str, value: &str) -> bool {
     Regex::new(pattern).map(|r| r.is_match(value)).unwrap_or(false)
 }
 
-/// Relative, at most four segments of [A-Za-z0-9_.-], no dot segments.
+/// Relative, at most five segments of [A-Za-z0-9_.-], no dot segments.
 pub fn safe_relative_path(path: &str) -> bool {
     let parts: Vec<&str> = path.split('/').collect();
     !path.is_empty()
-        && path.len() <= 160
-        && parts.len() <= 4
+        && path.len() <= 180
+        && parts.len() <= 5
         && parts.iter().all(|p| {
             !p.is_empty()
                 && *p != "."
@@ -365,8 +389,29 @@ mod tests {
         let (profiles, _) = load_profiles(None);
         let get = |id: &str| profiles.iter().find(|p| p.id == id).unwrap().clone();
         let go = get("go");
-        assert!(go.is_source("store.go") && !go.is_source("stage01_x_test.go") && !go.is_source("other_test.go") && go.is_test("stage01_x_test.go"));
-        assert!(go.is_source("wordcount/main.go") && go.is_source("go.mod") && go.is_source("wordcount/go.mod") && !go.is_source("a/b/c/d.go"));
+        assert!(go.is_source("store.go"));
+        assert!(!go.is_source("stage01_x_test.go") && go.is_test("stage01_x_test.go"));
+        assert!(!go.is_source("api/stage01_x_test.go") && go.is_test("api/stage01_x_test.go"));
+        for src in [
+            "wordcount/main.go",
+            "go.mod",
+            "go.sum",
+            "go.work",
+            "wordcount/go.mod",
+            "api/internal/handlers/handlers.go",
+            "api/cmd/api/main.go",
+            "chapter11/api/cmd/api/main.go",
+            "test-config.json",
+            "sample.txt",
+            "testdata/feed.xml",
+            "calculator_test.go",
+            "api/internal/handlers/handlers_test.go",
+        ] {
+            assert!(go.is_source(src), "expected Go source: {src}");
+            assert!(!go.is_test(src), "expected non-stage-test: {src}");
+        }
+        assert!(!go.is_source("a/b/c/d/e/f.go"));
+        assert!(!go.is_source("notes.exe"));
         assert!(get("python").is_source("store/__init__.py") && get("rust").is_source("src/raft/log.rs"));
         let rust = get("rust");
         assert!(rust.is_source("src/raft.rs") && rust.is_test("tests/stage02_log.rs") && !rust.is_source("tests/stage02_log.rs"));
@@ -378,10 +423,54 @@ mod tests {
 
     #[test]
     fn unsafe_paths_are_rejected() {
-        for bad in ["../x.go", "/etc/passwd", "a/../b.go", ".git/config", "a//b.go", "a b.go", ""] {
+        let too_long = format!("{}.go", "a".repeat(180));
+        for bad in [
+            "../x.go",
+            "/etc/passwd",
+            "a/../b.go",
+            ".git/config",
+            ".hidden.go",
+            "a//b.go",
+            "a b.go",
+            "a/b/c/d/e/f.go",
+            "",
+            too_long.as_str(),
+        ] {
             assert!(!safe_relative_path(bad), "{bad}");
         }
         assert!(safe_relative_path("src/lib.rs"));
+        assert!(safe_relative_path("api/internal/handlers/handlers.go"));
+        assert!(safe_relative_path("chapter11/api/cmd/api/main.go"));
+    }
+
+    #[test]
+    fn profile_tools_are_validated() {
+        let (profiles, _) = load_profiles(None);
+        let go = profiles.iter().find(|p| p.id == "go").unwrap().clone();
+        let ids: Vec<&str> = go.tools.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, vec!["test_all", "cover", "bench", "vet"]);
+
+        let mut ok_profile = go.clone();
+        ok_profile.tools = vec![ProfileTool {
+            id: "fmt-check_1".into(),
+            label: "Format check".into(),
+            commands: vec![vec!["{go}".into(), "fmt".into(), "./...".into()]],
+        }];
+        assert!(ok_profile.validate().is_ok());
+
+        for bad_tool in [
+            ProfileTool { id: "".into(), label: "Empty id".into(), commands: vec![vec!["{go}".into()]] },
+            ProfileTool { id: "BadId".into(), label: "Uppercase".into(), commands: vec![vec!["{go}".into()]] },
+            ProfileTool { id: "has space".into(), label: "Space".into(), commands: vec![vec!["{go}".into()]] },
+            ProfileTool { id: "a".repeat(33), label: "Too long".into(), commands: vec![vec!["{go}".into()]] },
+            ProfileTool { id: "vet".into(), label: "   ".into(), commands: vec![vec!["{go}".into()]] },
+            ProfileTool { id: "vet".into(), label: "No commands".into(), commands: vec![] },
+            ProfileTool { id: "vet".into(), label: "Empty argv".into(), commands: vec![vec![]] },
+        ] {
+            let mut p = go.clone();
+            p.tools = vec![bad_tool];
+            assert!(p.validate().is_err());
+        }
     }
 
     #[test]

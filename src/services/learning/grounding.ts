@@ -1,6 +1,8 @@
 import type { LearningReference } from "../../types";
 
-const SOURCE_LIMIT = 16000;
+const SOURCE_LIMIT = 24000;
+const PROJECT_CUE_RE =
+  /\b(listing|project|goal|iteration|example|exercise|package|module|workspace|struct|interface|func|class|def|fn|cli|command|handler|endpoint|server|worker|store|test|benchmark|fuzz|go\.mod|go\.work|cargo\.toml|main\.)\b/gi;
 
 export function createLearningReference(
   name: string,
@@ -50,24 +52,50 @@ export function resolveLearningReferences(
 }
 
 /** Topic-owned, bounded excerpts with stable line labels. No remote retrieval. */
-export function referenceContext(references: LearningReference[] | undefined, query = "", budget = 6500): string {
+export function referenceContext(
+  references: LearningReference[] | undefined,
+  query = "",
+  budget = 6500,
+  options: { sourceLimit?: number; prioritizeProjects?: boolean } = {}
+): string {
   if (!references?.length) return "";
   const words = new Set(query.toLowerCase().match(/[\p{L}\p{N}_]{3,}/gu) || []);
-  const chunks = references.slice(0, 96).flatMap((source) => {
-    const lines = source.content.slice(0, SOURCE_LIMIT).split("\n");
-    const parts: { id: string; name: string; start: number; end: number; text: string; score: number }[] = [];
+  const limit = Math.max(SOURCE_LIMIT, options.sourceLimit ?? SOURCE_LIMIT);
+  const chunks = references.slice(0, 96).flatMap((source, sourceIndex) => {
+    const lines = source.content.slice(0, limit).split("\n");
+    const parts: {
+      sourceIndex: number;
+      id: string;
+      name: string;
+      start: number;
+      end: number;
+      text: string;
+      score: number;
+    }[] = [];
+    const nameLower = source.name.toLowerCase();
+    const nameScore = [...words].filter((word) => nameLower.includes(word)).length;
     for (let index = 0; index < lines.length; index += 12) {
       const text = lines.slice(index, index + 12).join("\n");
       const tokens = new Set(text.toLowerCase().match(/[\p{L}\p{N}_]{3,}/gu) || []);
-      parts.push({ id: source.id, name: source.name, start: index + 1,
-        end: Math.min(index + 12, lines.length), text,
-        score: [...words].filter((word) => tokens.has(word)).length + [...words].filter(word => source.name.toLowerCase().includes(word)).length });
+      const queryScore = [...words].filter((word) => tokens.has(word)).length + nameScore;
+      const projectBonus = options.prioritizeProjects
+        ? Math.min(6, new Set((text.match(PROJECT_CUE_RE) || []).map((m) => m.toLowerCase())).size)
+        : 0;
+      parts.push({
+        sourceIndex,
+        id: source.id,
+        name: source.name,
+        start: index + 1,
+        end: Math.min(index + 12, lines.length),
+        text,
+        score: queryScore + projectBonus,
+      });
     }
     return parts;
   });
   const selected: typeof chunks = [];
   let used = 0;
-  for (const chunk of chunks.sort((a, b) => b.score - a.score)) {
+  for (const chunk of chunks.sort((a, b) => b.score - a.score || a.sourceIndex - b.sourceIndex || a.start - b.start)) {
     const overhead = chunk.name.length + chunk.id.length + 45;
     const remaining = budget - used - overhead;
     if (remaining < 100) break;
@@ -76,6 +104,7 @@ export function referenceContext(references: LearningReference[] | undefined, qu
     selected.push({ ...chunk, text, end: chunk.start + text.split("\n").length - 1 });
     used += text.length + overhead;
   }
+  selected.sort((a, b) => a.sourceIndex - b.sourceIndex || a.start - b.start);
   return selected.map((c) => `SOURCE ${c.id} (${c.name}) L${c.start}–L${c.end}\n${c.text}`).join("\n\n");
 }
 

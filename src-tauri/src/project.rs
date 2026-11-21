@@ -346,7 +346,18 @@ pub async fn project_delete<R: Runtime>(app: AppHandle<R>, runs: State<'_, Runs>
     .map_err(|e| e.to_string())?
 }
 
+fn tool_commands(profile: &Profile, tool_id: Option<&str>) -> Result<Vec<Vec<String>>, String> {
+    let id = tool_id.ok_or_else(|| "Unknown tool action.".to_string())?;
+    profile
+        .tools
+        .iter()
+        .find(|t| t.id == id)
+        .map(|t| t.commands.clone())
+        .ok_or_else(|| "Unknown tool action.".to_string())
+}
+
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn project_exec<R: Runtime>(
     app: AppHandle<R>,
     runs: State<'_, Runs>,
@@ -355,6 +366,7 @@ pub async fn project_exec<R: Runtime>(
     action: String,
     stage: Option<StageRef>,
     request_id: String,
+    tool_id: Option<String>,
 ) -> Result<ExecResult, String> {
     if !valid_id(&request_id) {
         return Err("Invalid request id.".into());
@@ -390,6 +402,7 @@ pub async fn project_exec<R: Runtime>(
                     profile.test.clone()
                 }
             }
+            "tool" => tool_commands(&profile, tool_id.as_deref())?,
             _ => return Err("Unknown action.".into()),
         };
         if commands.is_empty() {
@@ -438,9 +451,25 @@ mod tests {
         let (dir, _) = fixture("sync");
         let go = get("go");
         assert!(sync_files(&dir, &go, &[file("../escape.go", "")]).is_err());
-        assert!(sync_files(&dir, &go, &[file("notes.txt", "")]).is_err());
-        sync_files(&dir, &go, &[file("a.go", "package main"), file("b.go", "package main")]).unwrap();
+        assert!(sync_files(&dir, &go, &[file("notes.exe", "")]).is_err());
+        assert!(sync_files(&dir, &go, &[file(".hidden.go", "")]).is_err());
+        assert!(sync_files(&dir, &go, &[file("a/b/c/d/e/f.go", "")]).is_err());
+        sync_files(
+            &dir,
+            &go,
+            &[
+                file("a.go", "package main"),
+                file("b.go", "package main"),
+                file("sample.txt", "hello"),
+                file("test-config.json", "{}"),
+                file("calculator_test.go", "package main"),
+                file("api/internal/handlers/handlers.go", "package handlers"),
+            ],
+        )
+        .unwrap();
         assert!(dir.join("go.mod").is_file());
+        assert!(dir.join("sample.txt").is_file());
+        assert!(dir.join("api/internal/handlers/handlers.go").is_file());
         // Manifest must live outside the sandbox-writable project directory.
         assert!(!dir.join(LEGACY_MANIFEST).exists());
         assert!(manifest_path(&dir).is_file());
@@ -453,6 +482,17 @@ mod tests {
         std::os::unix::fs::symlink(&outside, dir.join("sub")).unwrap();
         assert!(sync_files(&dir, &go, &[file("sub/evil.go", "package sub")]).is_err());
         assert!(!outside.join("evil.go").exists());
+    }
+
+    #[test]
+    fn tool_lookup_requires_known_profile_tool() {
+        let go = get("go");
+        assert!(tool_commands(&go, Some("test_all")).is_ok());
+        assert!(tool_commands(&go, Some("cover")).is_ok());
+        assert!(tool_commands(&go, Some("bench")).is_ok());
+        assert!(tool_commands(&go, Some("vet")).is_ok());
+        assert_eq!(tool_commands(&go, None), Err("Unknown tool action.".to_string()));
+        assert_eq!(tool_commands(&go, Some("unknown")), Err("Unknown tool action.".to_string()));
     }
 
     #[test]
@@ -487,5 +527,12 @@ mod tests {
         assert_eq!(passing.exit_code, 0, "{passing:?}");
         let program = execute(&Context { dir: &dir, cache: &cache, profile: &go, stage: None }, &go.run, Arc::default()).unwrap();
         assert_eq!(program.steps[0].stdout.trim(), "3", "{program:?}");
+        let vet_cmds = tool_commands(&go, Some("vet")).unwrap();
+        let vet = execute(&Context { dir: &dir, cache: &cache, profile: &go, stage: None }, &vet_cmds, Arc::default()).unwrap();
+        assert_eq!(vet.exit_code, 0, "{vet:?}");
+        let all_cmds = tool_commands(&go, Some("test_all")).unwrap();
+        let all = execute(&Context { dir: &dir, cache: &cache, profile: &go, stage: None }, &all_cmds, Arc::default()).unwrap();
+        assert_eq!(all.exit_code, 0, "{all:?}");
+        assert!(all.steps[0].stdout.contains("TestStage01Add"), "{all:?}");
     }
 }

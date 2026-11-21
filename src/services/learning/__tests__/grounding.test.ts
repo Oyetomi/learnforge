@@ -14,8 +14,8 @@ afterEach(() => vi.unstubAllGlobals());
 it("normalizes and bounds a saved excerpt with stable source ids and explicit truncation", () => {
   expect(createLearningReference("a", "x\r\ny")?.content).toBe("x\ny");
   expect(createLearningReference("a", " ")).toBeNull();
-  const long = createLearningReference("long.txt", "x".repeat(20000))!;
-  expect(long.content).toHaveLength(16000); expect(long.truncated).toBe(true);
+  const long = createLearningReference("long.txt", "x".repeat(30000))!;
+  expect(long.content).toHaveLength(24000); expect(long.truncated).toBe(true);
   expect(createLearningReference("renamed.md", reference.content)?.id).toBe(reference.id);
 });
 it("retrieves relevant bounded lines without mixing another topic's source", () => {

@@ -5,6 +5,12 @@
  */
 import builtIn from "./profiles.json";
 
+export interface LanguageTool {
+  id: string;
+  label: string;
+  commands: string[][];
+}
+
 export interface LanguageProfile {
   id: string;
   name: string;
@@ -20,6 +26,7 @@ export interface LanguageProfile {
   test: string[][];
   /** Compile-only check of a step's tests (empty: nothing to compile). */
   check?: string[][];
+  tools?: LanguageTool[];
   lsp: string[][];
   lspInstall: string;
   sourceGuide: string;
@@ -51,13 +58,13 @@ const matches = (pattern: string, value: string) => {
   }
 };
 
-/** Same rule as the native side: relative, ≤4 segments, no dot segments. */
+/** Same rule as the native side: relative, <= 5 segments, no dot segments. */
 export function safeRelativePath(path: string): boolean {
   const parts = path.split("/");
   return (
     !!path &&
-    path.length <= 160 &&
-    parts.length <= 4 &&
+    path.length <= 180 &&
+    parts.length <= 5 &&
     parts.every((p) => !!p && !p.startsWith(".") && /^[A-Za-z0-9_.-]+$/.test(p))
   );
 }

@@ -143,7 +143,12 @@ Return valid JSON only, using this structure. The single milestone here is a sch
           referenceMaterial: {
             name:
               resolvedRefs.map((r) => r.name).join(", ") || "Uploaded reference",
-            excerpt: referenceContext(resolvedRefs, topic, 8000),
+            excerpt: referenceContext(
+              resolvedRefs,
+              topic,
+              options.unitContext ? 14000 : 8000,
+              { sourceLimit: 180_000 }
+            ),
           },
         }
       : {}),

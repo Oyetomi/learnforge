@@ -165,10 +165,54 @@ export const ProjectStepPanel: React.FC<{ project: ProjectWorkspaceController; i
     );
   }
 
+  const isMultiProject = (project.totalProjects ?? 1) > 1 && (project.projectIndex ?? 0) > 0;
+  const fromBook = project.project?.source === "book";
+  const projectTitleTooltip = fromBook
+    ? [project.project?.summary, "From book"].filter(Boolean).join(" · ")
+    : project.project?.summary;
+
   return (
     <section className="project-step-panel" aria-label="Project step">
       <header>
-        <strong title={project.project?.summary}>{project.project?.title ?? "Project"}</strong>
+        {isMultiProject ? (
+          <span
+            className="project-step-title-group"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}
+          >
+            <strong title={projectTitleTooltip}>{project.project?.title ?? "Project"}</strong>
+            <span
+              className="project-step-project-pill"
+              title={fromBook ? "From book" : undefined}
+              style={{
+                flexShrink: 0,
+                padding: "1px 6px",
+                border: "1px solid var(--c-line)",
+                borderRadius: "var(--radius-pill)",
+                color: "var(--c-text-quiet)",
+                fontSize: "var(--text-2xs)",
+                fontVariantNumeric: "tabular-nums",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Project {project.projectIndex} of {project.totalProjects}
+            </span>
+            {fromBook && (
+              <span
+                className="project-step-book-tag"
+                style={{
+                  flexShrink: 0,
+                  color: "var(--c-text-disabled)",
+                  fontSize: "var(--text-2xs)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                From book
+              </span>
+            )}
+          </span>
+        ) : (
+          <strong title={projectTitleTooltip}>{project.project?.title ?? "Project"}</strong>
+        )}
         {stage && totalSteps > 0 && project.stepNumber > 0 && (
           <span className="project-step-progress" aria-label={`Step ${project.stepNumber} of ${totalSteps}`}>
             <span className="project-step-segments" aria-hidden="true">

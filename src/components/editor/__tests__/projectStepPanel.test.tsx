@@ -102,4 +102,42 @@ describe("project step panel", () => {
   it("explains concept-only units", () => {
     expect(renderToStaticMarkup(<ProjectStepPanel project={controller({ step: undefined })} />)).toContain("No project step in this unit");
   });
+
+  it("shows multi-project header context when a course has multiple projects", () => {
+    const html = renderToStaticMarkup(
+      <ProjectStepPanel
+        project={controller({
+          project: {
+            id: "word-count",
+            title: "Word Count CLI",
+            summary: "Counts words, lines, and bytes.",
+            source: "book",
+          },
+          projectIndex: 2,
+          totalProjects: 4,
+          totalSteps: 4,
+          stepNumber: 2,
+          stage,
+        })}
+      />
+    );
+    expect(html).toContain("Word Count CLI");
+    expect(html).toContain("Project 2 of 4");
+    expect(html).toContain("From book");
+    expect(html).toContain('aria-label="Step 2 of 4"');
+  });
+
+  it("keeps single-project header uncluttered without a project count pill", () => {
+    const html = renderToStaticMarkup(
+      <ProjectStepPanel
+        project={controller({
+          projectIndex: 1,
+          totalProjects: 1,
+          stage,
+        })}
+      />
+    );
+    expect(html).toContain("Distributed KV store");
+    expect(html).not.toContain("Project 1 of 1");
+  });
 });

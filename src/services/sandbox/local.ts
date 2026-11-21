@@ -63,9 +63,10 @@ export async function checkLocalStage(ws: ProjectWorkspace, number: number, test
 
 async function exec(
   ws: ProjectWorkspace,
-  action: "run" | "test" | "check",
+  action: "run" | "test" | "check" | "tool",
   stage?: { number: number; testFile: string },
-  runHandle: { requestId: string | null; cancelled: boolean } | null = activeRun
+  runHandle: { requestId: string | null; cancelled: boolean } | null = activeRun,
+  toolId?: string
 ) {
   const requestId = `run-${Date.now().toString(36)}-${++runCounter}`;
   if (runHandle) runHandle.requestId = requestId;
@@ -76,9 +77,48 @@ async function exec(
       action,
       stage: stage ?? null,
       requestId,
+      toolId: toolId ?? null,
     });
   } finally {
     if (runHandle && runHandle.requestId === requestId) runHandle.requestId = null;
+  }
+}
+
+/** Run a language profile's sandboxed tool action (e.g. go vet, coverage, benchmarks). */
+export async function runLocalProjectTool(ws: ProjectWorkspace, toolId: string): Promise<ExecutionResult> {
+  const started = performance.now();
+  const handle = { requestId: null as string | null, cancelled: false };
+  activeRun = handle;
+  try {
+    await syncLocalProject(ws);
+    if (handle.cancelled) {
+      return { stdout: "", stderr: "Stopped.", exitCode: -1, durationMs: Math.round(performance.now() - started), error: "Stopped." };
+    }
+    const r = await exec(ws, "tool", undefined, handle, toolId);
+    const stdout = cleanOutput(r.steps.map((s) => s.stdout).join("")).trim();
+    if (handle.cancelled) {
+      return {
+        stdout,
+        stderr: "Stopped.",
+        exitCode: -1,
+        durationMs: Math.round(performance.now() - started),
+        timedOut: r.timedOut,
+        error: "Stopped.",
+      };
+    }
+    const stderr =
+      cleanOutput(r.steps.map((s) => s.stderr).join("\n")).trim() ||
+      (r.exitCode !== 0 && !stdout ? `Exited with status ${r.exitCode}.` : "");
+    return {
+      stdout,
+      stderr,
+      exitCode: r.exitCode,
+      durationMs: Math.round(performance.now() - started),
+      timedOut: r.timedOut,
+      error: r.timedOut ? "The command hit the time limit." : undefined,
+    };
+  } finally {
+    if (activeRun === handle) activeRun = null;
   }
 }
 

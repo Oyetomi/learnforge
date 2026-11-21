@@ -3,7 +3,7 @@ const sdk = vi.hoisted(() => ({ PDFDataRangeTransport: class {
   length: number; onDataRange = vi.fn(); constructor(length: number) { this.length = length; }
 }, getDocument: vi.fn(), GlobalWorkerOptions: { workerSrc: "" } }));
 vi.mock("pdfjs-dist", () => sdk);
-import { openPdfPageView, readPdfBook, readSelectedPdfChapters, readPdfStudyRange } from "../pdfReader";
+import { openPdfPageView, readPdfBook, readPdfSectionPages, readSelectedPdfChapters, readPdfStudyRange } from "../pdfReader";
 const items = (lines: string[]) => lines.map((str, i) => ({str,transform:[1,0,0,1,40,750-i*24],width:200,hasEOL:true}));
 function documentFixture(pages: string[][]) {
   return { numPages: pages.length, getOutline: vi.fn(async()=>null), getPageLabels:vi.fn(async()=>null),
@@ -114,5 +114,76 @@ describe("local PDF reader lifecycle",()=>{
   view.close();
   expect(destroy).toHaveBeenCalledOnce();
   vi.unstubAllGlobals();
+ });
+
+ it("reads full 45-page technical chapters in readSelectedPdfChapters beyond the old 18KB / 40-page cap", async () => {
+  const chapterPages = Array.from({ length: 45 }, (_, i) => [
+   `Chapter page ${i + 1}: ${"a".repeat(2000)}`,
+  ]);
+  const pdf = documentFixture(chapterPages);
+  pdf.getOutline.mockResolvedValue([{ title: "Chapter 2: CLI Project", dest: [{ num: 1 }, "Fit"], items: [] }] as never);
+  pdf.getPageIndex.mockResolvedValue(0);
+  sdk.getDocument.mockImplementation(() => ({ promise: Promise.resolve(pdf), destroy: vi.fn(async () => {}) }));
+  const book = await readPdfBook(new Uint8Array([1, 2, 3]), "Go in Action 2e.pdf");
+  const selected = await readSelectedPdfChapters(book, [book.sections[0].id]);
+  expect(selected.readPages).toContain(45);
+  expect(selected.pages[44]).toContain("Chapter page 45:");
+ });
+
+ it("extracts full multi-page chapter text beyond 18,000 chars in readPdfSectionPages and omits unreadable sections", async () => {
+  const pages = Array.from({ length: 30 }, (_, i) => {
+   if (i === 28) return [];
+   return [`Section content on page ${i + 1} ${"b".repeat(2000)}`];
+  });
+  const pdf = documentFixture(pages);
+  const destroy = vi.fn(async () => {});
+  sdk.getDocument.mockReturnValue({ promise: Promise.resolve(pdf), destroy });
+
+  const refs = await readPdfSectionPages(
+   new Uint8Array([1, 2, 3]),
+   [
+    { id: "ch-2", title: "Chapter 2: Building a CLI", level: 0, pageStart: 1, pageEnd: 25 },
+    { id: "empty-sec", title: "Blank Plate", level: 0, pageStart: 29, pageEnd: 29 },
+    { id: "out-of-bounds", title: "Invalid", level: 0, pageStart: 31, pageEnd: 35 },
+   ],
+   "Go in Action 2e"
+  );
+
+  expect(refs).toHaveLength(1);
+  expect(refs[0]).toMatchObject({
+   id: "pdf-full:ch-2",
+   sectionId: "ch-2",
+   name: "Go in Action 2e · Chapter 2: Building a CLI",
+   truncated: false,
+   pdfPageStart: 1,
+   pdfPageEnd: 25,
+  });
+  expect(refs[0].content.length).toBeGreaterThan(50000);
+  expect(refs[0].content).toContain("PDF page 1\nSection content on page 1");
+  expect(refs[0].content).toContain("PDF page 25\nSection content on page 25");
+  expect(destroy).toHaveBeenCalledOnce();
+ });
+
+ it("marks readPdfSectionPages truncated when hitting page/char limits or individual 16,000-char page cap", async () => {
+  const longPagePdf = documentFixture([["c".repeat(17000)], ["Second page"]]);
+  sdk.getDocument.mockReturnValue({ promise: Promise.resolve(longPagePdf), destroy: vi.fn(async () => {}) });
+  const clipped = await readPdfSectionPages(
+   new Uint8Array([1]),
+   [{ id: "s1", title: "Dense Page", level: 0, pageStart: 1, pageEnd: 2 }],
+   "Dense Book"
+  );
+  expect(clipped[0].truncated).toBe(true);
+  expect(clipped[0].content).toContain("PDF page 2\nSecond page");
+
+  const hugeChapterPdf = documentFixture(Array.from({ length: 130 }, (_, i) => [`Page ${i + 1} text`]));
+  sdk.getDocument.mockReturnValue({ promise: Promise.resolve(hugeChapterPdf), destroy: vi.fn(async () => {}) });
+  const capped = await readPdfSectionPages(
+   new Uint8Array([1]),
+   [{ id: "s2", title: "Long Chapter", level: 0, pageStart: 1, pageEnd: 130 }],
+   "Long Book"
+  );
+  expect(capped[0].truncated).toBe(true);
+  expect(capped[0].content).toContain("PDF page 120\nPage 120 text");
+  expect(capped[0].content).not.toContain("PDF page 121");
  });
 });

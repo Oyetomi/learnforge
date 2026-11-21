@@ -11,6 +11,8 @@ export interface CurriculumUnit {
   assessment: string;
   prerequisiteIds: string[];
   sourceSectionIds?: string[];
+  /** Project mode: identifier of the project this unit belongs to. */
+  projectId?: string;
   /** Project mode: what this unit adds to the shared project; absent for concept-only units. */
   projectStep?: string;
 }
@@ -32,18 +34,81 @@ export interface CurriculumPlan {
   sourceDocument?: import("./pdfContents").CurriculumSource;
   /** Project mode: one project built across the units (docs/project-mode.md). */
   project?: import("./project").ProjectPlan;
+  /** Multi-project mode: one or more distinct projects built across units. */
+  projects?: import("./project").ProjectPlan[];
   approvedAt?: number;
   /** Legacy tracks are wrapped without rewriting their lessons or evidence. */
   legacy?: boolean;
 }
+export type ResolvedProjectPlan = import("./project").ProjectPlan & { id: string };
+
 export const curriculumUnits = (plan: CurriculumPlan) =>
   plan.modules.flatMap((m) => m.units);
+
+export function planProjects(plan: CurriculumPlan): ResolvedProjectPlan[] {
+  if (Array.isArray(plan.projects) && plan.projects.length > 0) {
+    return plan.projects.map((p, i) => ({ ...p, id: p.id?.trim() || `p${i + 1}` }));
+  }
+  if (plan.project) {
+    return [{ ...plan.project, id: plan.project.id?.trim() || "main" }];
+  }
+  return [];
+}
+
+export function hasProjectMode(plan: CurriculumPlan): boolean {
+  return planProjects(plan).length > 0;
+}
+
+export function projectForUnit(
+  plan: CurriculumPlan,
+  unitId?: string,
+): ResolvedProjectPlan | undefined {
+  const projects = planProjects(plan);
+  if (!projects.length) return undefined;
+  if (!unitId) return projects[0];
+  const unit = curriculumUnits(plan).find((u) => u.id === unitId);
+  if (unit?.projectId) {
+    return projects.find((p) => p.id === unit.projectId);
+  }
+  if (projects.length === 1) return projects[0];
+  return undefined;
+}
+
+export function unitsForProject(
+  plan: CurriculumPlan,
+  projectId: string,
+): CurriculumUnit[] {
+  const projects = planProjects(plan);
+  return curriculumUnits(plan).filter(
+    (u) =>
+      Boolean(u.projectStep?.trim()) &&
+      (u.projectId
+        ? u.projectId === projectId
+        : projects.length === 1 && projects[0].id === projectId),
+  );
+}
+
+const PROJECT_ID_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/i;
 
 /** Structural validity is necessary; it is not a claim of expert-reviewed coverage. */
 export function validCurriculumPlan(value: unknown): value is CurriculumPlan {
   const p = value as CurriculumPlan;
-  const text = (s: unknown) =>
+  const text = (s: unknown): s is string =>
     typeof s === "string" && !!s.trim() && s.length <= 1200;
+  const validProjectSource = (s: unknown) =>
+    s === undefined || s === "book" || s === "designed";
+  const validProject = (pr: unknown, requireId: boolean): boolean => {
+    if (!pr || typeof pr !== "object") return false;
+    const item = pr as import("./project").ProjectPlan;
+    if (!text(item.title) || !text(item.summary) || !validProjectSource(item.source))
+      return false;
+    if (requireId) {
+      if (!text(item.id) || !PROJECT_ID_RE.test(item.id)) return false;
+    } else if (item.id !== undefined && (!text(item.id) || !PROJECT_ID_RE.test(item.id))) {
+      return false;
+    }
+    return true;
+  };
   if (
     !p ||
     p.schemaVersion !== 1 ||
@@ -88,13 +153,62 @@ export function validCurriculumPlan(value: unknown): value is CurriculumPlan {
       units.length
   )
     return false;
-  if (p.project !== undefined) {
-    if (!p.project || !text(p.project.title) || !text(p.project.summary)) return false;
+  const hasProjects = p.project !== undefined || p.projects !== undefined;
+  if (hasProjects) {
+    if (p.project !== undefined && !validProject(p.project, false)) return false;
+    if (p.projects !== undefined) {
+      if (
+        !Array.isArray(p.projects) ||
+        p.projects.length < 1 ||
+        p.projects.length > 12 ||
+        !p.projects.every((pr) => validProject(pr, true)) ||
+        new Set(p.projects.map((pr) => pr.id!.toLowerCase())).size !== p.projects.length
+      )
+        return false;
+    }
     // An emptied step means a concepts-only unit; at least one step must remain.
-    if (units.some((u) => u.projectStep !== undefined && (typeof u.projectStep !== "string" || u.projectStep.length > 1200)))
+    if (
+      units.some(
+        (u) =>
+          u.projectStep !== undefined &&
+          (typeof u.projectStep !== "string" || u.projectStep.length > 1200),
+      )
+    )
       return false;
     if (!units.some((u) => u.projectStep?.trim())) return false;
-  } else if (units.some((u) => u.projectStep !== undefined)) return false;
+    if (p.projects !== undefined) {
+      const projectIds = new Set(p.projects.map((pr) => pr.id!));
+      if (
+        units.some(
+          (u) =>
+            u.projectId !== undefined &&
+            (typeof u.projectId !== "string" || !projectIds.has(u.projectId)),
+        )
+      )
+        return false;
+      if (
+        p.projects.length > 1 &&
+        units.some(
+          (u) =>
+            Boolean(u.projectStep?.trim()) &&
+            (typeof u.projectId !== "string" || !projectIds.has(u.projectId)),
+        )
+      )
+        return false;
+    } else if (p.project !== undefined) {
+      const soloId = p.project.id?.trim() || "main";
+      if (
+        units.some(
+          (u) =>
+            u.projectId !== undefined &&
+            (typeof u.projectId !== "string" || u.projectId !== soloId),
+        )
+      )
+        return false;
+    }
+  } else if (units.some((u) => u.projectStep !== undefined || u.projectId !== undefined)) {
+    return false;
+  }
   if (p.sourceDocument) {
     const source = p.sourceDocument;
     if (!text(source.name) || (source.pageCount !== undefined && (!Number.isInteger(source.pageCount) || source.pageCount < 1)) ||

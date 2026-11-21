@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mainPdfSections, readableFileTitle, sectionsFromContents, selectedPdfSource, togglePdfSection, withPageRanges, type PdfBook } from "../pdfContents";
+import { buildChapterDigest, mainPdfSections, readableFileTitle, sectionsFromContents, selectedPdfSource, togglePdfSection, withPageRanges, type PdfBook } from "../pdfContents";
 import { referenceContext } from "../grounding";
 
 describe("PDF table of contents", () => {
@@ -60,5 +60,120 @@ describe("PDF table of contents", () => {
   it("retrieves a relevant later chapter rather than stopping after the first six sources", () => {
     const refs = Array.from({length:10},(_,i)=>({id:`r${i}`,name:`Chapter ${i}`,content:i===9?"Emergency reserves cover unexpected costs.":"Unrelated opening text.",truncated:false}));
     expect(referenceContext(refs,"Emergency reserves",300)).toContain("Emergency reserves cover unexpected costs.");
+  });
+
+  it("buildChapterDigest preserves opening, middle project/code listings, and closing summary of a 65,000-char chapter", () => {
+    const filler = "Background conceptual prose discussing history and motivation without code snippets. ".repeat(22);
+    const pages = Array.from({ length: 36 }, (_, idx) => {
+      const pageNum = idx + 1;
+      if (pageNum === 1) return { number: 1, text: `Chapter 4 Intro\nGoal: Design a workspace-backed CLI tool.\n${filler}` };
+      if (pageNum === 2) return { number: 2, text: `Chapter 4 Architecture Overview\nSetting up the module layout.\n${filler}` };
+      if (pageNum === 16) {
+        return {
+          number: 16,
+          text: `Project Iteration 1\nListing 4.1 main.go and go.mod\npackage main\ntype Config struct { Port int }\nfunc main() { /* CLI entrypoint */ }\n${filler}`,
+        };
+      }
+      if (pageNum === 24) {
+        return {
+          number: 24,
+          text: `Listing 4.4 handler and endpoint tests\nExample: benchmark and fuzz testing with go.work workspace\ntype Store interface { Get(id string) error }\n${filler}`,
+        };
+      }
+      if (pageNum === 36) {
+        return {
+          number: 36,
+          text: `Putting it all together\nSummary: You built a modular CLI and verified it with tests.\n${filler}`,
+        };
+      }
+      return { number: pageNum, text: `Section prose on page ${pageNum}.\n${filler}` };
+    });
+
+    const fullLength = pages.map((p) => `PDF page ${p.number}\n${p.text}`).join("\n\n").length;
+    expect(fullLength).toBeGreaterThan(65000);
+
+    const digest = buildChapterDigest(pages, 24000);
+    expect(digest.truncated).toBe(true);
+    expect(digest.text.length).toBeLessThanOrEqual(24000);
+    expect(digest.text).toContain("PDF page 1\nChapter 4 Intro");
+    expect(digest.text).toContain("PDF page 2\nChapter 4 Architecture Overview");
+    expect(digest.text).toContain("Listing 4.1 main.go and go.mod");
+    expect(digest.text).toContain("Listing 4.4 handler and endpoint tests");
+    expect(digest.text).toContain("PDF page 36\nPutting it all together");
+    expect(digest.text).toContain("[... skipped intermediate pages ...]");
+
+    // Verify selected pages appear in strictly ascending order.
+    const pageNumbers = Array.from(digest.text.matchAll(/^PDF page (\d+)$/gm), (m) => Number(m[1]));
+    expect(pageNumbers.length).toBeGreaterThanOrEqual(5);
+    for (let i = 1; i < pageNumbers.length; i++) {
+      expect(pageNumbers[i]).toBeGreaterThan(pageNumbers[i - 1]);
+    }
+
+    // Also verify selectedPdfSource preserves late-chapter project pages via buildChapterDigest.
+    const book: PdfBook = {
+      name: "Go in Action 2e",
+      pageCount: pages.length,
+      pages: pages.map((p) => p.text),
+      sections: [{ id: "ch4", title: "Chapter 4", level: 0, pageStart: 1, pageEnd: pages.length }],
+      contentsFrom: "bookmarks",
+      truncated: false,
+      readPages: pages.map((p) => p.number),
+    };
+    const { references } = selectedPdfSource(book, ["ch4"]);
+    expect(references[0].truncated).toBe(true);
+    expect(references[0].content).toContain("Listing 4.1 main.go and go.mod");
+    expect(references[0].content).toContain("Putting it all together");
+  });
+
+  it("referenceContext with sourceLimit 180000 and prioritizeProjects finds project chunks past offset 30,000 in reading order", () => {
+    const openingLines = Array.from(
+      { length: 450 },
+      (_, i) => `Narrative paragraph line ${i + 1} covering conceptual background without concrete syntax.`
+    );
+    const earlyProjectLines = [
+      "Listing 5.1 project goal and workspace setup in go.work and go.mod",
+      "package main",
+      "type Worker struct { ID int }",
+      "func NewWorker() *Worker { return &Worker{ID: 1} }",
+    ];
+    const middleLines = Array.from(
+      { length: 50 },
+      (_, i) => `Transitional commentary line ${i + 1} explaining design choices.`
+    );
+    const lateProjectLines = [
+      "Listing 5.4 main.go CLI command handler endpoint and benchmark test",
+      "type Store interface { Save() error }",
+      "func RunServer(store Store) error { return store.Save() }",
+      "Exercise: extend the handler with fuzz testing.",
+    ];
+    const fullContent = [
+      ...openingLines,
+      ...earlyProjectLines,
+      ...middleLines,
+      ...lateProjectLines,
+    ].join("\n");
+
+    const projectOffset = fullContent.indexOf("Listing 5.1");
+    expect(projectOffset).toBeGreaterThan(30000);
+
+    const ref = {
+      id: "pdf-full:ch5",
+      name: "Go in Action 2e · Chapter 5",
+      content: fullContent,
+      truncated: false,
+    };
+
+    const ctx = referenceContext([ref], "workspace architecture", 2500, {
+      sourceLimit: 180000,
+      prioritizeProjects: true,
+    });
+    expect(ctx).toContain("Listing 5.1 project goal and workspace setup");
+    expect(ctx).toContain("Listing 5.4 main.go CLI command handler endpoint");
+
+    // Selected chunks within the same source should be emitted in ascending line order.
+    const firstIdx = ctx.indexOf("Listing 5.1");
+    const secondIdx = ctx.indexOf("Listing 5.4");
+    expect(firstIdx).toBeGreaterThan(-1);
+    expect(secondIdx).toBeGreaterThan(firstIdx);
   });
 });

@@ -5,6 +5,9 @@ import type { CourseTrack } from "../../services/ai/types";
 import type { CurriculumPlan } from "../../services/learning/curriculumPlan";
 import {
   curriculumUnits,
+  hasProjectMode,
+  planProjects,
+  projectForUnit,
   validCurriculumPlan,
 } from "../../services/learning/curriculumPlan";
 import {
@@ -65,6 +68,8 @@ export function CurriculumApproval({
     }
   }, [error]);
   const plan = draft.curriculum!;
+  const projects = planProjects(plan);
+  const projectMode = hasProjectMode(plan);
   const proposed = approveLearningPlan(draft, attempts, new Set());
   const area =
     probe === null
@@ -104,6 +109,21 @@ export function CurriculumApproval({
         prerequisite_ids: u.prerequisiteIds,
         contentStatus: "outline",
       })),
+    });
+  };
+  const updateProject = (
+    projectId: string,
+    patch: { title?: string; summary?: string }
+  ) => {
+    const nextProjects = projects.map((p) =>
+      p.id === projectId ? { ...p, ...patch } : p
+    );
+    changePlan({
+      ...plan,
+      ...(plan.project !== undefined || nextProjects.length === 1
+        ? { project: nextProjects[0] }
+        : {}),
+      ...(plan.projects !== undefined ? { projects: nextProjects } : {}),
     });
   };
   const startPlacement = async () => {
@@ -420,28 +440,86 @@ export function CurriculumApproval({
                                 }
                               />
                             </label>
-                            {unit.projectStep !== undefined && (
-                              <label>
-                                Project step
-                                <textarea
-                                  value={unit.projectStep}
-                                  aria-label={`Project step for ${unit.title}`}
-                                  maxLength={1200}
-                                  onChange={(e) =>
-                                    changePlan({
-                                      ...plan,
-                                      modules: plan.modules.map((m) => ({
-                                        ...m,
-                                        units: m.units.map((u) =>
-                                          u.id === unit.id
-                                            ? { ...u, projectStep: e.target.value }
-                                            : u
-                                        ),
-                                      })),
-                                    })
-                                  }
-                                />
-                              </label>
+                            {projectMode && (
+                              <>
+                                {projects.length > 1 && (
+                                  <label>
+                                    Project
+                                    <select
+                                      value={
+                                        unit.projectId ??
+                                        (unit.projectStep?.trim()
+                                          ? projects[0]?.id ?? ""
+                                          : "")
+                                      }
+                                      aria-label={`Project for ${unit.title}`}
+                                      onChange={(e) =>
+                                        changePlan({
+                                          ...plan,
+                                          modules: plan.modules.map((m) => ({
+                                            ...m,
+                                            units: m.units.map((u) =>
+                                              u.id === unit.id
+                                                ? {
+                                                    ...u,
+                                                    projectId:
+                                                      e.target.value || undefined,
+                                                  }
+                                                : u
+                                            ),
+                                          })),
+                                        })
+                                      }
+                                    >
+                                      {!unit.projectStep?.trim() && (
+                                        <option value="">
+                                          No project (concepts only)
+                                        </option>
+                                      )}
+                                      {projects.map((p) => (
+                                        <option key={p.id} value={p.id}>
+                                          {p.title}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                )}
+                                <label>
+                                  Project step
+                                  <textarea
+                                    value={unit.projectStep ?? ""}
+                                    placeholder="Leave blank for a concepts-only unit"
+                                    aria-label={`Project step for ${unit.title}`}
+                                    maxLength={1200}
+                                    onChange={(e) => {
+                                      const nextStep = e.target.value;
+                                      changePlan({
+                                        ...plan,
+                                        modules: plan.modules.map((m) => ({
+                                          ...m,
+                                          units: m.units.map((u) => {
+                                            if (u.id !== unit.id) return u;
+                                            const nextProjectId =
+                                              projects.length > 1
+                                                ? u.projectId ??
+                                                  (nextStep.trim()
+                                                    ? projects[0]?.id
+                                                    : undefined)
+                                                : u.projectId;
+                                            return {
+                                              ...u,
+                                              projectStep: nextStep,
+                                              ...(nextProjectId !== undefined
+                                                ? { projectId: nextProjectId }
+                                                : {}),
+                                            };
+                                          }),
+                                        })),
+                                      });
+                                    }}
+                                  />
+                                </label>
+                              </>
                             )}
                             <label>
                               How understanding is checked
@@ -469,12 +547,28 @@ export function CurriculumApproval({
                           <>
                             <p>{unit.outcome}</p>
                             <small>Evidence: {unit.assessment}</small>
-                            {plan.project && (
-                              <small className={`curriculum-project-step ${unit.projectStep ? "" : "is-none"}`}>
-                                <span>Project</span>
-                                {unit.projectStep || "No code in this unit: concepts only"}
-                              </small>
-                            )}
+                            {projectMode && (() => {
+                              const hasStep = !!unit.projectStep?.trim();
+                              const unitProject = hasStep
+                                ? projectForUnit(plan, unit.id)
+                                : undefined;
+                              const named = projects.length > 1 && !!unitProject;
+                              return (
+                                <small
+                                  className={`curriculum-project-step ${
+                                    hasStep ? "" : "is-none"
+                                  }`}
+                                >
+                                  <span className={named ? "is-named" : undefined}>
+                                    {named
+                                      ? `Project · ${unitProject!.title}`
+                                      : "Project"}
+                                  </span>
+                                  {unit.projectStep?.trim() ||
+                                    "No code in this unit: concepts only"}
+                                </small>
+                              );
+                            })()}
                           </>
                         )}
                         <small>
@@ -497,19 +591,135 @@ export function CurriculumApproval({
               ))}
             </section>
             <aside className="curriculum-scope-card">
-              {plan.project && (
-                <>
-                  <h4>The project</h4>
-                  <p className="curriculum-project-title">
-                    {plan.project.title}
-                    <span>{profileFor(draft.language)?.name ?? draft.language}</span>
-                  </p>
-                  <p>{plan.project.summary}</p>
-                  <p className="curriculum-project-note">
-                    One codebase grows across the units. Each step adds tests; earlier steps’ tests keep running. Runs on this Mac with your installed toolchain, inside a sandbox{draft.language === "go" ? " (or on the Go Playground if Go isn’t installed)" : ""}.
-                  </p>
-                </>
-              )}
+              {projectMode &&
+                (projects.length === 1 ? (
+                  <>
+                    <h4 className="curriculum-project-heading">
+                      The project
+                      {projects[0].source === "book" && (
+                        <span className="curriculum-project-source">
+                          From your book
+                        </span>
+                      )}
+                    </h4>
+                    {editing ? (
+                      <div className="curriculum-project-edit">
+                        <label>
+                          Project title
+                          <input
+                            type="text"
+                            value={projects[0].title}
+                            aria-label="Project title"
+                            maxLength={1200}
+                            onChange={(e) =>
+                              updateProject(projects[0].id, {
+                                title: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Project summary
+                          <textarea
+                            value={projects[0].summary}
+                            aria-label="Project summary"
+                            maxLength={1200}
+                            onChange={(e) =>
+                              updateProject(projects[0].id, {
+                                summary: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="curriculum-project-title">
+                          {projects[0].title}
+                          <span>
+                            {profileFor(draft.language)?.name ?? draft.language}
+                          </span>
+                        </p>
+                        <p>{projects[0].summary}</p>
+                      </>
+                    )}
+                    <p className="curriculum-project-note">
+                      One codebase grows across the units. Each step adds tests; earlier steps’ tests keep running. Runs on this Mac with your installed toolchain, inside a sandbox{draft.language === "go" ? " (or on the Go Playground if Go isn’t installed)" : ""}.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h4>Projects in this course ({projects.length})</h4>
+                    <div className="curriculum-projects-list">
+                      {projects.map((proj, index) => (
+                        <div key={proj.id} className="curriculum-project-item">
+                          {editing ? (
+                            <div className="curriculum-project-edit">
+                              <div className="curriculum-project-meta">
+                                <span>Project {index + 1}</span>
+                                {proj.source === "book" && (
+                                  <span className="curriculum-project-source">
+                                    Book project
+                                  </span>
+                                )}
+                                <span className="curriculum-project-lang">
+                                  {profileFor(draft.language)?.name ??
+                                    draft.language}
+                                </span>
+                              </div>
+                              <label>
+                                Title
+                                <input
+                                  type="text"
+                                  value={proj.title}
+                                  aria-label={`Title for project ${index + 1}`}
+                                  maxLength={1200}
+                                  onChange={(e) =>
+                                    updateProject(proj.id, {
+                                      title: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label>
+                                Summary
+                                <textarea
+                                  value={proj.summary}
+                                  aria-label={`Summary for project ${index + 1}`}
+                                  maxLength={1200}
+                                  onChange={(e) =>
+                                    updateProject(proj.id, {
+                                      summary: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="curriculum-project-title">
+                                {proj.title}
+                                <span>
+                                  {profileFor(draft.language)?.name ??
+                                    draft.language}
+                                </span>
+                              </p>
+                              {proj.source === "book" && (
+                                <span className="curriculum-project-source">
+                                  Book project
+                                </span>
+                              )}
+                              <p>{proj.summary}</p>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="curriculum-project-note">
+                      Each project has its own workspace and accumulating tests. Chapters extending the same project share one codebase. Runs on this Mac with your installed toolchain, inside a sandbox{draft.language === "go" ? " (or on the Go Playground if Go isn’t installed)" : ""}.
+                    </p>
+                  </>
+                ))}
               <h4>The destination</h4>
               {editing ? (
                 <label>

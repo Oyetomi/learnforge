@@ -73,7 +73,7 @@ interface Props {
 const PRACTICE_CHOICES = [
   { id: "auto", title: "Questions", detail: "Explanations and checks; code only if your goal needs it." },
   { id: "code", title: "Code exercises", detail: "A short tested exercise per lesson." },
-  { id: "project", title: "Build a project", detail: "One codebase grows through the course." },
+  { id: "project", title: "Build a project", detail: "Build real projects across the course (follows a book’s projects or grows one app)." },
 ] as const;
 
 /** A programming language named in the goal ("…using Go", "in Rust"), if any. */
@@ -173,7 +173,7 @@ export const NewTopicModal: React.FC<Props> = ({
       : languageStatus
       ? `${name} isn’t installed yet (needs ${missing.join(", ") || name}). You can plan the course now and install it before the first step.`
       : `${name} projects run in the Mac app with your installed toolchain.`;
-    return `Each unit adds a tested step to one codebase, and earlier steps’ tests keep running. ${where}`;
+    return `Builds your book’s projects or one cumulative codebase with accumulating tests. ${where}`;
   })();
   const codeLanguages: [string, string][] = [
     ...CODE_LANGUAGES,
