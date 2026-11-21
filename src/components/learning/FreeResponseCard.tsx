@@ -6,6 +6,7 @@ import { gradeFreeResponse } from "../../services/learning/freeResponse";
 import { MarkdownView } from "../chat/MarkdownView";
 import { VoiceDictationButton } from "./VoiceDictationButton";
 import { practiceLabel } from "../../services/learning/teaching";
+import { asksForCode } from "../../services/learning/checks";
 
 export const FreeResponseCard: React.FC<QuestionCardProps> = ({
   check,
@@ -25,6 +26,7 @@ export const FreeResponseCard: React.FC<QuestionCardProps> = ({
   feedbackTeaching,
 }) => {
   const key = `learnforge:check-draft:${check.id}`;
+  const code = asksForCode(check);
   const [draft, setDraft] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(key) || "null");
@@ -155,7 +157,7 @@ export const FreeResponseCard: React.FC<QuestionCardProps> = ({
       aria-label="Written answer check"
     >
       <div className="check-kicker">
-        <span>Explain it in your own words</span>
+        <span>{code ? "Write the code" : "Explain it in your own words"}</span>
         {!attempt && (
           <span className="check-mode-pill">
             {check.practice || assistedSoFar ? practiceLabel(check.practice, assistedSoFar) : "Written response"}
@@ -178,7 +180,7 @@ export const FreeResponseCard: React.FC<QuestionCardProps> = ({
           </div>
           <div className="check-field-header">
             <label htmlFor={`written-answer-${check.id}`}>Your answer</label>
-            <VoiceDictationButton
+            {!code && <VoiceDictationButton
               label="Dictate your answer"
               disabled={checking || isBusy}
               onTranscript={(chunk) =>
@@ -189,16 +191,20 @@ export const FreeResponseCard: React.FC<QuestionCardProps> = ({
                     : chunk.slice(0, 6000),
                 }))
               }
-            />
+            />}
           </div>
           <textarea
             id={`written-answer-${check.id}`}
             aria-describedby={`written-question-${check.id}`}
-            rows={4}
+            className={code ? "free-response-code" : undefined}
+            rows={code ? 10 : 4}
             maxLength={6000}
             value={draft.response}
             disabled={checking || isBusy}
-            placeholder="A short explanation is enough."
+            placeholder={code ? "Write your code here. ⌘↵ to check it." : "A short explanation is enough."}
+            spellCheck={code ? false : undefined}
+            autoCapitalize={code ? "off" : undefined}
+            autoCorrect={code ? "off" : undefined}
             onKeyDown={(event) => {
               if (
                 (event.metaKey || event.ctrlKey) &&
@@ -207,6 +213,16 @@ export const FreeResponseCard: React.FC<QuestionCardProps> = ({
               ) {
                 event.preventDefault();
                 event.currentTarget.form?.requestSubmit();
+                return;
+              }
+              // In a code answer, Tab indents instead of leaving the box (Esc then Tab still moves on).
+              if (code && event.key === "Tab" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+                event.preventDefault();
+                const el = event.currentTarget;
+                const { selectionStart: start, selectionEnd: end, value } = el;
+                const next = `${value.slice(0, start)}\t${value.slice(end)}`.slice(0, 6000);
+                setDraft((d) => ({ ...d, response: next }));
+                requestAnimationFrame(() => el.setSelectionRange(start + 1, start + 1));
               }
             }}
             onChange={(event) =>
@@ -325,9 +341,13 @@ export const FreeResponseCard: React.FC<QuestionCardProps> = ({
             <div>
               <dt>Your answer</dt>
               <dd>
-                <p className="written-answer-text">
-                  {attempt.dontKnow ? "I don’t know yet" : attempt.response}
-                </p>
+                {code && !attempt.dontKnow ? (
+                  <pre className="written-answer-code">{attempt.response}</pre>
+                ) : (
+                  <p className="written-answer-text">
+                    {attempt.dontKnow ? "I don’t know yet" : attempt.response}
+                  </p>
+                )}
               </dd>
             </div>
           </dl>

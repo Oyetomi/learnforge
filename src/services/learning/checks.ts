@@ -1,5 +1,15 @@
 import type { ChatMessage, CheckAttempt, LearningCheck, LearningCheckSpec, Milestone } from "../../types";
 
+const CODE_TASK = /\b(?:write|implement|complete|code|fix|refactor|modify|rewrite)\b[^.?!\n]{0,80}\b(?:program|function|method|code|snippet|struct|class|script|query|loop|handler|test)\b/i;
+const CODE_ANSWER = /```|^\s*(?:package \w+|import |func |def |fn |class |public |#include|const |let |SELECT )/m;
+
+/** A free-response check that asks for code: shown with a code box instead of a prose one. */
+export function asksForCode(check: Pick<LearningCheckSpec, "kind" | "response" | "question" | "expectedAnswer">): boolean {
+  if (check.kind !== "free-response") return false;
+  if (check.response) return check.response === "code";
+  return CODE_TASK.test(check.question) && CODE_ANSWER.test(check.expectedAnswer ?? "");
+}
+
 export function validateLearningCheck(
   value: unknown
 ): LearningCheckSpec | null {
@@ -16,7 +26,7 @@ export function validateLearningCheck(
         typeof raw.criterion !== "string" || !raw.criterion.trim() || raw.criterion.length > 500 || rubric.some((r) => r.id === raw.id)) return null;
       rubric.push({ id: raw.id, criterion: raw.criterion.trim() });
     }
-    return { kind: "free-response", question: data.question.trim(), context: typeof data.context === "string" ? data.context.trim() : undefined,
+    return { kind: "free-response", ...(data.response === "code" || data.response === "text" ? { response: data.response as "code" | "text" } : {}), question: data.question.trim(), context: typeof data.context === "string" ? data.context.trim() : undefined,
       explanation: data.explanation.trim(), expectedAnswer: data.expectedAnswer.trim(), rubric, options: [], correctOptionIds: [], multiple: false };
   }
   if (data.kind !== undefined && data.kind !== "choice") return null;

@@ -160,6 +160,8 @@ export interface TestResult {
 
 export interface LearningCheckSpec {
   kind?: "choice" | "free-response";
+  /** A free-response answer written as code rather than prose. */
+  response?: "text" | "code";
   rubric?: { id: string; criterion: string }[];
   expectedAnswer?: string;
   question: string;
