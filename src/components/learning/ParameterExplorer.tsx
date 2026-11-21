@@ -47,10 +47,12 @@ function expressionToLatex(expr: string, xVar = "x"): string {
   tex = tex.replace(/\babs\s*\(([^()]+)\)/g, "|$1|");
   tex = tex.replace(/\b([a-zA-Z_]\w*)\b/g, (ident) => {
     if (ident === "x" && xVar && xVar.length <= 3) return xVar;
-    if (Object.hasOwn(GREEK_MAP, ident)) return GREEK_MAP[ident];
+    if (Object.prototype.hasOwnProperty.call(GREEK_MAP, ident)) return GREEK_MAP[ident];
     if (ident.includes("_")) {
       const [head, ...rest] = ident.split("_");
-      const renderedHead = Object.hasOwn(GREEK_MAP, head) ? GREEK_MAP[head] : head;
+      const renderedHead = Object.prototype.hasOwnProperty.call(GREEK_MAP, head)
+        ? GREEK_MAP[head]
+        : head;
       return `${renderedHead}_{${rest.join("\\_")}}`;
     }
     return ident;

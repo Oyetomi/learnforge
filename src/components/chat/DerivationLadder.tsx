@@ -33,7 +33,9 @@ const highlightColors: Record<string, string> = {
 };
 
 const colorFor = (name?: string): string =>
-  name && Object.hasOwn(highlightColors, name) ? highlightColors[name] : highlightColors.blue;
+  name && Object.prototype.hasOwnProperty.call(highlightColors, name)
+    ? highlightColors[name]
+    : highlightColors.blue;
 
 function renderHighlightedState(raw: string) {
   const pattern = /\[([^\]]+)\](?::([a-z]+))?/g;

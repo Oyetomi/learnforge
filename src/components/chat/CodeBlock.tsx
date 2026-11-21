@@ -72,10 +72,10 @@ const labels: Record<string, string> = {
 };
 
 const aliasFor = (lang: string): string =>
-  Object.hasOwn(aliases, lang) ? aliases[lang] : lang;
+  Object.prototype.hasOwnProperty.call(aliases, lang) ? aliases[lang] : lang;
 
 const labelFor = (lang: string): string | undefined =>
-  Object.hasOwn(labels, lang) ? labels[lang] : undefined;
+  Object.prototype.hasOwnProperty.call(labels, lang) ? labels[lang] : undefined;
 
 export function highlightSource(code: string, language = "") {
   const normalized = language.toLowerCase();

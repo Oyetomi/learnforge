@@ -55,7 +55,7 @@ export function normalizeLanguage(lang: unknown): SupportedLanguage | null {
   // A learning plan may teach a language even when its execution service lacks
   // a runtime. Do not silently substitute one of the original five languages.
   if (!/^[a-z][a-z0-9+#.-]{0,39}$/.test(clean) || ["none", "null", "general"].includes(clean)) return null;
-  return Object.hasOwn(aliases, clean) ? aliases[clean] : clean;
+  return Object.prototype.hasOwnProperty.call(aliases, clean) ? aliases[clean] : clean;
 }
 
 export async function generateCustomTrack(

@@ -269,10 +269,10 @@ export function evaluateMathExpression(
           return NaN;
         }
         const fnName = tok.name.toLowerCase();
-        if (Object.hasOwn(UNARY_FUNCS, fnName) && args.length === 1) {
+        if (Object.prototype.hasOwnProperty.call(UNARY_FUNCS, fnName) && args.length === 1) {
           return UNARY_FUNCS[fnName](args[0]);
         }
-        if (Object.hasOwn(MULTI_FUNCS, fnName)) {
+        if (Object.prototype.hasOwnProperty.call(MULTI_FUNCS, fnName)) {
           const expected = fnName === "clamp" ? 3 : 2;
           if (args.length === expected) {
             return MULTI_FUNCS[fnName](...args);
@@ -322,7 +322,12 @@ function expressionValidForVariables(
         (tokens[i + 1] as { value: string }).value === "(";
       if (isCall) {
         const lower = tok.name.toLowerCase();
-        if (!Object.hasOwn(UNARY_FUNCS, lower) && !Object.hasOwn(MULTI_FUNCS, lower)) return false;
+        if (
+          !Object.prototype.hasOwnProperty.call(UNARY_FUNCS, lower) &&
+          !Object.prototype.hasOwnProperty.call(MULTI_FUNCS, lower)
+        ) {
+          return false;
+        }
       } else if (
         !allowedVars.has(tok.name) &&
         !Object.prototype.hasOwnProperty.call(CONSTANTS, tok.name)
@@ -370,7 +375,7 @@ export function validateParameterSim(value: unknown): ParameterSimSpec | null {
     if (
       !VALID_IDENTIFIER.test(id) ||
       id === "x" ||
-      Object.hasOwn(CONSTANTS, id) ||
+      Object.prototype.hasOwnProperty.call(CONSTANTS, id) ||
       paramIds.has(id) ||
       !label ||
       !Number.isFinite(min) ||
