@@ -27,8 +27,12 @@ export interface LanguageProfile {
   test: string[][];
   /** Single-invocation structured test suite (e.g. `go test -json ./...`), optional. */
   testBatch?: string[][];
-  /** Explicit user-confirmed dependency fetch commands (e.g. `go mod tidy` / `download`). */
+  /** Output parser format for `testBatch`. */
+  testBatchFormat?: "go-json" | "cargo" | "python-unittest" | "node-junit";
+  /** Explicit user-confirmed dependency fetch commands (e.g. `go mod tidy`, `cargo fetch`, `npm install`). */
   fetchDeps?: string[][];
+  /** Extra env overrides applied only during `fetchDeps` (e.g. `CARGO_NET_OFFLINE=false`). */
+  fetchDepsEnv?: Record<string, string>;
   /** Compile-only check of a step's tests (empty: nothing to compile). */
   check?: string[][];
   tools?: LanguageTool[];

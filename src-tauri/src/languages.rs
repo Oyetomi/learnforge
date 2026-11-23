@@ -56,9 +56,15 @@ pub struct Profile {
     /// Single-invocation structured test suite (e.g. `go test -json ./...`), optional.
     #[serde(default)]
     pub test_batch: Vec<Vec<String>>,
-    /// Explicit user-confirmed dependency fetch commands (e.g. `go mod tidy` / `go mod download`).
+    /// Parser format for `test_batch` output (`go-json`, `cargo`, `python-unittest`, `node-junit`).
+    #[serde(default)]
+    pub test_batch_format: Option<String>,
+    /// Explicit user-confirmed dependency fetch commands (e.g. `go mod tidy`, `cargo fetch`, `npm install`).
     #[serde(default)]
     pub fetch_deps: Vec<Vec<String>>,
+    /// Extra environment overrides applied only during `fetch_deps` (e.g. `CARGO_NET_OFFLINE=false`).
+    #[serde(default)]
+    pub fetch_deps_env: BTreeMap<String, String>,
     /// Compile-only check of one step's tests against the current files
     /// (nothing runs). Used before a prepared step is shown to the learner.
     #[serde(default)]
@@ -435,13 +441,16 @@ mod tests {
         }
         assert!(!go.is_source("a/b/c/d/e/f.go"));
         assert!(!go.is_source("notes.exe"));
-        assert!(get("python").is_source("store/__init__.py") && get("rust").is_source("src/raft/log.rs"));
+        assert!(get("python").is_source("store/__init__.py") && get("python").is_source("requirements.txt") && get("python").is_source("schemas/order.proto"));
+        assert!(get("rust").is_source("src/raft/log.rs") && get("rust").is_source("Cargo.toml") && get("rust").is_source("migrations/001_init.sql"));
         let rust = get("rust");
         assert!(rust.is_source("src/raft.rs") && rust.is_test("tests/stage02_log.rs") && !rust.is_source("tests/stage02_log.rs"));
         let java = get("java");
-        assert!(java.is_source("Store.java") && !java.is_source("Stage01Test.java") && java.is_test("Stage01Test.java"));
+        assert!(java.is_source("Store.java") && java.is_source("broker/EventLog.java") && java.is_source("schemas/event.avsc") && !java.is_source("Stage01Test.java") && java.is_test("Stage01Test.java"));
         let ts = get("typescript");
-        assert!(ts.is_source("store.ts") && !ts.is_source("stage01_a.test.ts") && ts.is_test("stage01_a.test.ts"));
+        assert!(ts.is_source("store.ts") && ts.is_source("package.json") && ts.is_source("config/broker.yaml") && !ts.is_source("stage01_a.test.ts") && ts.is_test("stage01_a.test.ts"));
+        let ruby = get("ruby");
+        assert!(ruby.is_source("lib/broker/log.rb") && ruby.is_source("Gemfile") && ruby.is_source("events.jsonl"));
     }
 
     #[test]

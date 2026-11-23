@@ -60,7 +60,7 @@ import "./curriculum.css";
 import "./new-topic-layout.css";
 
 import { requestsDiagnosticFirst } from "../../services/learning/diagnosticIntent";
-import { supportsProjectMode } from "../../services/learning/project";
+import { dependencyUiMeta, supportsProjectMode } from "../../services/learning/project";
 import { loadLanguageStatus, profileFor, supportsDependencyFetch, type LanguageStatus } from "../../services/languages";
 import { projectRuntime } from "../editor/useProjectWorkspace";
 import { loadGoalDraft as savedDraft, saveGoalDraft, GOAL_DRAFT_KEY as draftKey, STARTING_POINTS as startingPoints, STARTING_POINT_LABELS } from "../../services/learning/goalDraft";
@@ -1069,23 +1069,26 @@ export const NewTopicModal: React.FC<Props> = ({
                               </button>
                             ))}
                           </div>
-                          {supportsDependencyFetch(codeLanguage) && (
-                            <label className="diagnostic-first-choice goal-project-toggle">
-                              <input
-                                type="checkbox"
-                                checked={allowExternalPackages}
-                                disabled={busy}
-                                onChange={(e) => setAllowExternalPackages(e.target.checked)}
-                              />
-                              <span>
-                                <strong>Allow external {profileFor(codeLanguage)?.name ?? codeLanguage} packages</strong>
-                                <small>
-                                  Permit third-party modules in <code>go.mod</code>. Tests stay offline; use{" "}
-                                  <strong>Fetch modules</strong> in the workspace to download dependencies on demand.
-                                </small>
-                              </span>
-                            </label>
-                          )}
+                          {supportsDependencyFetch(codeLanguage) && (() => {
+                            const depMeta = dependencyUiMeta(codeLanguage);
+                            return (
+                              <label className="diagnostic-first-choice goal-project-toggle">
+                                <input
+                                  type="checkbox"
+                                  checked={allowExternalPackages}
+                                  disabled={busy}
+                                  onChange={(e) => setAllowExternalPackages(e.target.checked)}
+                                />
+                                <span>
+                                  <strong>Allow external {profileFor(codeLanguage)?.name ?? codeLanguage} {depMeta.noun}</strong>
+                                  <small>
+                                    Permit third-party {depMeta.noun} in <code>{depMeta.manifest}</code>. Tests stay offline; use{" "}
+                                    <strong>{depMeta.buttonLabel}</strong> in the workspace to download dependencies on demand.
+                                  </small>
+                                </span>
+                              </label>
+                            );
+                          })()}
                           <div className="goal-local-services">
                             <span className="goal-group-label">
                               Local services on <code>localhost</code> (optional)

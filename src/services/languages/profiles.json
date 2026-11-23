@@ -50,6 +50,7 @@
         "./..."
       ]
     ],
+    "testBatchFormat": "go-json",
     "testBatch": [
       [
         "{go}",
@@ -183,10 +184,11 @@
     ],
     "env": {
       "PYTHONDONTWRITEBYTECODE": "1",
-      "PYTHONPATH": "{project}"
+      "PYTHONPATH": "{project}:{project}/.lf-deps",
+      "PIP_CACHE_DIR": "{cache}/pip"
     },
     "scaffold": [],
-    "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}([a-z][a-z0-9_]{0,40}|__init__)\\.py$",
+    "sourcePattern": "^(([a-z][a-z0-9_-]{0,40}/){0,4}([a-z][a-z0-9_]{0,40}|__init__)\\.py|([a-z][a-z0-9_-]{0,40}/){0,4}[a-z0-9][a-z0-9_-]{0,40}\\.(txt|json|jsonl|xml|csv|md|yaml|yml|sql|proto|avsc)|requirements\\.txt)$",
     "testPattern": "^test_stage\\d{2,3}_[a-z0-9_]+\\.py$",
     "testFile": "test_stage{nn}_{slug}.py",
     "testNamePrefix": false,
@@ -206,6 +208,68 @@
         "{testStem}"
       ]
     ],
+    "testBatchFormat": "python-unittest",
+    "testBatch": [
+      [
+        "{python}",
+        "-m",
+        "unittest",
+        "-v",
+        "{testStems}"
+      ]
+    ],
+    "fetchDeps": [
+      [
+        "{python}",
+        "-m",
+        "pip",
+        "install",
+        "--no-input",
+        "--upgrade",
+        "--target",
+        "{project}/.lf-deps",
+        "-r",
+        "requirements.txt"
+      ]
+    ],
+    "tools": [
+      {
+        "id": "test_all",
+        "label": "All tests",
+        "commands": [
+          [
+            "{python}",
+            "-m",
+            "unittest",
+            "-v",
+            "{testStems}"
+          ]
+        ]
+      },
+      {
+        "id": "compileall",
+        "label": "Syntax check",
+        "commands": [
+          [
+            "{python}",
+            "-m",
+            "compileall",
+            "-q",
+            "."
+          ]
+        ]
+      },
+      {
+        "id": "run_main",
+        "label": "Run main",
+        "commands": [
+          [
+            "{python}",
+            "main.py"
+          ]
+        ]
+      }
+    ],
     "lsp": [
       [
         "{pyright}",
@@ -216,7 +280,7 @@
       ]
     ],
     "lspInstall": "npm install -g pyright",
-    "sourceGuide": "Modules in the project root, standard library only. Import with `from store import Store`.",
+    "sourceGuide": "Python packages and modules under the project root (folders with __init__.py or namespace packages up to 4 levels deep). Import with `from broker.log import EventLog`. Data and schema fixtures (.txt, .json, .jsonl, .xml, .csv, .md, .yaml, .yml, .sql, .proto, .avsc) and requirements.txt are allowed. Standard library only unless external packages are explicitly enabled for the project.",
     "testGuide": "One unittest file: `import unittest`, test classes subclass unittest.TestCase, test methods start with test_. Import the learner's modules by name.",
     "lspProbe": [
       "--version"
@@ -246,6 +310,7 @@
       "~/.rustup"
     ],
     "env": {
+      "CARGO_HOME": "{cache}/cargo",
       "CARGO_TARGET_DIR": "{project}/target",
       "CARGO_NET_OFFLINE": "true"
     },
@@ -263,7 +328,7 @@
         "content": "fn main() {\n    println!(\"learnforge project\");\n}\n"
       }
     ],
-    "sourcePattern": "^src/([a-z][a-z0-9_]{0,40}/){0,2}[a-z][a-z0-9_]{0,40}\\.rs$",
+    "sourcePattern": "^(src/([a-z][a-z0-9_-]{0,40}/){0,3}[a-z][a-z0-9_]{0,40}\\.rs|([a-z][a-z0-9_-]{0,40}/){0,4}[a-z0-9][a-z0-9_-]{0,40}\\.(txt|json|jsonl|xml|csv|md|yaml|yml|sql|proto|avsc)|Cargo\\.toml|Cargo\\.lock)$",
     "testPattern": "^tests/stage\\d{2,3}_[a-z0-9_]+\\.rs$",
     "testFile": "tests/stage{nn}_{slug}.rs",
     "testNamePrefix": false,
@@ -286,13 +351,82 @@
         "{testStem}"
       ]
     ],
+    "testBatchFormat": "cargo",
+    "testBatch": [
+      [
+        "{cargo}",
+        "test",
+        "--offline",
+        "--no-fail-fast",
+        "--tests"
+      ]
+    ],
+    "fetchDepsEnv": {
+      "CARGO_NET_OFFLINE": "false"
+    },
+    "fetchDeps": [
+      [
+        "{cargo}",
+        "fetch"
+      ]
+    ],
+    "tools": [
+      {
+        "id": "test_all",
+        "label": "All tests",
+        "commands": [
+          [
+            "{cargo}",
+            "test",
+            "--offline",
+            "--no-fail-fast"
+          ]
+        ]
+      },
+      {
+        "id": "check",
+        "label": "cargo check",
+        "commands": [
+          [
+            "{cargo}",
+            "check",
+            "--offline",
+            "--all-targets"
+          ]
+        ]
+      },
+      {
+        "id": "clippy",
+        "label": "Clippy",
+        "commands": [
+          [
+            "{cargo}",
+            "clippy",
+            "--offline",
+            "--all-targets"
+          ]
+        ]
+      },
+      {
+        "id": "run_main",
+        "label": "Run main",
+        "commands": [
+          [
+            "{cargo}",
+            "run",
+            "--offline",
+            "--quiet"
+          ]
+        ]
+      }
+    ],
     "lsp": [
       [
         "{rust-analyzer}"
       ]
     ],
     "lspInstall": "rustup component add rust-analyzer",
-    "sourceGuide": "A Cargo package named learnforge_project, standard library only. Library code lives in src/lib.rs and modules under src/; a new module file needs `pub mod name;` in src/lib.rs, which the task must tell the learner to add.",
+    "sourceGuide": "A Cargo package named learnforge_project (Cargo.toml at the root, editable). Library code lives in src/lib.rs and nested modules under src/ (up to 4 path segments); a new module file needs `pub mod name;` in src/lib.rs (or its parent mod.rs), which the task must tell the learner to add. Data and schema fixtures (.txt, .json, .jsonl, .xml, .csv, .md, .yaml, .yml, .sql, .proto, .avsc) are allowed. Standard library only unless external crates are explicitly enabled for the project.",
     "testGuide": "One integration test file: `use learnforge_project::*;` (or specific module paths), then #[test] functions.",
     "lspProbe": [
       "--version"
@@ -317,12 +451,20 @@
       "node": [
         "node"
       ],
+      "npm": [
+        "npm"
+      ],
       "tsserver": [
         "typescript-language-server"
       ]
     },
     "readPaths": [],
-    "env": {},
+    "env": {
+      "NPM_CONFIG_CACHE": "{cache}/npm",
+      "NPM_CONFIG_UPDATE_NOTIFIER": "false",
+      "NPM_CONFIG_FUND": "false",
+      "NPM_CONFIG_AUDIT": "false"
+    },
     "scaffold": [
       {
         "path": "package.json",
@@ -333,7 +475,7 @@
         "content": "{\n  \"compilerOptions\": {\n    \"target\": \"ES2023\",\n    \"module\": \"NodeNext\",\n    \"strict\": true,\n    \"allowImportingTsExtensions\": true,\n    \"noEmit\": true,\n    \"types\": [\"node\"]\n  }\n}\n"
       }
     ],
-    "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}[a-z][a-z0-9_]{0,40}\\.ts$",
+    "sourcePattern": "^(([a-z][a-z0-9_-]{0,40}/){0,4}[a-z][a-z0-9_-]{0,40}\\.ts|([a-z][a-z0-9_-]{0,40}/){0,4}[a-z0-9][a-z0-9_-]{0,40}\\.(txt|json|jsonl|xml|csv|md|yaml|yml|sql|proto|avsc))$",
     "testPattern": "^stage\\d{2,3}_[a-z0-9_]+\\.test\\.ts$",
     "testFile": "stage{nn}_{slug}.test.ts",
     "testNamePrefix": false,
@@ -351,6 +493,47 @@
         "{testFile}"
       ]
     ],
+    "testBatchFormat": "node-junit",
+    "testBatch": [
+      [
+        "{node}",
+        "--test",
+        "--test-reporter=junit",
+        "{tests}"
+      ]
+    ],
+    "fetchDeps": [
+      [
+        "{npm}",
+        "install",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund"
+      ]
+    ],
+    "tools": [
+      {
+        "id": "test_all",
+        "label": "All tests",
+        "commands": [
+          [
+            "{node}",
+            "--test",
+            "{tests}"
+          ]
+        ]
+      },
+      {
+        "id": "run_main",
+        "label": "Run main",
+        "commands": [
+          [
+            "{node}",
+            "main.ts"
+          ]
+        ]
+      }
+    ],
     "lsp": [
       [
         "{tsserver}",
@@ -358,7 +541,7 @@
       ]
     ],
     "lspInstall": "npm install -g typescript typescript-language-server",
-    "sourceGuide": "ES modules run directly by Node (type stripping): erasable TypeScript only (no enums or namespaces), and imports include the .ts extension, e.g. `import { Store } from \"./store.ts\";`. No npm packages.",
+    "sourceGuide": "ES modules run directly by Node (type stripping): erasable TypeScript only (no enums or namespaces), nested folders allowed (up to 4 levels), and relative imports include the .ts extension, e.g. `import { Store } from \"./internal/store.ts\";`. Data and schema fixtures (.txt, .json, .jsonl, .xml, .csv, .md, .yaml, .yml, .sql, .proto, .avsc) and package.json are allowed. Node built-ins only unless external npm packages are explicitly enabled for the project.",
     "testGuide": "One node:test file: `import { test } from \"node:test\"; import assert from \"node:assert/strict\";` and import the learner's modules with .ts extensions.",
     "lspProbe": [
       "--version"
@@ -373,19 +556,27 @@
       "node": [
         "node"
       ],
+      "npm": [
+        "npm"
+      ],
       "tsserver": [
         "typescript-language-server"
       ]
     },
     "readPaths": [],
-    "env": {},
+    "env": {
+      "NPM_CONFIG_CACHE": "{cache}/npm",
+      "NPM_CONFIG_UPDATE_NOTIFIER": "false",
+      "NPM_CONFIG_FUND": "false",
+      "NPM_CONFIG_AUDIT": "false"
+    },
     "scaffold": [
       {
         "path": "package.json",
         "content": "{\n  \"type\": \"module\",\n  \"private\": true\n}\n"
       }
     ],
-    "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}[a-z][a-z0-9_]{0,40}\\.js$",
+    "sourcePattern": "^(([a-z][a-z0-9_-]{0,40}/){0,4}[a-z][a-z0-9_-]{0,40}\\.m?js|([a-z][a-z0-9_-]{0,40}/){0,4}[a-z0-9][a-z0-9_-]{0,40}\\.(txt|json|jsonl|xml|csv|md|yaml|yml|sql|proto|avsc))$",
     "testPattern": "^stage\\d{2,3}_[a-z0-9_]+\\.test\\.js$",
     "testFile": "stage{nn}_{slug}.test.js",
     "testNamePrefix": false,
@@ -403,6 +594,47 @@
         "{testFile}"
       ]
     ],
+    "testBatchFormat": "node-junit",
+    "testBatch": [
+      [
+        "{node}",
+        "--test",
+        "--test-reporter=junit",
+        "{tests}"
+      ]
+    ],
+    "fetchDeps": [
+      [
+        "{npm}",
+        "install",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund"
+      ]
+    ],
+    "tools": [
+      {
+        "id": "test_all",
+        "label": "All tests",
+        "commands": [
+          [
+            "{node}",
+            "--test",
+            "{tests}"
+          ]
+        ]
+      },
+      {
+        "id": "run_main",
+        "label": "Run main",
+        "commands": [
+          [
+            "{node}",
+            "main.js"
+          ]
+        ]
+      }
+    ],
     "lsp": [
       [
         "{tsserver}",
@@ -410,7 +642,7 @@
       ]
     ],
     "lspInstall": "npm install -g typescript typescript-language-server",
-    "sourceGuide": "ES modules run by Node; imports include the .js extension. No npm packages.",
+    "sourceGuide": "ES modules run by Node, nested folders allowed (up to 4 levels); relative imports include the .js extension. Data and schema fixtures (.txt, .json, .jsonl, .xml, .csv, .md, .yaml, .yml, .sql, .proto, .avsc) and package.json are allowed. Node built-ins only unless external npm packages are explicitly enabled for the project.",
     "testGuide": "One node:test file: `import { test } from \"node:test\"; import assert from \"node:assert/strict\";`.",
     "lspProbe": [
       "--version"
@@ -440,7 +672,7 @@
     "readPaths": [],
     "env": {},
     "scaffold": [],
-    "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}[a-z][a-z0-9_]{0,40}\\.[ch]$",
+    "sourcePattern": "^(([a-z][a-z0-9_-]{0,40}/){0,4}[a-z][a-z0-9_-]{0,40}\\.[ch]|([a-z][a-z0-9_-]{0,40}/){0,4}[a-z0-9][a-z0-9_-]{0,40}\\.(txt|json|jsonl|xml|csv|md|yaml|yml|sql|proto|avsc))$",
     "testPattern": "^stage\\d{2,3}_[a-z0-9_]+_test\\.c$",
     "testFile": "stage{nn}_{slug}_test.c",
     "testNamePrefix": false,
@@ -472,13 +704,49 @@
         "{tmp}/stage{nn}"
       ]
     ],
+    "tools": [
+      {
+        "id": "warnings",
+        "label": "Strict warnings",
+        "commands": [
+          [
+            "{cc}",
+            "-std=c17",
+            "-Wall",
+            "-Wextra",
+            "-Wpedantic",
+            "-fsyntax-only",
+            "{sources:.c}"
+          ]
+        ]
+      },
+      {
+        "id": "sanitizer",
+        "label": "ASan + UBSan",
+        "commands": [
+          [
+            "{cc}",
+            "-std=c17",
+            "-Wall",
+            "-g",
+            "-fsanitize=address,undefined",
+            "-o",
+            "{tmp}/san",
+            "{sources:.c}"
+          ],
+          [
+            "{tmp}/san"
+          ]
+        ]
+      }
+    ],
     "lsp": [
       [
         "{clangd}"
       ]
     ],
     "lspInstall": "xcode-select --install",
-    "sourceGuide": "C17, standard library only. main() lives only in main.c; other code in separate .c files with matching .h headers.",
+    "sourceGuide": "C17, standard library only. main() lives only in main.c; other code in separate .c files with matching .h headers (subfolders up to 4 levels allowed). Data and schema fixtures (.txt, .json, .jsonl, .xml, .csv, .md, .yaml, .yml, .sql, .proto, .avsc) are allowed.",
     "testGuide": "One C file with its own main() that includes the learner's headers, checks behavior with assert or explicit checks, prints what failed, and returns nonzero on failure. It is compiled with every .c file except main.c.",
     "lspProbe": [
       "--version"
@@ -512,7 +780,7 @@
     "readPaths": [],
     "env": {},
     "scaffold": [],
-    "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}[a-z][a-z0-9_]{0,40}\\.(cpp|hpp|h)$",
+    "sourcePattern": "^(([a-z][a-z0-9_-]{0,40}/){0,4}[a-z][a-z0-9_-]{0,40}\\.(cpp|hpp|h)|([a-z][a-z0-9_-]{0,40}/){0,4}[a-z0-9][a-z0-9_-]{0,40}\\.(txt|json|jsonl|xml|csv|md|yaml|yml|sql|proto|avsc))$",
     "testPattern": "^stage\\d{2,3}_[a-z0-9_]+_test\\.cpp$",
     "testFile": "stage{nn}_{slug}_test.cpp",
     "testNamePrefix": false,
@@ -544,13 +812,49 @@
         "{tmp}/stage{nn}"
       ]
     ],
+    "tools": [
+      {
+        "id": "warnings",
+        "label": "Strict warnings",
+        "commands": [
+          [
+            "{cxx}",
+            "-std=c++20",
+            "-Wall",
+            "-Wextra",
+            "-Wpedantic",
+            "-fsyntax-only",
+            "{sources:.cpp}"
+          ]
+        ]
+      },
+      {
+        "id": "sanitizer",
+        "label": "ASan + UBSan",
+        "commands": [
+          [
+            "{cxx}",
+            "-std=c++20",
+            "-Wall",
+            "-g",
+            "-fsanitize=address,undefined",
+            "-o",
+            "{tmp}/san",
+            "{sources:.cpp}"
+          ],
+          [
+            "{tmp}/san"
+          ]
+        ]
+      }
+    ],
     "lsp": [
       [
         "{clangd}"
       ]
     ],
     "lspInstall": "xcode-select --install",
-    "sourceGuide": "C++20, standard library only. main() lives only in main.cpp; other code in separate .cpp files with matching .hpp headers.",
+    "sourceGuide": "C++20, standard library only. main() lives only in main.cpp; other code in separate .cpp files with matching .hpp headers (subfolders up to 4 levels allowed). Data and schema fixtures (.txt, .json, .jsonl, .xml, .csv, .md, .yaml, .yml, .sql, .proto, .avsc) are allowed.",
     "testGuide": "One C++ file with its own main() that includes the learner's headers, checks behavior, prints what failed, and returns nonzero on failure. It is compiled with every .cpp file except main.cpp.",
     "lspProbe": [
       "--version"
@@ -582,7 +886,7 @@
     "readPaths": [],
     "env": {},
     "scaffold": [],
-    "sourcePattern": "^[A-Z][A-Za-z0-9]{0,40}\\.java$",
+    "sourcePattern": "^(([a-z][a-z0-9_]{0,40}/){0,4}[A-Z][A-Za-z0-9_]{0,40}\\.java|([a-z][a-z0-9_-]{0,40}/){0,4}[a-z0-9][a-z0-9_-]{0,40}\\.(txt|json|jsonl|xml|csv|md|yaml|yml|sql|proto|avsc))$",
     "testPattern": "^Stage\\d{2,3}Test\\.java$",
     "testFile": "Stage{nn}Test.java",
     "testNamePrefix": false,
@@ -617,10 +921,43 @@
         "Stage{nn}Test"
       ]
     ],
+    "tools": [
+      {
+        "id": "xlint",
+        "label": "javac -Xlint",
+        "commands": [
+          [
+            "{javac}",
+            "-Xlint:all",
+            "-d",
+            "{tmp}/lint",
+            "{sources:.java}"
+          ]
+        ]
+      },
+      {
+        "id": "run_main",
+        "label": "Run Main",
+        "commands": [
+          [
+            "{javac}",
+            "-d",
+            "{tmp}/classes",
+            "{sources:.java}"
+          ],
+          [
+            "{java}",
+            "-cp",
+            "{tmp}/classes",
+            "Main"
+          ]
+        ]
+      }
+    ],
     "lsp": [],
     "lspInstall": "",
-    "sourceGuide": "Java 17, default package, standard library only. One public class per file named after the file. Main.java holds main().",
-    "testGuide": "One class Stage{nn}Test with public static void main(String[] args) that checks behavior, prints what failed, and calls System.exit(1) on failure. No JUnit.",
+    "sourceGuide": "Java 17+, standard library only. One public class per file named after the file; you may use default package classes or package folders (e.g. broker/EventLog.java with `package broker;`) up to 4 levels deep. Main.java holds main(). Data and schema fixtures (.txt, .json, .jsonl, .xml, .csv, .md, .yaml, .yml, .sql, .proto, .avsc) are allowed.",
+    "testGuide": "One root default-package class Stage{nn}Test with public static void main(String[] args) that imports the learner's packages/classes, checks behavior, prints what failed, and calls System.exit(1) on failure. No JUnit.",
     "lspProbe": [
       "--version"
     ],
@@ -642,6 +979,9 @@
       "ruby": [
         "ruby"
       ],
+      "bundle": [
+        "bundle"
+      ],
       "rubylsp": [
         "ruby-lsp",
         "solargraph"
@@ -652,9 +992,12 @@
       "~/.rbenv",
       "~/.rubies"
     ],
-    "env": {},
+    "env": {
+      "BUNDLE_PATH": "{project}/.lf-bundle",
+      "BUNDLE_USER_CACHE": "{cache}/bundler"
+    },
     "scaffold": [],
-    "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}[a-z][a-z0-9_]{0,40}\\.rb$",
+    "sourcePattern": "^(([a-z][a-z0-9_-]{0,40}/){0,4}[a-z][a-z0-9_]{0,40}\\.rb|([a-z][a-z0-9_-]{0,40}/){0,4}[a-z0-9][a-z0-9_-]{0,40}\\.(txt|json|jsonl|xml|csv|md|yaml|yml|sql|proto|avsc)|Gemfile|Gemfile\\.lock)$",
     "testPattern": "^test_stage\\d{2,3}_[a-z0-9_]+\\.rb$",
     "testFile": "test_stage{nn}_{slug}.rb",
     "testNamePrefix": false,
@@ -675,13 +1018,45 @@
         "{testFile}"
       ]
     ],
+    "fetchDeps": [
+      [
+        "{bundle}",
+        "install"
+      ]
+    ],
+    "tools": [
+      {
+        "id": "syntax",
+        "label": "Syntax check",
+        "commands": [
+          [
+            "{ruby}",
+            "-w",
+            "-c",
+            "main.rb"
+          ]
+        ]
+      },
+      {
+        "id": "run_main",
+        "label": "Run main",
+        "commands": [
+          [
+            "{ruby}",
+            "-I",
+            ".",
+            "main.rb"
+          ]
+        ]
+      }
+    ],
     "lsp": [
       [
         "{rubylsp}"
       ]
     ],
     "lspInstall": "gem install ruby-lsp",
-    "sourceGuide": "Plain Ruby files in the project root, standard library only. Load with require_relative.",
+    "sourceGuide": "Ruby files in the project root or subfolders (up to 4 levels deep). Load with require_relative. Data and schema fixtures (.txt, .json, .jsonl, .xml, .csv, .md, .yaml, .yml, .sql, .proto, .avsc) and Gemfile are allowed. Standard library only unless external gems are explicitly enabled for the project.",
     "testGuide": "One Minitest file: `require \"minitest/autorun\"`, require_relative the learner's files, and a class inheriting Minitest::Test with test_ methods.",
     "lspProbe": [
       "--version"

@@ -202,6 +202,19 @@ fn sources(dir: &Path, profile: &Profile, spec: &str) -> Vec<String> {
     out
 }
 
+fn tests_in_manifest(dir: &Path, profile: &Profile) -> Vec<String> {
+    let listed = std::fs::read_to_string(manifest_path(dir))
+        .or_else(|_| std::fs::read_to_string(dir.join(LEGACY_MANIFEST)))
+        .unwrap_or_default();
+    let mut out: Vec<String> = listed
+        .lines()
+        .filter(|p| profile.is_test(p) && dir.join(p).is_file())
+        .map(String::from)
+        .collect();
+    out.sort();
+    out
+}
+
 pub struct Context<'a> {
     pub dir: &'a Path,
     pub cache: &'a Path,
@@ -217,6 +230,25 @@ pub fn expand(argv: &[String], ctx: &Context) -> Result<Vec<String>, String> {
     let test_stem = Path::new(&test_file).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     let mut out = Vec::new();
     for (i, arg) in argv.iter().enumerate() {
+        if arg == "{tests}" {
+            let list = tests_in_manifest(ctx.dir, ctx.profile);
+            if list.is_empty() {
+                return Err("The project has no step test files yet.".into());
+            }
+            out.extend(list);
+            continue;
+        }
+        if arg == "{testStems}" {
+            let list: Vec<String> = tests_in_manifest(ctx.dir, ctx.profile)
+                .into_iter()
+                .filter_map(|p| Path::new(&p).file_stem().map(|s| s.to_string_lossy().into_owned()))
+                .collect();
+            if list.is_empty() {
+                return Err("The project has no step test files yet.".into());
+            }
+            out.extend(list);
+            continue;
+        }
         if let Some(spec) = arg.strip_prefix("{sources:").and_then(|s| s.strip_suffix('}')) {
             out.extend(sources(ctx.dir, ctx.profile, spec));
             continue;
@@ -590,15 +622,27 @@ pub async fn project_fetch_deps<R: Runtime>(
         }
         let dir = project_dir(&app, &track_id)?;
         let cache = cache_dir(&app)?;
+        let fetch_env = (!profile.fetch_deps_env.is_empty()).then_some(&profile.fetch_deps_env);
         let exec = execute_with_options(
             &Context { dir: &dir, cache: &cache, profile: &profile, stage: None },
             &profile.fetch_deps,
-            None,
+            fetch_env,
             true,
             cancel,
         )?;
         let mut updated_files = Vec::new();
-        for name in ["go.mod", "go.sum", "go.work"] {
+        for name in [
+            "go.mod",
+            "go.sum",
+            "go.work",
+            "Cargo.toml",
+            "Cargo.lock",
+            "package.json",
+            "package-lock.json",
+            "requirements.txt",
+            "Gemfile",
+            "Gemfile.lock",
+        ] {
             if !profile.is_source(name) {
                 continue;
             }
@@ -828,5 +872,107 @@ mod tests {
         assert!(dir.join("pkg/file_80.go").is_file());
         assert!(dir.join("stage105_stream_join_test.go").is_file());
         let _ = std::fs::remove_dir_all(dir.parent().unwrap());
+    }
+
+    #[test]
+    fn multi_language_batch_tests_and_java_packages_run_inside_sandbox() {
+        // Python batch unittest with {testStems}
+        let py = get("python");
+        if languages::resolve_binary(&py.binaries["python"]).is_some() {
+            let (dir, cache) = fixture("py-batch");
+            sync_files(
+                &dir,
+                &py,
+                &[
+                    file("broker/log.py", "def count(items): return len(items)\n"),
+                    file("broker/__init__.py", ""),
+                    file(
+                        "test_stage01_log.py",
+                        "import unittest\nfrom broker.log import count\nclass T(unittest.TestCase):\n    def test_ok(self): self.assertEqual(count([1, 2]), 2)\n",
+                    ),
+                    file(
+                        "test_stage02_fail.py",
+                        "import unittest\nclass T(unittest.TestCase):\n    def test_fail(self): self.assertEqual(1, 2)\n",
+                    ),
+                ],
+            )
+            .unwrap();
+            let res = execute(&Context { dir: &dir, cache: &cache, profile: &py, stage: None }, &py.test_batch, Arc::default()).unwrap();
+            assert_ne!(res.exit_code, 0, "{res:?}");
+            assert!(res.steps[0].stderr.contains("test_stage01_log"), "{res:?}");
+            assert!(res.steps[0].stderr.contains("test_stage02_fail"), "{res:?}");
+            let _ = std::fs::remove_dir_all(dir.parent().unwrap());
+        }
+
+        // TypeScript batch node:test junit with {tests}
+        let ts = get("typescript");
+        if languages::resolve_binary(&ts.binaries["node"]).is_some() {
+            let (dir, cache) = fixture("ts-batch");
+            sync_files(
+                &dir,
+                &ts,
+                &[
+                    file("internal/log.ts", "export function add(a: number, b: number): number { return a + b; }\n"),
+                    file(
+                        "stage01_add.test.ts",
+                        "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { add } from \"./internal/log.ts\";\ntest(\"adds\", () => { assert.equal(add(2, 3), 5); });\n",
+                    ),
+                    file(
+                        "stage02_fail.test.ts",
+                        "import { test } from \"node:test\";\nimport assert from \"node:assert/strict\";\ntest(\"fails\", () => { assert.equal(1, 2); });\n",
+                    ),
+                ],
+            )
+            .unwrap();
+            let res = execute(&Context { dir: &dir, cache: &cache, profile: &ts, stage: None }, &ts.test_batch, Arc::default()).unwrap();
+            assert_ne!(res.exit_code, 0, "{res:?}");
+            assert!(res.steps[0].stdout.contains("stage01_add.test.ts"), "{res:?}");
+            assert!(res.steps[0].stdout.contains("stage02_fail.test.ts"), "{res:?}");
+            let _ = std::fs::remove_dir_all(dir.parent().unwrap());
+        }
+
+        // Rust batch cargo test --offline --no-fail-fast --tests with CARGO_HOME in cache
+        let rs = get("rust");
+        if languages::resolve_binary(&rs.binaries["cargo"]).is_some() {
+            let (dir, cache) = fixture("rs-batch");
+            sync_files(
+                &dir,
+                &rs,
+                &[
+                    file("src/lib.rs", "pub mod broker;\n"),
+                    file("src/broker.rs", "pub fn count() -> usize { 2 }\n"),
+                    file("src/main.rs", "fn main() {}\n"),
+                    file("tests/stage01_broker.rs", "#[test] fn ok() { assert_eq!(learnforge_project::broker::count(), 2); }\n"),
+                    file("tests/stage02_fail.rs", "#[test] fn boom() { assert_eq!(learnforge_project::broker::count(), 9); }\n"),
+                ],
+            )
+            .unwrap();
+            let res = execute(&Context { dir: &dir, cache: &cache, profile: &rs, stage: None }, &rs.test_batch, Arc::default()).unwrap();
+            assert_ne!(res.exit_code, 0, "{res:?}");
+            assert!(res.steps[0].stderr.contains("Running tests/stage01_broker.rs"), "{res:?}");
+            assert!(res.steps[0].stderr.contains("Running tests/stage02_fail.rs"), "{res:?}");
+            let _ = std::fs::remove_dir_all(dir.parent().unwrap());
+        }
+
+        // Java subpackage compilation inside sandbox
+        let java = get("java");
+        if languages::resolve_binary(&java.binaries["javac"]).is_some()
+            && languages::resolve_binary(&java.binaries["java"]).is_some()
+        {
+            let (dir, cache) = fixture("java-pkg");
+            let stage = StageRef { number: 1, test_file: "Stage01Test.java".into() };
+            sync_files(
+                &dir,
+                &java,
+                &[
+                    file("broker/EventLog.java", "package broker;\npublic class EventLog { public static int size() { return 4; } }\n"),
+                    file("Stage01Test.java", "import broker.EventLog;\npublic class Stage01Test { public static void main(String[] a) { if (EventLog.size() != 4) System.exit(1); } }\n"),
+                ],
+            )
+            .unwrap();
+            let res = execute(&Context { dir: &dir, cache: &cache, profile: &java, stage: Some(&stage) }, &java.test, Arc::default()).unwrap();
+            assert_eq!(res.exit_code, 0, "{res:?}");
+            let _ = std::fs::remove_dir_all(dir.parent().unwrap());
+        }
     }
 }

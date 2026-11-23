@@ -91,13 +91,26 @@ describe("language profiles", () => {
     expect(go.tools?.map((t) => t.id)).toEqual(["test_all", "race", "cover", "bench", "vet"]);
     expect(go.testBatch?.length).toBeGreaterThan(0);
     expect(go.fetchDeps?.length).toBeGreaterThan(0);
+
+    // Every built-in profile supports schema/data fixtures, deep folders, and workspace tools.
+    for (const p of BUILT_IN_PROFILES) {
+      expect(p.tools?.length ?? 0, `${p.id} tools`).toBeGreaterThan(0);
+      for (const fixture of ["schemas/event.proto", "schemas/order.avsc", "migrations/001_init.sql", "config/broker.yaml", "events.jsonl"]) {
+        expect(isSourcePath(p, fixture), `${p.id} fixture ${fixture}`).toBe(true);
+      }
+    }
+    expect(isSourcePath(get("java"), "broker/EventLog.java")).toBe(true);
+    expect(isSourcePath(get("rust"), "Cargo.toml")).toBe(true);
+    expect(isSourcePath(get("python"), "requirements.txt")).toBe(true);
+    expect(isSourcePath(get("typescript"), "package.json")).toBe(true);
+    expect(isSourcePath(get("ruby"), "Gemfile")).toBe(true);
   });
 });
 
 describe("project workspaces in other languages", () => {
   it("starts a Rust project with its starter sources and accepts its step files", () => {
     const ws = emptyWorkspace("t", "rust");
-    expect(ws.files.map((f) => f.path)).toEqual(["src/lib.rs", "src/main.rs"]);
+    expect(ws.files.map((f) => f.path)).toEqual(["Cargo.toml", "src/lib.rs", "src/main.rs"]);
     const prepared = parsePreparedStage(
       {
         task: "Add a log",
@@ -143,26 +156,26 @@ describe("local project runs", () => {
     vi.doUnmock("@tauri-apps/api/core");
   });
 
-  it("syncs every file, runs each step on its own and reports regressions by step", async () => {
+  it("syncs every file, runs each step on its own for per-stage languages, and reports regressions by step", async () => {
     const calls: { cmd: string; args: any }[] = [];
     vi.doMock("@tauri-apps/api/core", () => ({
       invoke: vi.fn(async (cmd: string, args: any) => {
         calls.push({ cmd, args });
         if (cmd === "project_sync") return "/projects/t";
         const n = args.stage.number;
-        return { steps: [{ command: "cargo test", stdout: n === 1 ? "boom" : "ok", stderr: "", exitCode: n === 1 ? 101 : 0, timedOut: false, durationMs: 5 }], exitCode: n === 1 ? 101 : 0, timedOut: false, durationMs: 5 };
+        return { steps: [{ command: "clang", stdout: n === 1 ? "boom" : "ok", stderr: "", exitCode: n === 1 ? 1 : 0, timedOut: false, durationMs: 5 }], exitCode: n === 1 ? 1 : 0, timedOut: false, durationMs: 5 };
       }),
     }));
     const { runLocalProject } = await import("../../sandbox/local");
-    let ws = emptyWorkspace("t", "rust");
-    ws = applyStage(ws, "u1", "Log", { task: "a", tests: "#[test] fn a() {}", files: [] });
-    ws = applyStage(ws, "u2", "Index", { task: "b", tests: "#[test] fn b() {}", files: [] });
+    let ws = emptyWorkspace("t", "c");
+    ws = applyStage(ws, "u1", "Log", { task: "a", tests: "int main(void) { return 0; }", files: [{ path: "log.c", content: "int x(void) { return 1; }" }] });
+    ws = applyStage(ws, "u2", "Index", { task: "b", tests: "int main(void) { return 0; }", files: [] });
     const result = await runLocalProject(ws);
     const synced = calls[0].args.files.map((f: any) => f.path);
-    expect(synced).toEqual(["src/lib.rs", "src/main.rs", "tests/stage01_log.rs", "tests/stage02_index.rs"]);
+    expect(synced).toEqual(["log.c", "stage01_log_test.c", "stage02_index_test.c"]);
     expect(calls.slice(1).map((c) => [c.args.action, c.args.stage.testFile])).toEqual([
-      ["test", "tests/stage01_log.rs"],
-      ["test", "tests/stage02_index.rs"],
+      ["test", "stage01_log_test.c"],
+      ["test", "stage02_index_test.c"],
     ]);
     expect(result.exitCode).toBe(1);
     expect(result.testResults?.map((t) => t.passed)).toEqual([false, true]);
@@ -341,5 +354,70 @@ describe("local project runs", () => {
     const exported = await exportLocalProject(ws, "Event Broker", true, true);
     expect(exported).toEqual({ path: "/Users/test/Downloads/event-broker", fileCount: 3 });
     expect(calls.map((c) => c.cmd)).toEqual(["project_sync", "project_fetch_deps", "project_export"]);
+  });
+
+  it("parses batch test runs for Rust, Python, and TypeScript/Node with per-stage regressions", async () => {
+    const { parseCargoTestBatch, parseNodeJunitBatch, parsePythonUnittestBatch } = await import("../../sandbox/local");
+
+    // Rust Cargo batch
+    let rsWs = emptyWorkspace("rs-edm", "rust");
+    rsWs = applyStage(rsWs, "u1", "Log", { task: "a", tests: "#[test] fn a() {}", files: [] });
+    rsWs = applyStage(rsWs, "u2", "Index", { task: "b", tests: "#[test] fn b() {}", files: [] });
+    const cargoOut = [
+      "running 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; finished in 0.00s",
+      "running 1 test\ntest appends ... FAILED\n\nfailures:\nassertion failed at tests/stage01_log.rs:2\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; finished in 0.02s",
+      "running 1 test\ntest lookup ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; finished in 0.01s",
+    ].join("\n\n");
+    const cargoErr = [
+      "     Running unittests src/lib.rs (target/debug/deps/lib-123)",
+      "     Running tests/stage01_log.rs (target/debug/deps/stage01_log-123)",
+      "error: test failed, to rerun pass `--test stage01_log`",
+      "     Running tests/stage02_index.rs (target/debug/deps/stage02_index-123)",
+    ].join("\n");
+    const rsRes = parseCargoTestBatch(cargoOut, cargoErr, rsWs.stages, 101, false, 90);
+    expect(rsRes.stepRuns?.map((s) => [s.number, s.passed])).toEqual([
+      [1, false],
+      [2, true],
+    ]);
+    expect(rsRes.testResults?.[0].error).toContain("tests/stage01_log.rs:2");
+    expect(summarizeSuite(rsRes.testResults, 2, rsRes.exitCode)).toMatchObject({ brokenEarlier: [1], currentPassed: true, allPassed: false });
+
+    // Python unittest batch
+    let pyWs = emptyWorkspace("py-edm", "python");
+    pyWs = applyStage(pyWs, "u1", "Log", { task: "a", tests: "", files: [] });
+    pyWs = applyStage(pyWs, "u2", "Index", { task: "b", tests: "", files: [] });
+    const pyErr = [
+      "test_append (test_stage01_log.TestLog.test_append) ... FAIL",
+      "test_lookup (test_stage02_index.TestIndex.test_lookup) ... ok",
+      "",
+      "======================================================================",
+      "FAIL: test_append (test_stage01_log.TestLog.test_append)",
+      "----------------------------------------------------------------------",
+      "AssertionError: 1 != 2",
+    ].join("\n");
+    const pyRes = parsePythonUnittestBatch("", pyErr, pyWs.stages, 1, false, 45);
+    expect(pyRes.stepRuns?.map((s) => [s.number, s.passed])).toEqual([
+      [1, false],
+      [2, true],
+    ]);
+    expect(pyRes.testResults?.[0].error).toContain("AssertionError: 1 != 2");
+
+    // Node JUnit XML batch (TypeScript / JavaScript)
+    let tsWs = emptyWorkspace("ts-edm", "typescript");
+    tsWs = applyStage(tsWs, "u1", "Log", { task: "a", tests: "", files: [] });
+    tsWs = applyStage(tsWs, "u2", "Index", { task: "b", tests: "", files: [] });
+    const junitXml = `<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+  <testcase name="appends record" time="0.005" file="/proj/stage01_log.test.ts" failure="1 !== 2">
+    <failure message="1 !== 2">AssertionError: 1 !== 2 at stage01_log.test.ts:4:3</failure>
+  </testcase>
+  <testcase name="looks up key" time="0.002" file="/proj/stage02_index.test.ts"/>
+</testsuites>`;
+    const tsRes = parseNodeJunitBatch(junitXml, "", tsWs.stages, 1, false, 60);
+    expect(tsRes.stepRuns?.map((s) => [s.number, s.passed])).toEqual([
+      [1, false],
+      [2, true],
+    ]);
+    expect(tsRes.testResults?.[0].error).toContain("AssertionError: 1 !== 2");
   });
 });

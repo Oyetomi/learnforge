@@ -288,6 +288,323 @@ export function parseGoTestJson(
   };
 }
 
+/** Parse `cargo test --offline --no-fail-fast --tests` output into per-stage StepRun and TestResult buckets. */
+export function parseCargoTestBatch(
+  stdout: string,
+  stderr: string,
+  stages: ProjectStage[],
+  exitCode: number,
+  timedOut: boolean,
+  durationMs: number,
+  command = "cargo test --offline --no-fail-fast --tests"
+): ExecutionResult {
+  const ordered = [...stages].sort((a, b) => a.number - b.number);
+  const cleanOut = cleanOutput(stdout);
+  const cleanErr = cleanOutput(stderr);
+
+  const targets: string[] = [];
+  for (const m of cleanErr.matchAll(/^\s*Running\s+(.+?)\s+\(/gm)) {
+    targets.push(m[1].trim());
+  }
+  const failedStems = new Set<string>();
+  for (const m of cleanErr.matchAll(/--test\s+([A-Za-z0-9_-]+)/g)) {
+    failedStems.add(m[1]);
+  }
+
+  // Split stdout into blocks starting at each `running N test(s)` header.
+  const blocks: string[] = [];
+  const blockRe = /^running\s+\d+\s+tests?\b/gm;
+  const starts: number[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = blockRe.exec(cleanOut)) !== null) {
+    starts.push(match.index);
+  }
+  for (let i = 0; i < starts.length; i++) {
+    const slice = cleanOut.slice(starts[i], i + 1 < starts.length ? starts[i + 1] : undefined).trim();
+    blocks.push(slice);
+  }
+
+  const byTarget = new Map<string, string>();
+  for (let i = 0; i < Math.min(targets.length, blocks.length); i++) {
+    byTarget.set(targets[i], blocks[i]);
+  }
+
+  const results: TestResult[] = [];
+  const logs: string[] = [];
+  const stepRuns: StepRun[] = [];
+
+  for (const stage of ordered) {
+    const nn = String(stage.number).padStart(2, "0");
+    const stem = stage.testPath.replace(/^.*\//, "").replace(/\.rs$/, "");
+    const block = byTarget.get(stage.testPath);
+    let passed = false;
+    let output = "";
+    let stepDurationMs = 0;
+
+    if (block) {
+      const okLine = /test result:\s*ok\./i.test(block);
+      const failLine = /test result:\s*FAILED\./i.test(block);
+      passed = okLine && !failLine && !failedStems.has(stem) && !timedOut;
+      const elapsed = /finished in ([0-9.]+)s/i.exec(block);
+      if (elapsed) stepDurationMs = Math.round(Number(elapsed[1]) * 1000);
+      output = block;
+    } else {
+      passed = false;
+      output =
+        cleanErr.trim() ||
+        cleanOut.trim() ||
+        (timedOut
+          ? "Stopped after time limit before this step ran."
+          : `Test target ${stage.testPath} did not run (exited with status ${exitCode}).`);
+    }
+
+    logs.push(`Step ${stage.number} · ${stage.testPath} · ${passed ? "passed" : "failed"}\n${output}`);
+    stepRuns.push({
+      number: stage.number,
+      label: stage.testPath,
+      passed,
+      timedOut: timedOut && !passed,
+      durationMs: stepDurationMs,
+      command,
+      output,
+    });
+    results.push({
+      name: `TestStage${nn} · ${stage.testPath}`,
+      passed,
+      ...(passed ? {} : { error: output.slice(-4000) || `Exited with status ${exitCode}.` }),
+    });
+  }
+
+  const failed = timedOut || exitCode !== 0 || results.some((r) => !r.passed);
+  return {
+    stdout: logs.join("\n\n"),
+    stderr: failed ? cleanErr.trim() : "",
+    exitCode: failed ? (exitCode || 1) : 0,
+    durationMs,
+    testResults: results,
+    stepRuns,
+    timedOut,
+  };
+}
+
+/** Parse `python3 -m unittest -v {testStems}` output into per-stage StepRun and TestResult buckets. */
+export function parsePythonUnittestBatch(
+  stdout: string,
+  stderr: string,
+  stages: ProjectStage[],
+  exitCode: number,
+  timedOut: boolean,
+  durationMs: number,
+  command = "python3 -m unittest -v"
+): ExecutionResult {
+  const ordered = [...stages].sort((a, b) => a.number - b.number);
+  const cleanErr = cleanOutput(stderr);
+  const cleanOut = cleanOutput(stdout);
+  const combined = [cleanErr.trim(), cleanOut.trim()].filter(Boolean).join("\n");
+
+  const stemToStage = new Map<string, number>();
+  for (const s of ordered) {
+    stemToStage.set(s.testPath.replace(/^.*\//, "").replace(/\.py$/, ""), s.number);
+  }
+  const buckets = new Map<number, { passed: number; failed: number; lines: string[]; tracebacks: string[] }>();
+  const ensure = (n: number) => {
+    let b = buckets.get(n);
+    if (!b) {
+      b = { passed: 0, failed: 0, lines: [], tracebacks: [] };
+      buckets.set(n, b);
+    }
+    return b;
+  };
+
+  for (const line of cleanErr.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    const loaderFail = /^\S+\s+\(unittest\.loader\._FailedTest\.([a-z0-9_]+)\)\s+\.\.\.\s+(ERROR|FAIL)/i.exec(trimmed);
+    const normal = /^(.+?)\s+\(([a-z0-9_]+)\.[^)]*\)\s+\.\.\.\s+(ok|FAIL|ERROR|skipped|expected failure|unexpected success)/i.exec(trimmed);
+    const stem = loaderFail?.[1] ?? normal?.[2];
+    const status = (loaderFail?.[2] ?? normal?.[3] ?? "").toLowerCase();
+    if (!stem || !stemToStage.has(stem)) continue;
+    const b = ensure(stemToStage.get(stem)!);
+    b.lines.push(trimmed);
+    if (status === "ok" || status === "skipped" || status === "expected failure") b.passed++;
+    else b.failed++;
+  }
+
+  for (const section of cleanErr.split(/^={20,}$/m)) {
+    const text = section.trim();
+    if (!/^(?:FAIL|ERROR):/i.test(text)) continue;
+    const modMatch = /\((?:unittest\.loader\._FailedTest\.)?([a-z0-9_]+)(?:\.[^)]*)?\)/.exec(text.split("\n")[0] || "");
+    const stem = modMatch?.[1];
+    if (stem && stemToStage.has(stem)) {
+      ensure(stemToStage.get(stem)!).tracebacks.push(text);
+    }
+  }
+
+  const results: TestResult[] = [];
+  const logs: string[] = [];
+  const stepRuns: StepRun[] = [];
+
+  for (const stage of ordered) {
+    const nn = String(stage.number).padStart(2, "0");
+    const bucket = buckets.get(stage.number);
+    const ran = bucket ? bucket.passed + bucket.failed : 0;
+    const passed = !timedOut && ran > 0 && bucket!.failed === 0;
+    const output = bucket
+      ? [...bucket.lines, ...bucket.tracebacks].join("\n\n").trim()
+      : combined || (timedOut ? "Stopped after time limit before this step ran." : `No tests ran for ${stage.testPath} (exited with status ${exitCode}).`);
+
+    logs.push(`Step ${stage.number} · ${stage.testPath} · ${passed ? "passed" : "failed"}\n${output}`);
+    stepRuns.push({
+      number: stage.number,
+      label: stage.testPath,
+      passed,
+      timedOut: timedOut && !passed,
+      durationMs: 0,
+      command,
+      output,
+    });
+    results.push({
+      name: `TestStage${nn} · ${stage.testPath}`,
+      passed,
+      ...(passed ? {} : { error: output.slice(-4000) || `Exited with status ${exitCode}.` }),
+    });
+  }
+
+  const failed = timedOut || exitCode !== 0 || results.some((r) => !r.passed);
+  return {
+    stdout: logs.join("\n\n"),
+    stderr: failed ? cleanErr.trim() : "",
+    exitCode: failed ? (exitCode || 1) : 0,
+    durationMs,
+    testResults: results,
+    stepRuns,
+    timedOut,
+  };
+}
+
+function unescapeXml(text: string): string {
+  return text
+    .replace(/&#10;|&#xA;/gi, "\n")
+    .replace(/&#13;|&#xD;/gi, "\r")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function xmlAttr(tag: string, name: string): string {
+  const m = new RegExp(`\\b${name}="([^"]*)"`).exec(tag);
+  return m ? unescapeXml(m[1]) : "";
+}
+
+/** Parse `node --test --test-reporter=junit {tests}` XML output into per-stage StepRun and TestResult buckets. */
+export function parseNodeJunitBatch(
+  stdout: string,
+  stderr: string,
+  stages: ProjectStage[],
+  exitCode: number,
+  timedOut: boolean,
+  durationMs: number,
+  command = "node --test --test-reporter=junit"
+): ExecutionResult {
+  const ordered = [...stages].sort((a, b) => a.number - b.number);
+  const cleanOut = cleanOutput(stdout);
+  const cleanErr = cleanOutput(stderr);
+
+  const buckets = new Map<number, { passed: number; failed: number; lines: string[]; durationSec: number }>();
+  const ensure = (n: number) => {
+    let b = buckets.get(n);
+    if (!b) {
+      b = { passed: 0, failed: 0, lines: [], durationSec: 0 };
+      buckets.set(n, b);
+    }
+    return b;
+  };
+
+  const matchStageForFile = (filePath: string): number | null => {
+    const normalized = filePath.replace(/\\/g, "/");
+    for (const s of ordered) {
+      if (normalized === s.testPath || normalized.endsWith(`/${s.testPath}`)) {
+        return s.number;
+      }
+    }
+    return null;
+  };
+
+  const caseRe = /<testcase\b([^>]*?)(?:\/>|>([\s\S]*?)<\/testcase>)/g;
+  let m: RegExpExecArray | null;
+  while ((m = caseRe.exec(cleanOut)) !== null) {
+    const attrs = m[1];
+    const body = m[2] ?? "";
+    const file = xmlAttr(attrs, "file");
+    const stageNum = matchStageForFile(file);
+    if (stageNum === null) continue;
+    const b = ensure(stageNum);
+    const name = xmlAttr(attrs, "name") || "test";
+    const timeVal = Number(xmlAttr(attrs, "time") || "0");
+    if (Number.isFinite(timeVal) && timeVal > 0) b.durationSec += timeVal;
+    const failureAttr = xmlAttr(attrs, "failure");
+    const failureBodyMatch = /<failure\b[^>]*>([\s\S]*?)<\/failure>/.exec(body);
+    const isFailure = Boolean(failureAttr || failureBodyMatch);
+    if (isFailure) {
+      b.failed++;
+      const detail = failureBodyMatch ? unescapeXml(failureBodyMatch[1]).trim() : failureAttr.trim();
+      b.lines.push(`FAIL: ${name}${detail ? `\n${detail}` : ""}`);
+    } else {
+      b.passed++;
+      b.lines.push(`PASS: ${name}`);
+    }
+  }
+
+  const results: TestResult[] = [];
+  const logs: string[] = [];
+  const stepRuns: StepRun[] = [];
+  const fallbackErr = [cleanErr.trim(), cleanOut.includes("<testsuites") ? "" : cleanOut.trim()]
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+
+  for (const stage of ordered) {
+    const nn = String(stage.number).padStart(2, "0");
+    const bucket = buckets.get(stage.number);
+    const ran = bucket ? bucket.passed + bucket.failed : 0;
+    const passed = !timedOut && ran > 0 && bucket!.failed === 0;
+    const output = bucket
+      ? bucket.lines.join("\n\n").trim()
+      : fallbackErr ||
+        (timedOut
+          ? "Stopped after time limit before this step ran."
+          : `No tests ran for ${stage.testPath} (exited with status ${exitCode}).`);
+
+    logs.push(`Step ${stage.number} · ${stage.testPath} · ${passed ? "passed" : "failed"}\n${output}`);
+    stepRuns.push({
+      number: stage.number,
+      label: stage.testPath,
+      passed,
+      timedOut: timedOut && !passed,
+      durationMs: bucket ? Math.round(bucket.durationSec * 1000) : 0,
+      command,
+      output,
+    });
+    results.push({
+      name: `TestStage${nn} · ${stage.testPath}`,
+      passed,
+      ...(passed ? {} : { error: output.slice(-4000) || `Exited with status ${exitCode}.` }),
+    });
+  }
+
+  const failed = timedOut || exitCode !== 0 || results.some((r) => !r.passed);
+  return {
+    stdout: logs.join("\n\n"),
+    stderr: failed ? cleanErr.trim() : "",
+    exitCode: failed ? (exitCode || 1) : 0,
+    durationMs,
+    testResults: results,
+    stepRuns,
+    timedOut,
+  };
+}
+
 /**
  * Explicitly fetch declared project dependencies (e.g. `go mod tidy` + `go mod download`)
  * inside the macOS sandbox with outbound network enabled only for this action.
@@ -399,7 +716,7 @@ export async function runLocalProject(ws: ProjectWorkspace): Promise<ExecutionRe
       };
     }
     const profile = profileFor(ws.language);
-    if (ws.language === "go" && profile?.testBatch?.length) {
+    if (profile?.testBatch?.length && profile.testBatchFormat) {
       const r = await exec(ws, "test_batch", undefined, handle);
       if (handle.cancelled) {
         return {
@@ -413,16 +730,20 @@ export async function runLocalProject(ws: ProjectWorkspace): Promise<ExecutionRe
       }
       const stdout = r.steps.map((s) => s.stdout).join("\n");
       const stderr = r.steps.map((s) => s.stderr).join("\n");
-      const command = r.steps.map((s) => s.command).join(" && ") || "go test -json -count=1 ./...";
-      return parseGoTestJson(
-        stdout,
-        stderr,
-        ws.stages,
-        r.exitCode,
-        r.timedOut,
-        Math.round(performance.now() - started),
-        command
-      );
+      const command = r.steps.map((s) => s.command).join(" && ") || profile.testBatchFormat;
+      const totalMs = Math.round(performance.now() - started);
+      if (profile.testBatchFormat === "go-json") {
+        return parseGoTestJson(stdout, stderr, ws.stages, r.exitCode, r.timedOut, totalMs, command);
+      }
+      if (profile.testBatchFormat === "cargo") {
+        return parseCargoTestBatch(stdout, stderr, ws.stages, r.exitCode, r.timedOut, totalMs, command);
+      }
+      if (profile.testBatchFormat === "python-unittest") {
+        return parsePythonUnittestBatch(stdout, stderr, ws.stages, r.exitCode, r.timedOut, totalMs, command);
+      }
+      if (profile.testBatchFormat === "node-junit") {
+        return parseNodeJunitBatch(stdout, stderr, ws.stages, r.exitCode, r.timedOut, totalMs, command);
+      }
     }
     const results: TestResult[] = [];
     const logs: string[] = [];

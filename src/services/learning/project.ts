@@ -423,7 +423,8 @@ export function summarizeSuite(
   };
 }
 
-const CONFIG_FILE_RE = /(^|\/)(go\.(mod|work)|Cargo\.toml|package\.json|tsconfig\.json)$/;
+const CONFIG_FILE_RE = /(^|\/)(go\.(mod|work)|Cargo\.toml|package\.json|tsconfig\.json|requirements\.txt|Gemfile)$/;
+const LOCK_FILE_RE = /(^|\/)(go\.sum|Cargo\.lock|package-lock\.json|Gemfile\.lock)$/;
 
 /**
  * Extract a compact exported/structural API skeleton from a source file so
@@ -563,6 +564,7 @@ export function prioritizedProjectFiles(ws: ProjectWorkspace, activeUnitId?: str
     }
   }
   const rank = (f: ProjectFile): number => {
+    if (LOCK_FILE_RE.test(f.path)) return 4;
     if (CONFIG_FILE_RE.test(f.path)) return 0;
     if (activePaths.has(f.path)) return 1;
     if (latestTouchedStage.has(f.path)) return 2;
@@ -656,6 +658,62 @@ export function filesForPrompt(
   return ordered.map((f) => result.get(f.path)!);
 }
 
+export interface DependencyUiMeta {
+  manifest: string;
+  buttonLabel: string;
+  commandSummary: string;
+  noun: string;
+}
+
+/** Language-native manifest, action label, and command summary for opt-in dependency fetching. */
+export function dependencyUiMeta(language: string | null | undefined): DependencyUiMeta {
+  switch ((language || "").toLowerCase()) {
+    case "go":
+      return {
+        manifest: "go.mod",
+        buttonLabel: "Fetch modules",
+        commandSummary: "go mod tidy and go mod download",
+        noun: "modules",
+      };
+    case "rust":
+      return {
+        manifest: "Cargo.toml",
+        buttonLabel: "Fetch crates",
+        commandSummary: "cargo fetch",
+        noun: "crates",
+      };
+    case "python":
+      return {
+        manifest: "requirements.txt",
+        buttonLabel: "Fetch packages",
+        commandSummary: "pip install --target .lf-deps -r requirements.txt",
+        noun: "packages",
+      };
+    case "typescript":
+    case "javascript":
+      return {
+        manifest: "package.json",
+        buttonLabel: "Fetch packages",
+        commandSummary: "npm install --ignore-scripts",
+        noun: "packages",
+      };
+    case "ruby":
+      return {
+        manifest: "Gemfile",
+        buttonLabel: "Fetch gems",
+        commandSummary: "bundle install",
+        noun: "gems",
+      };
+    default:
+      return {
+        manifest: "dependency manifest",
+        buttonLabel: "Fetch packages",
+        commandSummary: "dependency fetch",
+        noun: "packages",
+      };
+  }
+}
+
 /** List external module paths declared in `go.mod` so the learner can review them before fetching. */
 export function parseGoModRequires(ws: ProjectWorkspace): string[] {
   const goMod = ws.files.find((f) => f.path === "go.mod")?.content;
@@ -682,6 +740,74 @@ export function parseGoModRequires(ws: ProjectWorkspace): string[] {
     if (single) modules.push(`${single[1]} ${single[2]}`);
   }
   return modules;
+}
+
+/** List declared external dependencies from the workspace's language manifest for review before fetching. */
+export function parseDeclaredDependencies(ws: ProjectWorkspace): string[] {
+  switch (ws.language) {
+    case "go":
+      return parseGoModRequires(ws);
+    case "rust": {
+      const toml = ws.files.find((f) => f.path === "Cargo.toml")?.content;
+      if (!toml) return [];
+      const deps: string[] = [];
+      let inDeps = false;
+      for (const raw of toml.split(/\r?\n/)) {
+        const line = raw.replace(/#.*$/, "").trim();
+        if (!line) continue;
+        if (line.startsWith("[")) {
+          inDeps = /^\[(?:dev-|build-)?dependencies(?:\.[^\]]+)?\]$/i.test(line);
+          continue;
+        }
+        if (!inDeps) continue;
+        const m = /^([A-Za-z0-9_-]+)\s*=\s*(.+)$/.exec(line);
+        if (m) deps.push(`${m[1]} = ${m[2]}`);
+      }
+      return deps;
+    }
+    case "typescript":
+    case "javascript": {
+      const raw = ws.files.find((f) => f.path === "package.json")?.content;
+      if (!raw) return [];
+      try {
+        const pkg = JSON.parse(raw) as {
+          dependencies?: Record<string, string>;
+          devDependencies?: Record<string, string>;
+        };
+        const out: string[] = [];
+        for (const section of [pkg.dependencies, pkg.devDependencies]) {
+          if (!section || typeof section !== "object") continue;
+          for (const [k, v] of Object.entries(section)) {
+            if (typeof v === "string") out.push(`${k}@${v}`);
+          }
+        }
+        return out;
+      } catch {
+        return [];
+      }
+    }
+    case "python": {
+      const req = ws.files.find((f) => f.path === "requirements.txt")?.content;
+      if (!req) return [];
+      return req
+        .split(/\r?\n/)
+        .map((l) => l.replace(/#.*$/, "").trim())
+        .filter((l) => l && !l.startsWith("-"));
+    }
+    case "ruby": {
+      const gemfile = ws.files.find((f) => f.path === "Gemfile")?.content;
+      if (!gemfile) return [];
+      const gems: string[] = [];
+      for (const raw of gemfile.split(/\r?\n/)) {
+        const line = raw.replace(/#.*$/, "").trim();
+        const m = /^gem\s+['"]([^'"]+)['"](?:\s*,\s*['"]([^'"]+)['"])?/.exec(line);
+        if (m) gems.push(m[2] ? `${m[1]} (${m[2]})` : m[1]);
+      }
+      return gems;
+    }
+    default:
+      return [];
+  }
 }
 
 /** Build a clean POSIX ustar `.tar` archive (zero dependencies, works in browser & desktop). */

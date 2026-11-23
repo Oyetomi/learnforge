@@ -34,6 +34,7 @@ import {
 } from "../learning/conceptLedger";
 import type { BoundaryEvidence } from "./preProbe";
 import {
+  dependencyUiMeta,
   filesForPrompt,
   parsePreparedStage,
   PROMPT_CONTEXT_CHARS,
@@ -415,8 +416,9 @@ export async function generateCurriculumOutline(
         : `Choose the project architecture that genuinely fits this book or learning goal. LearnForge supports BOTH:
 1. One continuous project across the course (when the book or goal builds a single evolving application, e.g. Let's Go or Designing Data-Intensive Applications): return 1 entry in "projects".
 2. Multiple distinct projects (when a book or course naturally teaches via distinct chapter projects plus multi-chapter capstones, e.g. Go in Action building a Word Count CLI in one chapter, a Recipe Builder in another, a TDD Calculator in another, a JSON/XML CLI in another, and a Concurrent RSS Reader evolving into a multi-module workspace across later chapters): return multiple entries (up to 12) in "projects". Chapters that extend the SAME project MUST share the same "project_id"; standalone chapter projects get their own "project_id".`;
+  const depMeta = dependencyUiMeta(projectProfile?.id);
   const dependencyRule = projectEnv?.allowExternalPackages
-    ? `External packages are OPTED IN for this ${projectProfile?.name} project: prefer standard library where simple, and you may use well-known ecosystem packages declared in go.mod (the learner runs "Fetch modules" in the workspace to download them to the local cache; test runs themselves stay offline).`
+    ? `External packages are OPTED IN for this ${projectProfile?.name} project: prefer standard library where simple, and you may use well-known ecosystem ${depMeta.noun} declared in ${depMeta.manifest} (the learner runs "${depMeta.buttonLabel}" in the workspace to download them to the local cache; test runs themselves stay offline).`
     : `No external package downloads (standard library only).`;
   const localServicesRule = projectEnv?.localServices?.length
     ? `LOCAL INFRASTRUCTURE OPTED IN: The learner has declared these local services reachable on localhost: ${projectEnv.localServices.map((s) => `${s.name} at ${s.endpoint}${s.notes ? ` (${s.notes})` : ""}`).join("; ")}. Prefer integrating with these localhost services where the book's chapters use them (while noting that these local services must be running in exclusions), and keep pure-in-process simulations only where no matching local service is declared.`
@@ -655,8 +657,9 @@ export async function prepareProjectStage(
   const env = plan.projectEnvironment;
   const externalPackagesEnabled = Boolean(env?.allowExternalPackages && profile.fetchDeps?.length);
   const localServices = env?.localServices ?? [];
+  const stepDepMeta = dependencyUiMeta(profile.id);
   const envDepsGuidance = externalPackagesEnabled
-    ? `External packages are enabled: you may use standard library or well-known ${profile.name} modules already listed in go.mod (or instruct the learner in **What to change** to add the module to go.mod and click "Fetch modules" before running tests; never make the test file itself depend on a package not yet in go.mod unless you also provide a compilable stub/instruction).`
+    ? `External packages are enabled: you may use standard library or well-known ${profile.name} ${stepDepMeta.noun} already listed in ${stepDepMeta.manifest} (or instruct the learner in **What to change** to add them to ${stepDepMeta.manifest} and click "${stepDepMeta.buttonLabel}" before running tests; never make the test file itself depend on a package not yet in ${stepDepMeta.manifest} unless you also provide a compilable stub/instruction).`
     : `No external package downloads (standard library only).`;
   const envServiceGuidance = localServices.length
     ? `Local services declared by the learner: ${localServices.map((s) => `${s.name} at ${s.endpoint}${s.notes ? ` (${s.notes})` : ""}`).join("; ")}. The sandbox allows localhost connections. If a test connects to a declared local service, use a short dial timeout (<= 1s) and fail with a clear actionable message naming the service and endpoint if it is not running.`

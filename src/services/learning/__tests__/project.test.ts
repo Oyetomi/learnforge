@@ -6,6 +6,7 @@ import {
   applyStage,
   buildProjectTar,
   currentStageFor,
+  dependencyUiMeta,
   emptyWorkspace,
   extractFileSkeleton,
   filesForPrompt,
@@ -13,8 +14,10 @@ import {
   markStagePassed,
   MAX_PROJECT_FILES,
   nextPart,
+  parseDeclaredDependencies,
   parseGoModRequires,
   parsePreparedStage,
+  prioritizedProjectFiles,
   projectPromptContext,
   projectWorkspaceKey,
   removeFile,
@@ -815,5 +818,64 @@ func NewGroup(id string) *Group { return &Group{ID: id} }
     const badPlan = structuredClone(track.curriculum!);
     badPlan.projectEnvironment!.localServices = [{ name: "Remote", endpoint: "evil.com:9092" }];
     expect(validCurriculumPlan(badPlan)).toBe(false);
+  });
+
+  it("parses declared dependencies, metadata, and lockfile ordering across Rust, Python, TypeScript, and Ruby", async () => {
+    const rustWs = {
+      ...emptyWorkspace("rs", "rust"),
+      files: [
+        { path: "Cargo.toml", content: '[package]\nname = "learnforge_project"\n\n[dependencies]\nserde = "1.0"\ntokio = { version = "1", features = ["full"] }\n' },
+        { path: "Cargo.lock", content: "# huge lockfile\n".repeat(100) },
+        { path: "src/lib.rs", content: "pub mod broker;\n" },
+      ],
+    };
+    expect(parseDeclaredDependencies(rustWs)).toEqual([
+      'serde = "1.0"',
+      'tokio = { version = "1", features = ["full"] }',
+    ]);
+    expect(dependencyUiMeta("rust")).toMatchObject({ manifest: "Cargo.toml", buttonLabel: "Fetch crates" });
+    // Lockfiles are placed after source code when prioritizing prompt context.
+    const withStage = applyStage(rustWs, "u1", "Broker", { task: "Edit src/lib.rs", tests: "#[test] fn ok() {}", files: [] });
+    const orderedPaths = prioritizedProjectFiles(withStage, "u1").map((f) => f.path);
+    expect(orderedPaths[0]).toBe("Cargo.toml");
+    expect(orderedPaths[orderedPaths.length - 1]).toBe("Cargo.lock");
+
+    const tsWs = {
+      ...emptyWorkspace("ts", "typescript"),
+      files: [{ path: "package.json", content: JSON.stringify({ dependencies: { kafkajs: "^2.2.4" }, devDependencies: { zod: "^3.23.0" } }) }],
+    };
+    expect(parseDeclaredDependencies(tsWs)).toEqual(["kafkajs@^2.2.4", "zod@^3.23.0"]);
+    expect(dependencyUiMeta("typescript")).toMatchObject({ manifest: "package.json", buttonLabel: "Fetch packages" });
+
+    const pyWs = {
+      ...emptyWorkspace("py", "python"),
+      files: [{ path: "requirements.txt", content: "# broker client\nconfluent-kafka==2.6.0\npydantic>=2.0\n" }],
+    };
+    expect(parseDeclaredDependencies(pyWs)).toEqual(["confluent-kafka==2.6.0", "pydantic>=2.0"]);
+    expect(dependencyUiMeta("python")).toMatchObject({ manifest: "requirements.txt", buttonLabel: "Fetch packages" });
+
+    const rbWs = {
+      ...emptyWorkspace("rb", "ruby"),
+      files: [{ path: "Gemfile", content: 'source "https://rubygems.org"\ngem "rdkafka", "~> 0.16"\n' }],
+    };
+    expect(parseDeclaredDependencies(rbWs)).toEqual(["rdkafka (~> 0.16)"]);
+    expect(dependencyUiMeta("ruby")).toMatchObject({ manifest: "Gemfile", buttonLabel: "Fetch gems" });
+
+    // Rust outline prompt reflects Cargo.toml / Fetch crates when external packages are opted in.
+    const fetchMock = vi.fn().mockResolvedValue(response(outline()));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {}, removeItem: () => {} });
+    await generateCurriculumOutline({
+      topic: "Event-Driven Microservices in Rust",
+      interest: "Event-Driven Microservices in Rust",
+      startingPoint: "Know Rust basics",
+      destination: "Build event-driven services in Rust",
+      language: "rust",
+      project: true,
+      projectEnvironment: { allowExternalPackages: true },
+    });
+    const sys = JSON.parse(fetchMock.mock.calls[0][1].body).messages[0].content as string;
+    expect(sys).toContain("Cargo.toml");
+    expect(sys).toContain("Fetch crates");
   });
 });

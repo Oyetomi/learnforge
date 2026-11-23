@@ -273,9 +273,11 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const toolRunSeq = useRef(0);
   const availableTools = projectMode ? project!.availableTools ?? [] : [];
   const canFetchDeps = projectMode && !!project!.canFetchDeps;
+  const depMeta = projectMode ? project!.depMeta : undefined;
+  const fetchDepsLabel = depMeta?.buttonLabel ?? "Fetch packages";
   const runningToolLabel =
     runningToolId === "__fetch_deps__"
-      ? "Fetch modules"
+      ? fetchDepsLabel
       : availableTools.find((t) => t.id === runningToolId)?.label ?? "tool";
   const runFetchDeps = async () => {
     if (!projectMode || !project || isRunning || runningToolId !== null || !runtimeAvailable || !project.loaded)
@@ -289,13 +291,13 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     try {
       const result = await project.fetchDeps();
       if (toolRunSeq.current !== seq) return;
-      setToolOutput({ toolId: "__fetch_deps__", label: "Fetch modules", result });
+      setToolOutput({ toolId: "__fetch_deps__", label: fetchDepsLabel, result });
     } catch (err) {
       if (toolRunSeq.current !== seq) return;
-      const message = err instanceof Error ? err.message : "Could not fetch modules.";
+      const message = err instanceof Error ? err.message : `Could not fetch ${depMeta?.noun ?? "packages"}.`;
       setToolOutput({
         toolId: "__fetch_deps__",
-        label: "Fetch modules",
+        label: fetchDepsLabel,
         result: { stdout: "", stderr: message, exitCode: 1, durationMs: 0, error: message },
       });
     } finally {
@@ -1123,7 +1125,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                   data-running={runningToolId === "__fetch_deps__" || undefined}
                   aria-busy={runningToolId === "__fetch_deps__" || undefined}
                   aria-expanded={confirmFetchDeps}
-                  title="Explicitly run go mod tidy and go mod download into the local cache (tests remain offline)"
+                  title={`Explicitly run ${depMeta?.commandSummary ?? "dependency fetch"} into the local cache (tests remain offline)`}
                   disabled={isRunning || runningToolId !== null || !runtimeAvailable || !project!.loaded}
                   onClick={() => {
                     setConfirmFetchDeps((v) => !v);
@@ -1136,7 +1138,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                   ) : (
                     <Package size={11} aria-hidden="true" />
                   )}
-                  <span>Fetch modules</span>
+                  <span>{fetchDepsLabel}</span>
                 </button>
               )}
             </span>
@@ -1175,10 +1177,10 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
               activeBottomTab === "console" ? (
                 confirmFetchDeps && runningToolId === null ? (
                   <div className="console-panel">
-                    <div className="project-deps-confirm" role="region" aria-label="Confirm Go module fetch">
-                      <strong>Fetch Go modules into the local cache?</strong>
+                    <div className="project-deps-confirm" role="region" aria-label={`Confirm ${fetchDepsLabel}`}>
+                      <strong>{fetchDepsLabel} into the local cache?</strong>
                       <p>
-                        Runs <code>go mod tidy</code> and <code>go mod download</code> inside the macOS sandbox with outbound network enabled only for this step. Regular code and test runs remain offline.
+                        Runs <code>{depMeta?.commandSummary ?? "dependency fetch"}</code> inside the macOS sandbox with outbound network enabled only for this step. Regular code and test runs remain offline.
                       </p>
                       {project!.declaredModules.length > 0 ? (
                         <ul className="project-deps-list">
@@ -1190,7 +1192,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                         </ul>
                       ) : (
                         <p className="project-deps-empty">
-                          No external <code>require</code> lines are in <code>go.mod</code> yet; <code>go mod tidy</code> will resolve imports from your Go files.
+                          No external {depMeta?.noun ?? "packages"} are declared in <code>{depMeta?.manifest ?? "the manifest"}</code> yet.
                         </p>
                       )}
                       <div className="project-deps-actions">

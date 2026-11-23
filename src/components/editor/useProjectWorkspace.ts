@@ -13,10 +13,11 @@ import {
   addFile,
   applyStage,
   buildProjectTar,
+  dependencyUiMeta,
   emptyWorkspace,
   goPlaygroundBody,
   markStagePassed,
-  parseGoModRequires,
+  parseDeclaredDependencies,
   projectPromptContext,
   projectWorkspaceKey,
   markStageStarted,
@@ -60,7 +61,7 @@ export function initialFile(ws: ProjectWorkspace, language: string): string {
   if (stub) return stub;
   const entry = profileFor(language)?.entry;
   if (entry && ws.files.some((f) => f.path === entry)) return entry;
-  const config = /(^|\/)(go\.(mod|sum|work)|package\.json|tsconfig\.json|Cargo\.toml)$/;
+  const config = /(^|\/)(go\.(mod|sum|work)|package(?:-lock)?\.json|tsconfig\.json|Cargo\.(toml|lock)|requirements\.txt|Gemfile(?:\.lock)?)$/;
   return ws.files.find((f) => !config.test(f.path))?.path ?? ws.files[0]?.path ?? "";
 }
 
@@ -587,7 +588,8 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     runTool,
     projectEnvironment: plan?.projectEnvironment,
     canFetchDeps: runtime.local && supportsDependencyFetch(track?.language),
-    declaredModules: activeWorkspace?.language === "go" ? parseGoModRequires(activeWorkspace) : [],
+    depMeta: dependencyUiMeta(track?.language),
+    declaredModules: activeWorkspace ? parseDeclaredDependencies(activeWorkspace) : [],
     fetchDeps,
     exportProject,
     step,
