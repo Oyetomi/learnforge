@@ -41,10 +41,15 @@ import {
   loadConceptLedger,
   relevantPriorConcepts,
 } from "../../services/learning/conceptLedger";
-import type { LearningScope } from "../../services/learning/curriculumPlan";
+import {
+  isLocalhostEndpoint,
+  type LearningScope,
+  type LocalServiceSpec,
+  type ProjectStructure,
+} from "../../services/learning/curriculumPlan";
 import { extractTextFromFile } from "../../services/learning/fileExtractor";
 import { readPdfBook, readSelectedPdfChapters } from "../../services/learning/pdfReader";
-import { mainPdfSections, readableFileTitle, selectedPdfSource, type PdfBook } from "../../services/learning/pdfContents";
+import { mainPdfSections, readableFileTitle, selectedPdfSource, selectedPdfSubheadings, type PdfBook } from "../../services/learning/pdfContents";
 import { PdfChapterPicker } from "./PdfChapterPicker";
 import type { CourseTrack } from "../../services/ai/types";
 import type { ConfidenceLevel } from "../../types";
@@ -56,7 +61,7 @@ import "./new-topic-layout.css";
 
 import { requestsDiagnosticFirst } from "../../services/learning/diagnosticIntent";
 import { supportsProjectMode } from "../../services/learning/project";
-import { loadLanguageStatus, profileFor, type LanguageStatus } from "../../services/languages";
+import { loadLanguageStatus, profileFor, supportsDependencyFetch, type LanguageStatus } from "../../services/languages";
 import { projectRuntime } from "../editor/useProjectWorkspace";
 import { loadGoalDraft as savedDraft, saveGoalDraft, GOAL_DRAFT_KEY as draftKey, STARTING_POINTS as startingPoints, STARTING_POINT_LABELS } from "../../services/learning/goalDraft";
 
@@ -75,6 +80,18 @@ const PRACTICE_CHOICES = [
   { id: "code", title: "Code exercises", detail: "A short tested exercise per lesson." },
   { id: "project", title: "Build a project", detail: "Build real projects across the course (follows a book’s projects or grows one app)." },
 ] as const;
+
+const PROJECT_STRUCTURE_CHOICES: { id: ProjectStructure; label: string; detail: string }[] = [
+  { id: "auto", label: "Match material", detail: "Follow the book or goal." },
+  { id: "single", label: "One project", detail: "Grow one codebase across every unit." },
+  { id: "multi", label: "Multiple projects", detail: "Split major parts into focused workspaces." },
+];
+
+const LOCAL_SERVICE_PRESETS: LocalServiceSpec[] = [
+  { name: "Kafka / Redpanda", endpoint: "localhost:9092" },
+  { name: "PostgreSQL", endpoint: "localhost:5432" },
+  { name: "Redis", endpoint: "localhost:6379" },
+];
 
 /** A programming language named in the goal ("…using Go", "in Rust"), if any. */
 function languageInGoal(text: string): string {
@@ -132,6 +149,12 @@ export const NewTopicModal: React.FC<Props> = ({
   // How the learner practises. A chosen language makes the plan a coding plan
   // in that language; "project" also builds one codebase across the course.
   const [practice, setPractice] = useState<"auto" | "code" | "project">("auto");
+  const [projectStructure, setProjectStructure] = useState<ProjectStructure>("auto");
+  const [allowExternalPackages, setAllowExternalPackages] = useState(false);
+  const [localServices, setLocalServices] = useState<LocalServiceSpec[]>([]);
+  const [customServiceName, setCustomServiceName] = useState("");
+  const [customServiceEndpoint, setCustomServiceEndpoint] = useState("");
+  const [serviceInputError, setServiceInputError] = useState("");
   const [practiceLanguage, setPracticeLanguage] = useState(() => {
     try {
       return localStorage.getItem("learnforge:practice-language") || "";
@@ -603,6 +626,20 @@ export const NewTopicModal: React.FC<Props> = ({
           setPdfBook(preparedPdf);
         }
         const pdfSelection = preparedPdf && usePdfContents && scope === "curriculum" ? selectedPdfSource(preparedPdf, pdfSections) : null;
+        const sectionSubheadings =
+          preparedPdf && usePdfContents && scope === "curriculum"
+            ? selectedPdfSubheadings(preparedPdf, pdfSections)
+            : undefined;
+        const projectEnvironment =
+          buildProject && projectAvailable
+            ? {
+                ...(projectStructure !== "auto" ? { structure: projectStructure } : {}),
+                ...(allowExternalPackages && supportsDependencyFetch(codeLanguage)
+                  ? { allowExternalPackages: true }
+                  : {}),
+                ...(localServices.length ? { localServices } : {}),
+              }
+            : undefined;
         const options = {
           topic: goal,
           interest: goal,
@@ -630,7 +667,9 @@ export const NewTopicModal: React.FC<Props> = ({
                   priorConcepts: matchedPrior,
                   boundaryEvidence,
                   sourceDocument: pdfSelection?.source,
+                  sectionSubheadings,
                   project: buildProject && projectAvailable,
+                  projectEnvironment,
                 },
                 updateStatus
               )
@@ -988,6 +1027,178 @@ export const NewTopicModal: React.FC<Props> = ({
                         ? projectRunHelp
                         : `Each lesson can include a short ${profileFor(codeLanguage)?.name ?? codeLanguage} exercise with tests.`}
                     </small>
+                    {practice === "project" && projectAvailable && (
+                      <details className="goal-outcome-details goal-project-options">
+                        <summary>
+                          Project options{" "}
+                          <span>
+                            {[
+                              projectStructure !== "auto"
+                                ? PROJECT_STRUCTURE_CHOICES.find((c) => c.id === projectStructure)?.label
+                                : null,
+                              allowExternalPackages && supportsDependencyFetch(codeLanguage)
+                                ? "External packages"
+                                : null,
+                              localServices.length
+                                ? `${localServices.length} local ${localServices.length === 1 ? "service" : "services"}`
+                                : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ") || "Optional"}
+                          </span>
+                        </summary>
+                        <div className="goal-project-options-body">
+                          <span className="goal-group-label" id="goal-project-structure-label">
+                            Project layout
+                          </span>
+                          <div
+                            className="project-structure-options"
+                            role="group"
+                            aria-labelledby="goal-project-structure-label"
+                          >
+                            {PROJECT_STRUCTURE_CHOICES.map((opt) => (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                aria-pressed={projectStructure === opt.id}
+                                disabled={busy}
+                                onClick={() => setProjectStructure(opt.id)}
+                              >
+                                <strong>{opt.label}</strong>
+                                <span>{opt.detail}</span>
+                              </button>
+                            ))}
+                          </div>
+                          {supportsDependencyFetch(codeLanguage) && (
+                            <label className="diagnostic-first-choice goal-project-toggle">
+                              <input
+                                type="checkbox"
+                                checked={allowExternalPackages}
+                                disabled={busy}
+                                onChange={(e) => setAllowExternalPackages(e.target.checked)}
+                              />
+                              <span>
+                                <strong>Allow external {profileFor(codeLanguage)?.name ?? codeLanguage} packages</strong>
+                                <small>
+                                  Permit third-party modules in <code>go.mod</code>. Tests stay offline; use{" "}
+                                  <strong>Fetch modules</strong> in the workspace to download dependencies on demand.
+                                </small>
+                              </span>
+                            </label>
+                          )}
+                          <div className="goal-local-services">
+                            <span className="goal-group-label">
+                              Local services on <code>localhost</code> (optional)
+                            </span>
+                            <small className="goal-field-help">
+                              The Mac sandbox allows <code>localhost</code> connections. Declare any Docker or local broker/database you plan to run alongside tests.
+                            </small>
+                            <div className="local-service-chips" role="group" aria-label="Common local services">
+                              {LOCAL_SERVICE_PRESETS.map((preset) => {
+                                const active = localServices.some((s) => s.endpoint === preset.endpoint);
+                                return (
+                                  <button
+                                    key={preset.endpoint}
+                                    type="button"
+                                    className="local-service-chip"
+                                    aria-pressed={active}
+                                    disabled={busy}
+                                    onClick={() => {
+                                      setServiceInputError("");
+                                      setLocalServices((prev) =>
+                                        active
+                                          ? prev.filter((s) => s.endpoint !== preset.endpoint)
+                                          : prev.length < 8
+                                          ? [...prev, preset]
+                                          : prev
+                                      );
+                                    }}
+                                  >
+                                    {active ? "✓ " : "+ "}
+                                    {preset.name} <code>{preset.endpoint}</code>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <div className="local-service-custom-row">
+                              <input
+                                type="text"
+                                aria-label="Custom local service name"
+                                placeholder="Service name (e.g. Schema Registry)"
+                                maxLength={80}
+                                disabled={busy || localServices.length >= 8}
+                                value={customServiceName}
+                                onChange={(e) => {
+                                  setCustomServiceName(e.target.value);
+                                  setServiceInputError("");
+                                }}
+                              />
+                              <input
+                                type="text"
+                                aria-label="Custom local service localhost endpoint"
+                                placeholder="localhost:8081"
+                                maxLength={40}
+                                disabled={busy || localServices.length >= 8}
+                                value={customServiceEndpoint}
+                                onChange={(e) => {
+                                  setCustomServiceEndpoint(e.target.value);
+                                  setServiceInputError("");
+                                }}
+                              />
+                              <button
+                                type="button"
+                                className="exa-mini-action"
+                                disabled={busy || localServices.length >= 8 || !customServiceName.trim() || !customServiceEndpoint.trim()}
+                                onClick={() => {
+                                  const name = customServiceName.trim();
+                                  const endpoint = customServiceEndpoint.trim();
+                                  if (!isLocalhostEndpoint(endpoint)) {
+                                    setServiceInputError("Use localhost:<port> or 127.0.0.1:<port> (e.g. localhost:9092).");
+                                    return;
+                                  }
+                                  if (localServices.some((s) => s.endpoint === endpoint)) {
+                                    setServiceInputError(`${endpoint} is already added.`);
+                                    return;
+                                  }
+                                  setLocalServices((prev) => [...prev, { name, endpoint }]);
+                                  setCustomServiceName("");
+                                  setCustomServiceEndpoint("");
+                                  setServiceInputError("");
+                                }}
+                              >
+                                Add
+                              </button>
+                            </div>
+                            {serviceInputError && (
+                              <small className="local-service-error" role="alert">
+                                {serviceInputError}
+                              </small>
+                            )}
+                            {localServices.length > 0 && (
+                              <ul className="local-service-list">
+                                {localServices.map((svc) => (
+                                  <li key={svc.endpoint}>
+                                    <span>
+                                      <strong>{svc.name}</strong> · <code>{svc.endpoint}</code>
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className="new-topic-remove-file"
+                                      disabled={busy}
+                                      onClick={() =>
+                                        setLocalServices((prev) => prev.filter((s) => s.endpoint !== svc.endpoint))
+                                      }
+                                    >
+                                      Remove
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      </details>
+                    )}
                   </>
                 )}
                 <details className="goal-outcome-details">

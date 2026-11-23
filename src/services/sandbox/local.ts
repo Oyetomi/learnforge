@@ -4,11 +4,12 @@
  * exit code in every language.
  */
 import type { ExecutionResult, StepRun, TestResult } from "../../types";
+import { profileFor } from "../languages";
+import { stageOfTest, type ProjectFile, type ProjectStage, type ProjectWorkspace } from "../learning/project";
 
 /** Remove terminal colour codes and carriage-return redraws. */
 export const cleanOutput = (text: string) =>
   text.replace(/\u001b\[[0-9;?]*[A-Za-z]/g, "").replace(/\r(?!\n)/g, "\n");
-import type { ProjectWorkspace } from "../learning/project";
 
 interface StepOutput {
   command: string;
@@ -23,6 +24,14 @@ interface ExecResult {
   exitCode: number;
   timedOut: boolean;
   durationMs: number;
+}
+interface FetchDepsResponse {
+  exec: ExecResult;
+  updatedFiles: ProjectFile[];
+}
+export interface ExportProjectResult {
+  path: string;
+  fileCount: number;
 }
 
 const isTauri = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -63,7 +72,7 @@ export async function checkLocalStage(ws: ProjectWorkspace, number: number, test
 
 async function exec(
   ws: ProjectWorkspace,
-  action: "run" | "test" | "check" | "tool",
+  action: "run" | "test" | "test_batch" | "check" | "tool",
   stage?: { number: number; testFile: string },
   runHandle: { requestId: string | null; cancelled: boolean } | null = activeRun,
   toolId?: string
@@ -129,10 +138,244 @@ export async function cancelLocalRun(): Promise<void> {
   if (activeRun.requestId) await invoke("project_cancel", { requestId: activeRun.requestId }).catch(() => {});
 }
 
+/** Parse `go test -json -count=1 ./...` output into per-stage StepRun and TestResult buckets. */
+export function parseGoTestJson(
+  stdout: string,
+  stderr: string,
+  stages: ProjectStage[],
+  exitCode: number,
+  timedOut: boolean,
+  durationMs: number,
+  command = "go test -json -count=1 ./..."
+): ExecutionResult {
+  const ordered = [...stages].sort((a, b) => a.number - b.number);
+  const buckets = new Map<
+    number,
+    { outputs: string[]; tests: Map<string, "run" | "pass" | "fail" | "skip">; elapsedSec: number }
+  >();
+  const buildErrors: string[] = [];
+  const pkgOutputs: string[] = [];
+  const nonJsonLines: string[] = [];
+  let buildFailed = false;
+
+  const ensureBucket = (n: number) => {
+    let b = buckets.get(n);
+    if (!b) {
+      b = { outputs: [], tests: new Map(), elapsedSec: 0 };
+      buckets.set(n, b);
+    }
+    return b;
+  };
+
+  for (const rawLine of stdout.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    let ev: { Action?: string; Test?: string; Output?: string; Elapsed?: number } | null = null;
+    if (line.startsWith("{")) {
+      try {
+        ev = JSON.parse(line);
+      } catch {
+        ev = null;
+      }
+    }
+    if (!ev || typeof ev.Action !== "string") {
+      nonJsonLines.push(cleanOutput(rawLine));
+      continue;
+    }
+    if (ev.Action === "build-output" && typeof ev.Output === "string") {
+      buildErrors.push(cleanOutput(ev.Output));
+      continue;
+    }
+    if (ev.Action === "build-fail") {
+      buildFailed = true;
+      continue;
+    }
+    if (typeof ev.Test === "string" && ev.Test) {
+      const topTest = ev.Test.split("/")[0];
+      const stageNum = stageOfTest(topTest);
+      if (stageNum === null) continue;
+      const bucket = ensureBucket(stageNum);
+      if (ev.Action === "output" && typeof ev.Output === "string") {
+        bucket.outputs.push(cleanOutput(ev.Output));
+      } else if (!ev.Test.includes("/")) {
+        const cur = bucket.tests.get(topTest);
+        if (ev.Action === "run" && !cur) bucket.tests.set(topTest, "run");
+        else if (ev.Action === "pass") {
+          bucket.tests.set(topTest, "pass");
+          if (typeof ev.Elapsed === "number") bucket.elapsedSec += ev.Elapsed;
+        } else if (ev.Action === "fail") {
+          bucket.tests.set(topTest, "fail");
+          if (typeof ev.Elapsed === "number") bucket.elapsedSec += ev.Elapsed;
+        } else if (ev.Action === "skip" && cur !== "fail") {
+          bucket.tests.set(topTest, "skip");
+        }
+      }
+      continue;
+    }
+    if (ev.Action === "output" && typeof ev.Output === "string") {
+      const cleaned = cleanOutput(ev.Output);
+      pkgOutputs.push(cleaned);
+      if (/^#\s|\[build failed\]|cannot find package|no Go files/i.test(cleaned)) {
+        buildErrors.push(cleaned);
+        if (/\[build failed\]/i.test(cleaned)) buildFailed = true;
+      }
+    }
+  }
+
+  const globalError = [cleanOutput(stderr).trim(), buildErrors.join("").trim(), nonJsonLines.join("\n").trim()]
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+
+  const results: TestResult[] = [];
+  const logs: string[] = [];
+  const stepRuns: StepRun[] = [];
+
+  for (const stage of ordered) {
+    const nn = String(stage.number).padStart(2, "0");
+    const bucket = buckets.get(stage.number);
+    let passed = false;
+    let output = "";
+    let stepDurationMs = 0;
+
+    if (bucket && bucket.tests.size > 0) {
+      const statuses = [...bucket.tests.values()];
+      passed =
+        !buildFailed &&
+        !timedOut &&
+        statuses.every((s) => s === "pass" || s === "skip") &&
+        statuses.some((s) => s === "pass");
+      output =
+        bucket.outputs.join("").trim() ||
+        (passed ? "ok" : globalError || `Exited with status ${exitCode}.`);
+      stepDurationMs = Math.round(bucket.elapsedSec * 1000);
+    } else {
+      passed = false;
+      output =
+        globalError ||
+        pkgOutputs.join("").trim() ||
+        (timedOut
+          ? "Stopped after time limit before this step ran."
+          : `No TestStage${nn} tests ran (exited with status ${exitCode}).`);
+    }
+
+    logs.push(`Step ${stage.number} · ${stage.testPath} · ${passed ? "passed" : "failed"}\n${output}`);
+    stepRuns.push({
+      number: stage.number,
+      label: stage.testPath,
+      passed,
+      timedOut: timedOut && !passed,
+      durationMs: stepDurationMs,
+      command,
+      output,
+    });
+    results.push({
+      name: `TestStage${nn} · ${stage.testPath}`,
+      passed,
+      ...(passed ? {} : { error: output.slice(-4000) || `Exited with status ${exitCode}.` }),
+    });
+  }
+
+  const failed = timedOut || exitCode !== 0 || results.some((r) => !r.passed);
+  return {
+    stdout: logs.join("\n\n"),
+    stderr: failed ? globalError : cleanOutput(stderr).trim(),
+    exitCode: failed ? (exitCode || 1) : 0,
+    durationMs,
+    testResults: results,
+    stepRuns,
+    timedOut,
+  };
+}
+
+/**
+ * Explicitly fetch declared project dependencies (e.g. `go mod tidy` + `go mod download`)
+ * inside the macOS sandbox with outbound network enabled only for this action.
+ */
+export async function fetchLocalProjectDeps(
+  ws: ProjectWorkspace
+): Promise<{ result: ExecutionResult; updatedFiles: ProjectFile[] }> {
+  const started = performance.now();
+  const handle = { requestId: null as string | null, cancelled: false };
+  activeRun = handle;
+  try {
+    await syncLocalProject(ws);
+    if (handle.cancelled) {
+      return {
+        result: {
+          stdout: "",
+          stderr: "Stopped.",
+          exitCode: -1,
+          durationMs: Math.round(performance.now() - started),
+          error: "Stopped.",
+        },
+        updatedFiles: [],
+      };
+    }
+    const requestId = `deps-${Date.now().toString(36)}-${++runCounter}`;
+    handle.requestId = requestId;
+    const response = await invoke<FetchDepsResponse>("project_fetch_deps", {
+      trackId: ws.trackId,
+      profileId: ws.language,
+      requestId,
+    });
+    const r = response.exec;
+    const stdout = cleanOutput(r.steps.map((s) => s.stdout).join("")).trim();
+    if (handle.cancelled) {
+      return {
+        result: {
+          stdout,
+          stderr: "Stopped.",
+          exitCode: -1,
+          durationMs: Math.round(performance.now() - started),
+          timedOut: r.timedOut,
+          error: "Stopped.",
+        },
+        updatedFiles: [],
+      };
+    }
+    const stderr =
+      cleanOutput(r.steps.map((s) => s.stderr).join("\n")).trim() ||
+      (r.exitCode !== 0 && !stdout ? `Exited with status ${r.exitCode}.` : "");
+    return {
+      result: {
+        stdout,
+        stderr,
+        exitCode: r.exitCode,
+        durationMs: Math.round(performance.now() - started),
+        timedOut: r.timedOut,
+        error: r.timedOut ? "Dependency fetch hit the time limit." : undefined,
+      },
+      updatedFiles: response.updatedFiles ?? [],
+    };
+  } finally {
+    if (activeRun === handle) activeRun = null;
+  }
+}
+
+/** Export the project workspace as a standalone folder in ~/Downloads (Mac app). */
+export async function exportLocalProject(
+  ws: ProjectWorkspace,
+  exportName: string,
+  includeTests = true,
+  reveal = true
+): Promise<ExportProjectResult> {
+  const files = includeTests
+    ? [...ws.files, ...ws.stages.map((s) => ({ path: s.testPath, content: s.tests }))]
+    : [...ws.files];
+  return invoke<ExportProjectResult>("project_export", {
+    trackId: ws.trackId,
+    profileId: ws.language,
+    exportName,
+    files,
+    reveal,
+  });
+}
+
 /**
  * Run every step's tests (or the program, before any step exists) locally.
- * Test names carry the step number (TestStageNN) so the project summary can
- * tell the current step from regressions in earlier ones.
+ * For Go, runs all steps in a single `go test -json ./...` invocation; other
+ * languages run each step's test file in sequence.
  */
 export async function runLocalProject(ws: ProjectWorkspace): Promise<ExecutionResult> {
   const started = performance.now();
@@ -154,6 +397,32 @@ export async function runLocalProject(ws: ProjectWorkspace): Promise<ExecutionRe
         timedOut: r.timedOut,
         error: r.timedOut ? "The program hit the time limit." : undefined,
       };
+    }
+    const profile = profileFor(ws.language);
+    if (ws.language === "go" && profile?.testBatch?.length) {
+      const r = await exec(ws, "test_batch", undefined, handle);
+      if (handle.cancelled) {
+        return {
+          stdout: "",
+          stderr: "Stopped.",
+          exitCode: -1,
+          durationMs: Math.round(performance.now() - started),
+          timedOut: r.timedOut,
+          error: "Stopped.",
+        };
+      }
+      const stdout = r.steps.map((s) => s.stdout).join("\n");
+      const stderr = r.steps.map((s) => s.stderr).join("\n");
+      const command = r.steps.map((s) => s.command).join(" && ") || "go test -json -count=1 ./...";
+      return parseGoTestJson(
+        stdout,
+        stderr,
+        ws.stages,
+        r.exitCode,
+        r.timedOut,
+        Math.round(performance.now() - started),
+        command
+      );
     }
     const results: TestResult[] = [];
     const logs: string[] = [];

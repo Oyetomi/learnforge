@@ -1275,3 +1275,16 @@
 .curriculum-project-edit { display: grid; gap: 8px; }
 .curriculum-project-edit label { margin: 0; }
 .curriculum-project-edit textarea { min-height: 84px; }
+.curriculum-project-add { margin-top: 8px; justify-self: start; }
+.curriculum-project-remove {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--c-text-quiet);
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+.curriculum-project-remove:hover { color: rgb(var(--color-danger)); }
+.curriculum-project-env code { font-family: var(--font-code); font-size: 10.5px; color: var(--heading); }

@@ -196,6 +196,19 @@ export const ProjectStepPanel: React.FC<{ project: ProjectWorkspaceController; i
           </span>
         )}
       </header>
+      {project.projectEnvironment?.localServices?.length ? (
+        <p className="project-step-services">
+          Local services:{" "}
+          {project.projectEnvironment.localServices.map((s, idx) => (
+            <React.Fragment key={s.endpoint}>
+              {idx > 0 && " · "}
+              <span>
+                {s.name} <code>{s.endpoint}</code>
+              </span>
+            </React.Fragment>
+          ))}
+        </p>
+      ) : null}
       {body}
     </section>
   );

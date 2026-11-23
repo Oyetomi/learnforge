@@ -194,6 +194,8 @@ pub fn configure<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Builde
             project::project_sync,
             project::project_delete,
             project::project_exec,
+            project::project_fetch_deps,
+            project::project_export,
             project::project_cancel,
             lsp::lsp_start,
             lsp::lsp_send,

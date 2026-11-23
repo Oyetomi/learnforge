@@ -28,8 +28,8 @@
         "content": "module learnforge\n\ngo 1.22\n"
       }
     ],
-    "sourcePattern": "^([a-z][a-z0-9_-]{0,40}/){0,4}([a-z][a-z0-9_-]{0,40}\\.(go|txt|json|xml|csv|md)|go\\.mod|go\\.sum|go\\.work)$",
-    "testPattern": "^(?:[a-z][a-z0-9_-]{0,40}/){0,4}stage\\d{2}_[a-z0-9_]+_test\\.go$",
+    "sourcePattern": "^([a-z][a-z0-9_-]{0,40}/){0,4}([a-z][a-z0-9_-]{0,40}\\.go|[a-z0-9][a-z0-9_-]{0,40}\\.(txt|json|jsonl|xml|csv|md|yaml|yml|sql|proto|avsc)|go\\.mod|go\\.sum|go\\.work)$",
+    "testPattern": "^(?:[a-z][a-z0-9_-]{0,40}/){0,4}stage\\d{2,3}_[a-z0-9_]+_test\\.go$",
     "testFile": "stage{nn}_{slug}_test.go",
     "testNamePrefix": true,
     "entry": "main.go",
@@ -50,6 +50,27 @@
         "./..."
       ]
     ],
+    "testBatch": [
+      [
+        "{go}",
+        "test",
+        "-json",
+        "-count=1",
+        "./..."
+      ]
+    ],
+    "fetchDeps": [
+      [
+        "{go}",
+        "mod",
+        "tidy"
+      ],
+      [
+        "{go}",
+        "mod",
+        "download"
+      ]
+    ],
     "tools": [
       {
         "id": "test_all",
@@ -59,6 +80,22 @@
             "{go}",
             "test",
             "-v",
+            "-count=1",
+            "./..."
+          ]
+        ]
+      },
+      {
+        "id": "race",
+        "label": "Race detector",
+        "env": {
+          "CGO_ENABLED": "1"
+        },
+        "commands": [
+          [
+            "{go}",
+            "test",
+            "-race",
             "-count=1",
             "./..."
           ]
@@ -109,7 +146,7 @@
       ]
     ],
     "lspInstall": "go install golang.org/x/tools/gopls@latest",
-    "sourceGuide": "One Go module named learnforge (go.mod at the root, editable) or a multi-module workspace with go.work when the project requires it. The root package is package main; subfolders (including cmd/ and internal/) are packages imported as \"learnforge/<folder>\". Data fixtures (.txt, .json, .xml) and learner-written *_test.go files are allowed. Standard library only.",
+    "sourceGuide": "One Go module named learnforge (go.mod at the root, editable). Keep the root package as package main and organize domain or service packages under internal/<name>/ (or subfolders) imported as \"learnforge/internal/<name>\"; add cmd/<service>/main.go when building multiple executables. Prefer a single go.mod over go.work unless the book explicitly teaches multi-module workspaces. Data and schema fixtures (.txt, .json, .jsonl, .xml, .csv, .md, .yaml, .yml, .sql, .proto, .avsc) and learner-written *_test.go files are allowed. Standard library only unless external packages are explicitly enabled for the project.",
     "testGuide": "One Go test file: package main, import \"testing\". Every top-level function is named TestStage{nn}… or stage{nn}… (helpers). No top-level types, variables or constants.",
     "lspProbe": [
       "version"
@@ -150,7 +187,7 @@
     },
     "scaffold": [],
     "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}([a-z][a-z0-9_]{0,40}|__init__)\\.py$",
-    "testPattern": "^test_stage\\d{2}_[a-z0-9_]+\\.py$",
+    "testPattern": "^test_stage\\d{2,3}_[a-z0-9_]+\\.py$",
     "testFile": "test_stage{nn}_{slug}.py",
     "testNamePrefix": false,
     "entry": "main.py",
@@ -227,7 +264,7 @@
       }
     ],
     "sourcePattern": "^src/([a-z][a-z0-9_]{0,40}/){0,2}[a-z][a-z0-9_]{0,40}\\.rs$",
-    "testPattern": "^tests/stage\\d{2}_[a-z0-9_]+\\.rs$",
+    "testPattern": "^tests/stage\\d{2,3}_[a-z0-9_]+\\.rs$",
     "testFile": "tests/stage{nn}_{slug}.rs",
     "testNamePrefix": false,
     "entry": "src/main.rs",
@@ -297,7 +334,7 @@
       }
     ],
     "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}[a-z][a-z0-9_]{0,40}\\.ts$",
-    "testPattern": "^stage\\d{2}_[a-z0-9_]+\\.test\\.ts$",
+    "testPattern": "^stage\\d{2,3}_[a-z0-9_]+\\.test\\.ts$",
     "testFile": "stage{nn}_{slug}.test.ts",
     "testNamePrefix": false,
     "entry": "main.ts",
@@ -349,7 +386,7 @@
       }
     ],
     "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}[a-z][a-z0-9_]{0,40}\\.js$",
-    "testPattern": "^stage\\d{2}_[a-z0-9_]+\\.test\\.js$",
+    "testPattern": "^stage\\d{2,3}_[a-z0-9_]+\\.test\\.js$",
     "testFile": "stage{nn}_{slug}.test.js",
     "testNamePrefix": false,
     "entry": "main.js",
@@ -404,7 +441,7 @@
     "env": {},
     "scaffold": [],
     "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}[a-z][a-z0-9_]{0,40}\\.[ch]$",
-    "testPattern": "^stage\\d{2}_[a-z0-9_]+_test\\.c$",
+    "testPattern": "^stage\\d{2,3}_[a-z0-9_]+_test\\.c$",
     "testFile": "stage{nn}_{slug}_test.c",
     "testNamePrefix": false,
     "entry": "main.c",
@@ -476,7 +513,7 @@
     "env": {},
     "scaffold": [],
     "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}[a-z][a-z0-9_]{0,40}\\.(cpp|hpp|h)$",
-    "testPattern": "^stage\\d{2}_[a-z0-9_]+_test\\.cpp$",
+    "testPattern": "^stage\\d{2,3}_[a-z0-9_]+_test\\.cpp$",
     "testFile": "stage{nn}_{slug}_test.cpp",
     "testNamePrefix": false,
     "entry": "main.cpp",
@@ -546,7 +583,7 @@
     "env": {},
     "scaffold": [],
     "sourcePattern": "^[A-Z][A-Za-z0-9]{0,40}\\.java$",
-    "testPattern": "^Stage\\d{2}Test\\.java$",
+    "testPattern": "^Stage\\d{2,3}Test\\.java$",
     "testFile": "Stage{nn}Test.java",
     "testNamePrefix": false,
     "entry": "Main.java",
@@ -618,7 +655,7 @@
     "env": {},
     "scaffold": [],
     "sourcePattern": "^([a-z][a-z0-9_]{0,40}/){0,2}[a-z][a-z0-9_]{0,40}\\.rb$",
-    "testPattern": "^test_stage\\d{2}_[a-z0-9_]+\\.rb$",
+    "testPattern": "^test_stage\\d{2,3}_[a-z0-9_]+\\.rb$",
     "testFile": "test_stage{nn}_{slug}.rb",
     "testNamePrefix": false,
     "entry": "main.rb",

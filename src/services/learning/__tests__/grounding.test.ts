@@ -63,3 +63,20 @@ it("strips internal [source-xxx L1-L8] citation clutter from prose while preserv
     "Keep `[source-jj2k0b L1-L8]` inside inline code, and remove in prose."
   );
 });
+it("guarantees per-chapter representation across many chapters when balancedSources is enabled", () => {
+  const chapters = Array.from({ length: 12 }, (_, idx) => {
+    const ch = idx + 1;
+    const text =
+      ch === 1
+        ? Array.from({ length: 40 }, () => "microservices kafka event broker project listing struct func").join("\n")
+        : `Chapter ${ch} unique topic: mechanism_${ch} handles distributed state transition ${ch}.`;
+    return createLearningReference(`Book · Chapter ${ch}`, text)!;
+  });
+  const balanced = referenceContext(chapters, "microservices kafka", 6000, {
+    prioritizeProjects: true,
+    balancedSources: true,
+  });
+  for (let ch = 1; ch <= 12; ch++) {
+    expect(balanced).toContain(`Book · Chapter ${ch}`);
+  }
+});

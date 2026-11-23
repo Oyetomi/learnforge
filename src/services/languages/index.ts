@@ -8,6 +8,7 @@ import builtIn from "./profiles.json";
 export interface LanguageTool {
   id: string;
   label: string;
+  env?: Record<string, string>;
   commands: string[][];
 }
 
@@ -24,6 +25,10 @@ export interface LanguageProfile {
   entry: string;
   run: string[][];
   test: string[][];
+  /** Single-invocation structured test suite (e.g. `go test -json ./...`), optional. */
+  testBatch?: string[][];
+  /** Explicit user-confirmed dependency fetch commands (e.g. `go mod tidy` / `download`). */
+  fetchDeps?: string[][];
   /** Compile-only check of a step's tests (empty: nothing to compile). */
   check?: string[][];
   tools?: LanguageTool[];
@@ -130,3 +135,6 @@ export function suggestPath(profile: LanguageProfile, name: string): string {
 
 /** Project mode needs a profile with step tests. */
 export const supportsProjectMode = (id: string | null | undefined) => !!profileFor(id)?.test.length;
+
+/** Whether this language supports opt-in user-confirmed dependency fetching. */
+export const supportsDependencyFetch = (id: string | null | undefined) => !!profileFor(id)?.fetchDeps?.length;

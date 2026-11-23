@@ -69,6 +69,12 @@ describe("language profiles", () => {
       "chapter11/api/cmd/api/main.go",
       "go.work",
       "test-config.json",
+      "events.jsonl",
+      "schemas/order.proto",
+      "schemas/order.avsc",
+      "migrations/001_events.sql",
+      "config/broker.yaml",
+      "config/broker.yml",
       "sample.txt",
       "testdata/feed.xml",
       "calculator_test.go",
@@ -78,11 +84,13 @@ describe("language profiles", () => {
       expect(isSourcePath(go, src), src).toBe(true);
       expect(isTestPath(go, src), src).toBe(false);
     }
-    for (const testPath of ["stage01_x_test.go", "api/stage01_x_test.go"]) {
+    for (const testPath of ["stage01_x_test.go", "stage105_stream_join_test.go", "api/stage01_x_test.go"]) {
       expect(isTestPath(go, testPath), testPath).toBe(true);
       expect(isSourcePath(go, testPath), testPath).toBe(false);
     }
-    expect(go.tools?.map((t) => t.id)).toEqual(["test_all", "cover", "bench", "vet"]);
+    expect(go.tools?.map((t) => t.id)).toEqual(["test_all", "race", "cover", "bench", "vet"]);
+    expect(go.testBatch?.length).toBeGreaterThan(0);
+    expect(go.fetchDeps?.length).toBeGreaterThan(0);
   });
 });
 
@@ -234,5 +242,104 @@ describe("local project runs", () => {
     expect(result.exitCode).toBe(-1);
     expect(result.stderr).toBe("Stopped.");
     expect(result.error).toBe("Stopped.");
+  });
+
+  it("runs all Go stages in a single test_batch go test -json invocation and groups regressions by stage", async () => {
+    const calls: { cmd: string; args: any }[] = [];
+    const goJsonOutput = [
+      JSON.stringify({ Action: "run", Package: "learnforge", Test: "TestStage01Broker" }),
+      JSON.stringify({ Action: "output", Package: "learnforge", Test: "TestStage01Broker", Output: "    stage01_broker_test.go:12: expected 3 events, got 2\n" }),
+      JSON.stringify({ Action: "fail", Package: "learnforge", Test: "TestStage01Broker", Elapsed: 0.04 }),
+      JSON.stringify({ Action: "run", Package: "learnforge", Test: "TestStage02Consumer" }),
+      JSON.stringify({ Action: "output", Package: "learnforge", Test: "TestStage02Consumer", Output: "--- PASS: TestStage02Consumer (0.01s)\n" }),
+      JSON.stringify({ Action: "pass", Package: "learnforge", Test: "TestStage02Consumer", Elapsed: 0.01 }),
+    ].join("\n");
+    vi.doMock("@tauri-apps/api/core", () => ({
+      invoke: vi.fn(async (cmd: string, args: any) => {
+        calls.push({ cmd, args });
+        if (cmd === "project_sync") return "/projects/go-edm";
+        return {
+          steps: [
+            {
+              command: "go test -json -count=1 ./...",
+              stdout: goJsonOutput,
+              stderr: "",
+              exitCode: 1,
+              timedOut: false,
+              durationMs: 65,
+            },
+          ],
+          exitCode: 1,
+          timedOut: false,
+          durationMs: 65,
+        };
+      }),
+    }));
+    const { runLocalProject } = await import("../../sandbox/local");
+    let ws = emptyWorkspace("go-edm", "go");
+    ws = applyStage(ws, "u1", "Broker", { task: "a", tests: "package main\nimport \"testing\"\nfunc TestStage01Broker(t *testing.T) {}", files: [] });
+    ws = applyStage(ws, "u2", "Consumer", { task: "b", tests: "package main\nimport \"testing\"\nfunc TestStage02Consumer(t *testing.T) {}", files: [] });
+    const result = await runLocalProject(ws);
+    expect(calls.map((c) => c.cmd)).toEqual(["project_sync", "project_exec"]);
+    expect(calls[1].args).toMatchObject({ action: "test_batch", stage: null });
+    expect(result.exitCode).toBe(1);
+    expect(result.stepRuns?.map((s) => [s.number, s.passed])).toEqual([
+      [1, false],
+      [2, true],
+    ]);
+    expect(result.testResults?.[0].error).toContain("expected 3 events, got 2");
+    expect(summarizeSuite(result.testResults, 2, result.exitCode)).toMatchObject({
+      brokenEarlier: [1],
+      currentPassed: true,
+      allPassed: false,
+    });
+  });
+
+  it("reports compile errors cleanly across all stages in Go batch mode", async () => {
+    const { parseGoTestJson } = await import("../../sandbox/local");
+    let ws = emptyWorkspace("go-edm", "go");
+    ws = applyStage(ws, "u1", "Broker", { task: "a", tests: "package main\nimport \"testing\"\nfunc TestStage01Broker(t *testing.T) {}", files: [] });
+    ws = applyStage(ws, "u2", "Consumer", { task: "b", tests: "package main\nimport \"testing\"\nfunc TestStage02Consumer(t *testing.T) {}", files: [] });
+    const buildFailJson = [
+      JSON.stringify({ Action: "build-output", Output: "# learnforge [learnforge.test]\n./broker.go:10:2: undefined: Event\n" }),
+      JSON.stringify({ Action: "build-fail" }),
+    ].join("\n");
+    const parsed = parseGoTestJson(buildFailJson, "", ws.stages, 1, false, 40);
+    expect(parsed.exitCode).toBe(1);
+    expect(parsed.stepRuns?.every((s) => !s.passed)).toBe(true);
+    expect(parsed.stepRuns?.[0].output).toContain("undefined: Event");
+  });
+
+  it("invokes project_fetch_deps and project_export through Tauri IPC", async () => {
+    const calls: { cmd: string; args: any }[] = [];
+    vi.doMock("@tauri-apps/api/core", () => ({
+      invoke: vi.fn(async (cmd: string, args: any) => {
+        calls.push({ cmd, args });
+        if (cmd === "project_sync") return "/projects/go-edm";
+        if (cmd === "project_fetch_deps") {
+          return {
+            exec: {
+              steps: [{ command: "go mod tidy", stdout: "", stderr: "", exitCode: 0, timedOut: false, durationMs: 30 }],
+              exitCode: 0,
+              timedOut: false,
+              durationMs: 30,
+            },
+            updatedFiles: [{ path: "go.sum", content: "example.com/pkg v1.0.0 h1:abc=\n" }],
+          };
+        }
+        if (cmd === "project_export") {
+          return { path: "/Users/test/Downloads/event-broker", fileCount: 3 };
+        }
+        return {};
+      }),
+    }));
+    const { exportLocalProject, fetchLocalProjectDeps } = await import("../../sandbox/local");
+    const ws = emptyWorkspace("go-edm", "go");
+    const deps = await fetchLocalProjectDeps(ws);
+    expect(deps.result.exitCode).toBe(0);
+    expect(deps.updatedFiles).toEqual([{ path: "go.sum", content: "example.com/pkg v1.0.0 h1:abc=\n" }]);
+    const exported = await exportLocalProject(ws, "Event Broker", true, true);
+    expect(exported).toEqual({ path: "/Users/test/Downloads/event-broker", fileCount: 3 });
+    expect(calls.map((c) => c.cmd)).toEqual(["project_sync", "project_fetch_deps", "project_export"]);
   });
 });

@@ -138,4 +138,64 @@ describe("curriculum surface contracts", () => {
     expect(html).not.toContain("Optional starting-point check");
     expect(html).not.toContain("Keep for later");
   });
+  it("renders configured external packages and localhost services in project approval", () => {
+    const projectTrack = trackFromOutline(
+      {
+        title: "Event-Driven Microservices in Go",
+        destination: "Build event-driven services in Go",
+        practice_mode: "coding",
+        language: "go",
+        exclusions: [],
+        project: { title: "Event Platform", summary: "Broker and microservices in Go." },
+        modules: [
+          {
+            title: "Brokers",
+            outcome: "Produce and consume events",
+            units: [
+              {
+                id: "u1",
+                title: "Event log",
+                outcome: "Implement a partitioned event log",
+                assessment: "Publish and consume ordered events",
+                prerequisite_ids: [],
+                project_step: "Create the event broker client",
+              },
+            ],
+          },
+          {
+            title: "Streams",
+            outcome: "Process event streams",
+            units: [
+              {
+                id: "u2",
+                title: "Stream topology",
+                outcome: "Aggregate events into state",
+                assessment: "Maintain materialized state from events",
+                prerequisite_ids: ["u1"],
+                project_step: "Build a stateful consumer",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        topic: "Event-Driven Microservices",
+        destination: "Build event-driven services in Go",
+        startingPoint: "Know Go",
+        language: "go",
+        project: true,
+        projectEnvironment: {
+          allowExternalPackages: true,
+          localServices: [{ name: "Kafka / Redpanda", endpoint: "localhost:9092" }],
+        },
+      }
+    );
+    const html = renderToStaticMarkup(
+      <CurriculumApproval track={projectTrack} onApprove={vi.fn()} onRevise={vi.fn()} />
+    );
+    expect(html).toContain("Project environment");
+    expect(html).toContain("External Go packages enabled");
+    expect(html).toContain("Kafka / Redpanda");
+    expect(html).toContain("localhost:9092");
+  });
 });

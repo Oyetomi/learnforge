@@ -33,12 +33,21 @@ fn canonical(paths: &[PathBuf]) -> Vec<PathBuf> {
 }
 
 pub fn profile(policy: &Policy, home: &Path) -> String {
-    let mut sb = String::from(
-        "(version 1)\n(allow default)\n(deny network*)\n\
-         (allow network* (remote ip \"localhost:*\"))\n(allow network* (local ip \"localhost:*\"))\n\
-         (deny file-write*)\n\
-         (allow file-write* (subpath \"/dev\")",
-    );
+    profile_with_network(policy, home, false)
+}
+
+/// Build a macOS sandbox profile. Only explicit dependency-fetch operations may
+/// pass `allow_network = true`; untrusted code and tests always run offline
+/// (localhost only). File-write and home-read isolation always apply.
+pub fn profile_with_network(policy: &Policy, home: &Path, allow_network: bool) -> String {
+    let mut sb = String::from("(version 1)\n(allow default)\n");
+    if !allow_network {
+        sb.push_str(
+            "(deny network*)\n\
+             (allow network* (remote ip \"localhost:*\"))\n(allow network* (local ip \"localhost:*\"))\n",
+        );
+    }
+    sb.push_str("(deny file-write*)\n(allow file-write* (subpath \"/dev\")");
     for p in canonical(&policy.writable) {
         sb.push_str(&format!(" (subpath {})", quote(&p)));
     }
@@ -209,5 +218,26 @@ mod tests {
         assert!(out.timed_out && started.elapsed() < Duration::from_secs(5), "{out:?}");
         let _ = std::fs::remove_dir_all(project);
         let _ = std::fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn network_profile_still_isolates_home_reads_and_outside_writes() {
+        let project = temp("netproj");
+        let fake_home = temp("nethome2");
+        std::fs::write(fake_home.join("secret"), "token").unwrap();
+        let outside = fake_home.join("written");
+        let policy = Policy { writable: vec![project.clone()], readable: vec![] };
+        let sandbox = profile_with_network(&policy, &fake_home, true);
+        let run_sh = |script: &str| {
+            let argv = vec!["/bin/sh".to_string(), "-c".to_string(), script.to_string()];
+            let env = BTreeMap::from([("PATH".to_string(), "/usr/bin:/bin".to_string())]);
+            run(Spec { argv: &argv, cwd: &project, env: &env, sandbox: &sandbox, timeout: Duration::from_secs(10), cancel: Arc::default() }).unwrap()
+        };
+        assert_ne!(run_sh(&format!("cat {}", fake_home.join("secret").display())).exit_code, 0);
+        assert_ne!(run_sh(&format!("echo x > {}", outside.display())).exit_code, 0);
+        assert!(!outside.exists());
+        assert_eq!(run_sh("echo ok > inside.txt && cat inside.txt").exit_code, 0);
+        let _ = std::fs::remove_dir_all(project);
+        let _ = std::fs::remove_dir_all(fake_home);
     }
 }

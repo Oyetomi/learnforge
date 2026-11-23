@@ -13,6 +13,8 @@ import {
   X,
   AlertCircle,
   ChevronRight,
+  Download,
+  Package,
   PanelLeft,
   Trash2,
 } from "lucide-react";
@@ -167,6 +169,17 @@ function getMonacoLanguage(lang: string): string {
   }
 }
 
+function monacoLanguageForPath(path: string, fallback: string): string {
+  const lower = path.toLowerCase();
+  if (lower.endsWith(".json") || lower.endsWith(".jsonl") || lower.endsWith(".avsc")) return "json";
+  if (lower.endsWith(".yaml") || lower.endsWith(".yml")) return "yaml";
+  if (lower.endsWith(".sql")) return "sql";
+  if (lower.endsWith(".xml")) return "xml";
+  if (lower.endsWith(".md")) return "markdown";
+  if (lower.endsWith(".txt") || lower.endsWith(".csv") || lower.endsWith(".proto")) return "plaintext";
+  return fallback;
+}
+
 export const EditorPane: React.FC<EditorPaneProps> = ({
   code,
   onChangeCode,
@@ -254,10 +267,63 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     label: string;
     result: ExecutionResult;
   } | null>(null);
+  const [confirmFetchDeps, setConfirmFetchDeps] = useState(false);
+  const [exportNotice, setExportNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const [exporting, setExporting] = useState(false);
   const toolRunSeq = useRef(0);
   const availableTools = projectMode ? project!.availableTools ?? [] : [];
+  const canFetchDeps = projectMode && !!project!.canFetchDeps;
   const runningToolLabel =
-    availableTools.find((t) => t.id === runningToolId)?.label ?? "tool";
+    runningToolId === "__fetch_deps__"
+      ? "Fetch modules"
+      : availableTools.find((t) => t.id === runningToolId)?.label ?? "tool";
+  const runFetchDeps = async () => {
+    if (!projectMode || !project || isRunning || runningToolId !== null || !runtimeAvailable || !project.loaded)
+      return;
+    setConfirmFetchDeps(false);
+    const seq = ++toolRunSeq.current;
+    setRunningToolId("__fetch_deps__");
+    setToolOutput(null);
+    setOutputOpen(true);
+    setActiveBottomTab("console");
+    try {
+      const result = await project.fetchDeps();
+      if (toolRunSeq.current !== seq) return;
+      setToolOutput({ toolId: "__fetch_deps__", label: "Fetch modules", result });
+    } catch (err) {
+      if (toolRunSeq.current !== seq) return;
+      const message = err instanceof Error ? err.message : "Could not fetch modules.";
+      setToolOutput({
+        toolId: "__fetch_deps__",
+        label: "Fetch modules",
+        result: { stdout: "", stderr: message, exitCode: 1, durationMs: 0, error: message },
+      });
+    } finally {
+      if (toolRunSeq.current === seq) setRunningToolId(null);
+    }
+  };
+  const handleExportProject = async () => {
+    if (!projectMode || !project || exporting || !project.loaded || !project.tabs.length) return;
+    setExporting(true);
+    setExportNotice(null);
+    try {
+      const exported = await project.exportProject(true);
+      setExportNotice({
+        tone: "ok",
+        text:
+          exported.mode === "folder"
+            ? `Exported ${exported.fileCount} files to ${exported.path}`
+            : `Downloaded ${exported.path} (${exported.fileCount} files)`,
+      });
+    } catch (err) {
+      setExportNotice({
+        tone: "error",
+        text: err instanceof Error ? err.message : "Could not export project.",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
   const runProjectTool = async (tool: { id: string; label: string }) => {
     if (
       !projectMode ||
@@ -552,6 +618,8 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     toolRunSeq.current += 1;
     setRunningToolId(null);
     setToolOutput(null);
+    setConfirmFetchDeps(false);
+    setExportNotice(null);
   }, [milestoneId, language, project?.trackId]);
   useEffect(() => {
     if (!askingPrediction) return;
@@ -608,6 +676,18 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
               aria-label="Close code workspace"
             >
               <X size={15} />
+            </button>
+          )}
+          {projectMode && (
+            <button
+              type="button"
+              className="reset-button"
+              disabled={exporting || !project!.loaded || !project!.tabs.length}
+              onClick={() => void handleExportProject()}
+              title="Export this project as a standalone folder (or .tar archive in browser mode)"
+            >
+              {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+              <span>{exporting ? "Exporting…" : "Export"}</span>
             </button>
           )}
           {confirmReset ? (
@@ -692,6 +772,22 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           </button>
         </div>
       </div>
+      {exportNotice && (
+        <div
+          className={`project-export-notice ${exportNotice.tone === "error" ? "is-error" : ""}`}
+          role="status"
+        >
+          <span>{exportNotice.text}</span>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setExportNotice(null)}
+            aria-label="Dismiss export notice"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
       {projectMode && <ProjectStepPanel project={project!} isRunning={isRunning} />}
       <div className="editor-filebar">
         {projectMode ? (
@@ -780,7 +876,14 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       <div className="monaco-container">
         <Editor
           height="100%"
-          language={profile?.monaco ?? getMonacoLanguage(language)}
+          language={
+            projectMode
+              ? monacoLanguageForPath(
+                  project!.activePath || "",
+                  profile?.monaco ?? getMonacoLanguage(language)
+                )
+              : profile?.monaco ?? getMonacoLanguage(language)
+          }
           {...(projectMode ? { path: `project/${project!.trackId}/${project!.activePath || "empty"}`, keepCurrentModel: true } : {})}
           value={code}
           onChange={(value) => {
@@ -983,7 +1086,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
               )}
             </button>
           </div>
-          {projectMode && availableTools.length > 0 && (
+          {projectMode && (availableTools.length > 0 || canFetchDeps) && (
             <span className="project-tool-actions" role="group" aria-label="Project tools">
               {availableTools.map((tool) => {
                 const isThisRunning = runningToolId === tool.id;
@@ -1001,7 +1104,10 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                     aria-busy={isThisRunning || undefined}
                     title={(tool.commands ?? []).map((c: string[]) => c.join(" ").replace(/\{(\w+)\}/g, "$1")).join(" && ") || undefined}
                     disabled={disabled}
-                    onClick={() => void runProjectTool(tool)}
+                    onClick={() => {
+                      setConfirmFetchDeps(false);
+                      void runProjectTool(tool);
+                    }}
                   >
                     {isThisRunning && (
                       <Loader2 size={11} className="animate-spin" aria-hidden="true" />
@@ -1010,6 +1116,29 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                   </button>
                 );
               })}
+              {canFetchDeps && (
+                <button
+                  type="button"
+                  className="project-tool-button"
+                  data-running={runningToolId === "__fetch_deps__" || undefined}
+                  aria-busy={runningToolId === "__fetch_deps__" || undefined}
+                  aria-expanded={confirmFetchDeps}
+                  title="Explicitly run go mod tidy and go mod download into the local cache (tests remain offline)"
+                  disabled={isRunning || runningToolId !== null || !runtimeAvailable || !project!.loaded}
+                  onClick={() => {
+                    setConfirmFetchDeps((v) => !v);
+                    setOutputOpen(true);
+                    setActiveBottomTab("console");
+                  }}
+                >
+                  {runningToolId === "__fetch_deps__" ? (
+                    <Loader2 size={11} className="animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Package size={11} aria-hidden="true" />
+                  )}
+                  <span>Fetch modules</span>
+                </button>
+              )}
             </span>
           )}
           <button
@@ -1044,7 +1173,46 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           >
             {projectMode ? (
               activeBottomTab === "console" ? (
-                runningToolId !== null ? (
+                confirmFetchDeps && runningToolId === null ? (
+                  <div className="console-panel">
+                    <div className="project-deps-confirm" role="region" aria-label="Confirm Go module fetch">
+                      <strong>Fetch Go modules into the local cache?</strong>
+                      <p>
+                        Runs <code>go mod tidy</code> and <code>go mod download</code> inside the macOS sandbox with outbound network enabled only for this step. Regular code and test runs remain offline.
+                      </p>
+                      {project!.declaredModules.length > 0 ? (
+                        <ul className="project-deps-list">
+                          {project!.declaredModules.map((mod) => (
+                            <li key={mod}>
+                              <code>{mod}</code>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="project-deps-empty">
+                          No external <code>require</code> lines are in <code>go.mod</code> yet; <code>go mod tidy</code> will resolve imports from your Go files.
+                        </p>
+                      )}
+                      <div className="project-deps-actions">
+                        <button
+                          type="button"
+                          className="run-button"
+                          onClick={() => void runFetchDeps()}
+                        >
+                          <Package size={12} aria-hidden="true" />
+                          <span>Confirm fetch</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="reset-button"
+                          onClick={() => setConfirmFetchDeps(false)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : runningToolId !== null ? (
                   <div className="console-panel">
                     <div className="output-empty" role="status">
                       <Loader2 size={20} className="animate-spin" aria-hidden="true" />

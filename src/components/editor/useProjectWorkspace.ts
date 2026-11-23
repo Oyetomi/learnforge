@@ -12,9 +12,11 @@ import {
 import {
   addFile,
   applyStage,
+  buildProjectTar,
   emptyWorkspace,
   goPlaygroundBody,
   markStagePassed,
+  parseGoModRequires,
   projectPromptContext,
   projectWorkspaceKey,
   markStageStarted,
@@ -32,12 +34,13 @@ import {
   summarizeSuite,
   supportsProjectMode,
   updateFile,
+  validLearnerPath,
   type PreparedStage,
   type ProjectWorkspace,
   type SuiteSummary,
 } from "../../services/learning/project";
 import { loadProject, saveProject } from "../../services/learning/projectStore";
-import { loadLanguageStatus, profileFor, type LanguageStatus } from "../../services/languages";
+import { loadLanguageStatus, profileFor, supportsDependencyFetch, type LanguageStatus } from "../../services/languages";
 import { runHeadline, runOutcome, type Headline, type Prediction } from "../../services/sandbox/runReport";
 
 export interface ProjectRuntime {
@@ -417,6 +420,77 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     [flush, runtime.local, runtime.detail]
   );
 
+  const fetchDeps = useCallback(async (): Promise<ExecutionResult> => {
+    await flush();
+    const ws = latest.current;
+    if (!ws) throw new Error("The project is still loading.");
+    if (!runtime.local) throw new Error(runtime.detail);
+    const { fetchLocalProjectDeps } = await import("../../services/sandbox/local");
+    const { result, updatedFiles } = await fetchLocalProjectDeps(ws);
+    if (updatedFiles.length && latest.current && latest.current.trackId === ws.trackId) {
+      let next = latest.current;
+      for (const f of updatedFiles) {
+        if (!validLearnerPath(f.path, next.language)) continue;
+        if (next.files.some((existing) => existing.path === f.path)) {
+          next = updateFile(next, f.path, f.content);
+        } else {
+          next = {
+            ...next,
+            files: [...next.files, { path: f.path, content: f.content }],
+            updatedAt: Date.now(),
+          };
+        }
+      }
+      if (next !== latest.current) commit(next, true);
+    }
+    return result;
+  }, [flush, runtime.local, runtime.detail, commit]);
+
+  const exportProject = useCallback(
+    async (
+      includeTests = true
+    ): Promise<{ mode: "folder" | "archive"; path: string; fileCount: number }> => {
+      await flush();
+      const ws = latest.current;
+      if (!ws) throw new Error("The project is still loading.");
+      if (!ws.files.length) throw new Error("The project has no files to export yet.");
+      const exportName = activeProject?.title || track?.title || "learnforge-project";
+      const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+      if (isTauri) {
+        const { exportLocalProject } = await import("../../services/sandbox/local");
+        const exported = await exportLocalProject(ws, exportName, includeTests, true);
+        return { mode: "folder", path: exported.path, fileCount: exported.fileCount };
+      }
+      const profile = profileFor(ws.language);
+      const scaffoldExtras = (profile?.scaffold ?? []).filter(
+        (s) => !ws.files.some((f) => f.path === s.path)
+      );
+      const files = [
+        ...ws.files,
+        ...scaffoldExtras,
+        ...(includeTests ? ws.stages.map((s) => ({ path: s.testPath, content: s.tests })) : []),
+      ];
+      const slug =
+        exportName
+          .toLowerCase()
+          .replace(/[^a-z0-9_-]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 48) || "learnforge-project";
+      const tarBytes = buildProjectTar(files, slug);
+      const blob = new Blob([tarBytes.buffer as ArrayBuffer], { type: "application/x-tar" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${slug}.tar`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return { mode: "archive", path: `${slug}.tar`, fileCount: files.length };
+    },
+    [flush, activeProject?.title, track?.title]
+  );
+
   const run = useCallback(async (): Promise<ProjectRun> => {
     await flush();
     const ws = latest.current;
@@ -469,7 +543,7 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
           if (!stage) return r;
           const title = stage.title ?? unitTitles.get(stage.unitId) ?? stage.testPath;
           const local = / · /.test(r.name);
-          const fn = r.name.replace(/^TestStage\d{2}/, "");
+          const fn = r.name.replace(/^TestStage\d{2,3}/, "");
           return { ...r, name: `${stageName(stage)} · ${title}${!local && fn ? ` · ${fn}` : ""}` };
         }),
       };
@@ -511,6 +585,11 @@ export function useProjectWorkspace(track: CourseTrack | undefined, milestone: M
     allProjects,
     availableTools,
     runTool,
+    projectEnvironment: plan?.projectEnvironment,
+    canFetchDeps: runtime.local && supportsDependencyFetch(track?.language),
+    declaredModules: activeWorkspace?.language === "go" ? parseGoModRequires(activeWorkspace) : [],
+    fetchDeps,
+    exportProject,
     step,
     stage,
     totalSteps,

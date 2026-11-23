@@ -56,12 +56,13 @@ export function referenceContext(
   references: LearningReference[] | undefined,
   query = "",
   budget = 6500,
-  options: { sourceLimit?: number; prioritizeProjects?: boolean } = {}
+  options: { sourceLimit?: number; prioritizeProjects?: boolean; balancedSources?: boolean } = {}
 ): string {
   if (!references?.length) return "";
   const words = new Set(query.toLowerCase().match(/[\p{L}\p{N}_]{3,}/gu) || []);
   const limit = Math.max(SOURCE_LIMIT, options.sourceLimit ?? SOURCE_LIMIT);
-  const chunks = references.slice(0, 96).flatMap((source, sourceIndex) => {
+  const activeRefs = references.slice(0, 96);
+  const chunks = activeRefs.flatMap((source, sourceIndex) => {
     const lines = source.content.slice(0, limit).split("\n");
     const parts: {
       sourceIndex: number;
@@ -94,15 +95,39 @@ export function referenceContext(
     return parts;
   });
   const selected: typeof chunks = [];
+  const chosen = new Set<(typeof chunks)[number]>();
   let used = 0;
-  for (const chunk of chunks.sort((a, b) => b.score - a.score || a.sourceIndex - b.sourceIndex || a.start - b.start)) {
+
+  const trySelect = (chunk: (typeof chunks)[number], maxRoom: number): boolean => {
     const overhead = chunk.name.length + chunk.id.length + 45;
-    const remaining = budget - used - overhead;
-    if (remaining < 100) break;
-    // Bound even a single unusually long extracted line.
+    const remaining = maxRoom - overhead;
+    if (remaining < 100) return false;
     const text = chunk.text.slice(0, remaining);
     selected.push({ ...chunk, text, end: chunk.start + text.split("\n").length - 1 });
+    chosen.add(chunk);
     used += text.length + overhead;
+    return true;
+  };
+
+  if (options.balancedSources && activeRefs.length > 1) {
+    const perSourceShare = Math.max(400, Math.floor(budget / activeRefs.length));
+    for (let sIdx = 0; sIdx < activeRefs.length; sIdx++) {
+      let sourceUsed = 0;
+      const sourceChunks = chunks
+        .filter((c) => c.sourceIndex === sIdx)
+        .sort((a, b) => b.score - a.score || a.start - b.start);
+      for (const chunk of sourceChunks) {
+        const room = Math.min(budget - used, perSourceShare - sourceUsed);
+        const before = used;
+        if (!trySelect(chunk, room)) break;
+        sourceUsed += used - before;
+      }
+    }
+  }
+
+  for (const chunk of chunks.sort((a, b) => b.score - a.score || a.sourceIndex - b.sourceIndex || a.start - b.start)) {
+    if (chosen.has(chunk)) continue;
+    if (!trySelect(chunk, budget - used)) break;
   }
   selected.sort((a, b) => a.sourceIndex - b.sourceIndex || a.start - b.start);
   return selected.map((c) => `SOURCE ${c.id} (${c.name}) L${c.start}–L${c.end}\n${c.text}`).join("\n\n");

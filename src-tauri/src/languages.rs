@@ -26,6 +26,8 @@ pub struct ScaffoldFile {
 pub struct ProfileTool {
     pub id: String,
     pub label: String,
+    #[serde(default)]
+    pub env: BTreeMap<String, String>,
     pub commands: Vec<Vec<String>>,
 }
 
@@ -51,6 +53,12 @@ pub struct Profile {
     pub run: Vec<Vec<String>>,
     #[serde(default)]
     pub test: Vec<Vec<String>>,
+    /// Single-invocation structured test suite (e.g. `go test -json ./...`), optional.
+    #[serde(default)]
+    pub test_batch: Vec<Vec<String>>,
+    /// Explicit user-confirmed dependency fetch commands (e.g. `go mod tidy` / `go mod download`).
+    #[serde(default)]
+    pub fetch_deps: Vec<Vec<String>>,
     /// Compile-only check of one step's tests against the current files
     /// (nothing runs). Used before a prepared step is shown to the learner.
     #[serde(default)]
@@ -135,7 +143,15 @@ impl Profile {
         Regex::new(&self.source_pattern).map_err(|e| format!("{}: sourcePattern: {e}", self.id))?;
         Regex::new(&self.test_pattern).map_err(|e| format!("{}: testPattern: {e}", self.id))?;
         if self.run.is_empty()
-            || self.run.iter().chain(&self.test).chain(&self.check).chain(&self.lsp).any(|argv| argv.is_empty())
+            || self
+                .run
+                .iter()
+                .chain(&self.test)
+                .chain(&self.test_batch)
+                .chain(&self.fetch_deps)
+                .chain(&self.check)
+                .chain(&self.lsp)
+                .any(|argv| argv.is_empty())
         {
             return Err(format!("{}: every command needs a program.", self.id));
         }
@@ -391,6 +407,7 @@ mod tests {
         let go = get("go");
         assert!(go.is_source("store.go"));
         assert!(!go.is_source("stage01_x_test.go") && go.is_test("stage01_x_test.go"));
+        assert!(!go.is_source("stage105_x_test.go") && go.is_test("stage105_x_test.go"));
         assert!(!go.is_source("api/stage01_x_test.go") && go.is_test("api/stage01_x_test.go"));
         for src in [
             "wordcount/main.go",
@@ -402,6 +419,12 @@ mod tests {
             "api/cmd/api/main.go",
             "chapter11/api/cmd/api/main.go",
             "test-config.json",
+            "events.jsonl",
+            "schemas/order.proto",
+            "schemas/order.avsc",
+            "migrations/001_events.sql",
+            "config/broker.yaml",
+            "config/broker.yml",
             "sample.txt",
             "testdata/feed.xml",
             "calculator_test.go",
@@ -448,24 +471,25 @@ mod tests {
         let (profiles, _) = load_profiles(None);
         let go = profiles.iter().find(|p| p.id == "go").unwrap().clone();
         let ids: Vec<&str> = go.tools.iter().map(|t| t.id.as_str()).collect();
-        assert_eq!(ids, vec!["test_all", "cover", "bench", "vet"]);
+        assert_eq!(ids, vec!["test_all", "race", "cover", "bench", "vet"]);
 
         let mut ok_profile = go.clone();
         ok_profile.tools = vec![ProfileTool {
             id: "fmt-check_1".into(),
             label: "Format check".into(),
+            env: BTreeMap::new(),
             commands: vec![vec!["{go}".into(), "fmt".into(), "./...".into()]],
         }];
         assert!(ok_profile.validate().is_ok());
 
         for bad_tool in [
-            ProfileTool { id: "".into(), label: "Empty id".into(), commands: vec![vec!["{go}".into()]] },
-            ProfileTool { id: "BadId".into(), label: "Uppercase".into(), commands: vec![vec!["{go}".into()]] },
-            ProfileTool { id: "has space".into(), label: "Space".into(), commands: vec![vec!["{go}".into()]] },
-            ProfileTool { id: "a".repeat(33), label: "Too long".into(), commands: vec![vec!["{go}".into()]] },
-            ProfileTool { id: "vet".into(), label: "   ".into(), commands: vec![vec!["{go}".into()]] },
-            ProfileTool { id: "vet".into(), label: "No commands".into(), commands: vec![] },
-            ProfileTool { id: "vet".into(), label: "Empty argv".into(), commands: vec![vec![]] },
+            ProfileTool { id: "".into(), label: "Empty id".into(), env: BTreeMap::new(), commands: vec![vec!["{go}".into()]] },
+            ProfileTool { id: "BadId".into(), label: "Uppercase".into(), env: BTreeMap::new(), commands: vec![vec!["{go}".into()]] },
+            ProfileTool { id: "has space".into(), label: "Space".into(), env: BTreeMap::new(), commands: vec![vec!["{go}".into()]] },
+            ProfileTool { id: "a".repeat(33), label: "Too long".into(), env: BTreeMap::new(), commands: vec![vec!["{go}".into()]] },
+            ProfileTool { id: "vet".into(), label: "   ".into(), env: BTreeMap::new(), commands: vec![vec!["{go}".into()]] },
+            ProfileTool { id: "vet".into(), label: "No commands".into(), env: BTreeMap::new(), commands: vec![] },
+            ProfileTool { id: "vet".into(), label: "Empty argv".into(), env: BTreeMap::new(), commands: vec![vec![]] },
         ] {
             let mut p = go.clone();
             p.tools = vec![bad_tool];

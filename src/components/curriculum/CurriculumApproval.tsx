@@ -126,6 +126,62 @@ export function CurriculumApproval({
       ...(plan.projects !== undefined ? { projects: nextProjects } : {}),
     });
   };
+  const addProject = () => {
+    if (projects.length >= 12) return;
+    const used = new Set(projects.map((p) => p.id.toLowerCase()));
+    let n = projects.length + 1;
+    while (used.has(`p${n}`)) n++;
+    const newId = `p${n}`;
+    const existing = projects.map((p) => ({ ...p }));
+    const nextProjects = [
+      ...existing,
+      {
+        id: newId,
+        title: `Project ${existing.length + 1}`,
+        summary: "Describe what this project builds.",
+        source: "designed" as const,
+      },
+    ];
+    const firstId = existing[0]?.id ?? "main";
+    const { project: _single, ...rest } = plan;
+    changePlan({
+      ...rest,
+      projects: nextProjects,
+      modules: plan.modules.map((m) => ({
+        ...m,
+        units: m.units.map((u) =>
+          u.projectStep?.trim()
+            ? { ...u, projectId: u.projectId ?? firstId }
+            : u
+        ),
+      })),
+    });
+  };
+  const removeProject = (projectId: string) => {
+    if (projects.length <= 1) return;
+    const remaining = projects.filter((p) => p.id !== projectId);
+    const fallbackId = remaining[0].id;
+    const { project: _single, projects: _multi, ...rest } = plan;
+    const single = remaining.length === 1;
+    changePlan({
+      ...rest,
+      ...(single ? { project: remaining[0] } : { projects: remaining }),
+      modules: plan.modules.map((m) => ({
+        ...m,
+        units: m.units.map((u) => {
+          if (!u.projectStep?.trim()) {
+            const { projectId: _drop, ...clean } = u;
+            return clean;
+          }
+          if (single) {
+            const { projectId: _drop, ...clean } = u;
+            return clean;
+          }
+          return u.projectId === projectId ? { ...u, projectId: fallbackId } : u;
+        }),
+      })),
+    });
+  };
   const startPlacement = async () => {
     if (controller.current) return;
     if (
@@ -633,6 +689,13 @@ export function CurriculumApproval({
                             }
                           />
                         </label>
+                        <button
+                          type="button"
+                          className="check-coach-button curriculum-project-add"
+                          onClick={addProject}
+                        >
+                          + Split into multiple projects
+                        </button>
                       </div>
                     ) : (
                       <>
@@ -706,12 +769,30 @@ export function CurriculumApproval({
                                       {!allFromBook && proj.source === "book" && (
                                         <span className="curriculum-project-source">From your book</span>
                                       )}
+                                      {editing && projects.length > 1 && (
+                                        <button
+                                          type="button"
+                                          className="curriculum-project-remove"
+                                          onClick={() => removeProject(proj.id)}
+                                        >
+                                          Remove
+                                        </button>
+                                      )}
                                     </p>
                                   </div>
                                 </li>
                               );
                             })}
                           </ol>
+                          {editing && projects.length < 12 && (
+                            <button
+                              type="button"
+                              className="check-coach-button curriculum-project-add"
+                              onClick={addProject}
+                            >
+                              + Add project
+                            </button>
+                          )}
                           <p className="curriculum-project-note">
                             Each project gets its own folder and tests; chapters that extend a project keep building on the same code. Code runs on this Mac in a sandbox{draft.language === "go" ? ", or on the Go Playground if Go isn’t installed" : ""}.
                           </p>
@@ -720,6 +801,25 @@ export function CurriculumApproval({
                     })()}
                   </>
                 ))}
+              {projectMode &&
+                (plan.projectEnvironment?.allowExternalPackages ||
+                  (plan.projectEnvironment?.localServices?.length ?? 0) > 0) && (
+                  <div className="curriculum-project-env">
+                    <h4>Project environment</h4>
+                    <ul>
+                      {plan.projectEnvironment?.allowExternalPackages && (
+                        <li>
+                          External {profileFor(draft.language)?.name ?? draft.language} packages enabled (fetch on demand in the workspace; tests run offline).
+                        </li>
+                      )}
+                      {plan.projectEnvironment?.localServices?.map((svc) => (
+                        <li key={svc.endpoint}>
+                          Local service: <strong>{svc.name}</strong> (<code>{svc.endpoint}</code>)
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               <h4>The destination</h4>
               {editing ? (
                 <label>

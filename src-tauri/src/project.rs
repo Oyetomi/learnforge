@@ -15,7 +15,7 @@ use tauri::{AppHandle, Manager, Runtime, State};
 
 const LEGACY_MANIFEST: &str = ".learnforge-files";
 const MANIFEST_DIR: &str = ".learnforge-manifests";
-const MAX_FILES: usize = 64;
+const MAX_FILES: usize = 256;
 const MAX_FILE_BYTES: usize = 200 * 1024;
 const STEP_TIMEOUT: Duration = Duration::from_secs(60);
 const TOTAL_TIMEOUT: Duration = Duration::from_secs(120);
@@ -55,10 +55,24 @@ fn safe_target(dir: &Path, rel: &str) -> Result<PathBuf, String> {
     Ok(cur)
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectFile {
     pub path: String,
     pub content: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchDepsResult {
+    pub exec: ExecResult,
+    pub updated_files: Vec<ProjectFile>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportResult {
+    pub path: String,
+    pub file_count: usize,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -258,11 +272,31 @@ pub fn policy(ctx: &Context) -> sandbox::Policy {
     sandbox::Policy { writable: vec![ctx.dir.to_path_buf(), ctx.cache.to_path_buf()], readable }
 }
 
+#[cfg(test)]
 pub fn execute(ctx: &Context, commands: &[Vec<String>], cancel: Arc<AtomicBool>) -> Result<ExecResult, String> {
+    execute_with_options(ctx, commands, None, false, cancel)
+}
+
+pub fn execute_with_options(
+    ctx: &Context,
+    commands: &[Vec<String>],
+    extra_env: Option<&BTreeMap<String, String>>,
+    allow_network: bool,
+    cancel: Arc<AtomicBool>,
+) -> Result<ExecResult, String> {
     std::fs::create_dir_all(ctx.dir.join(".lf-tmp")).map_err(|e| e.to_string())?;
     let home = PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/".into()));
-    let sandbox_profile = sandbox::profile(&policy(ctx), &home);
-    let env = environment(ctx);
+    let sandbox_profile = sandbox::profile_with_network(&policy(ctx), &home, allow_network);
+    let mut env = environment(ctx);
+    if let Some(overrides) = extra_env {
+        for (k, v) in overrides {
+            env.insert(
+                k.clone(),
+                v.replace("{project}", &ctx.dir.display().to_string())
+                    .replace("{cache}", &ctx.cache.display().to_string()),
+            );
+        }
+    }
     let start = Instant::now();
     let mut steps = Vec::new();
     for template in commands {
@@ -346,14 +380,106 @@ pub async fn project_delete<R: Runtime>(app: AppHandle<R>, runs: State<'_, Runs>
     .map_err(|e| e.to_string())?
 }
 
-fn tool_commands(profile: &Profile, tool_id: Option<&str>) -> Result<Vec<Vec<String>>, String> {
+fn find_tool<'a>(profile: &'a Profile, tool_id: Option<&str>) -> Result<&'a languages::ProfileTool, String> {
     let id = tool_id.ok_or_else(|| "Unknown tool action.".to_string())?;
     profile
         .tools
         .iter()
         .find(|t| t.id == id)
-        .map(|t| t.commands.clone())
         .ok_or_else(|| "Unknown tool action.".to_string())
+}
+
+#[cfg(test)]
+fn tool_commands(profile: &Profile, tool_id: Option<&str>) -> Result<Vec<Vec<String>>, String> {
+    find_tool(profile, tool_id).map(|t| t.commands.clone())
+}
+
+fn sanitize_export_name(raw: &str) -> String {
+    let mut slug = String::new();
+    let mut prev_dash = false;
+    for ch in raw.trim().chars() {
+        let lower = ch.to_ascii_lowercase();
+        if lower.is_ascii_alphanumeric() || lower == '_' {
+            slug.push(lower);
+            prev_dash = false;
+        } else if !prev_dash && !slug.is_empty() {
+            slug.push('-');
+            prev_dash = true;
+        }
+        if slug.len() >= 64 {
+            break;
+        }
+    }
+    let trimmed = slug.trim_matches('-').to_string();
+    if trimmed.is_empty() {
+        "learnforge-project".to_string()
+    } else {
+        trimmed
+    }
+}
+
+/// Export validated project files into a fresh folder under `base_dir` without
+/// overwriting existing directories or traversing symlinks.
+pub fn export_files_to_dir(
+    base_dir: &Path,
+    export_name: &str,
+    profile: &Profile,
+    files: &[ProjectFile],
+) -> Result<ExportResult, String> {
+    if files.is_empty() {
+        return Err("The project has no files to export yet.".into());
+    }
+    if files.len() > MAX_FILES {
+        return Err("The project has too many files.".into());
+    }
+    for f in files {
+        if !(profile.is_source(&f.path) || profile.is_test(&f.path)) {
+            return Err(format!("{:?} is not a {} project file.", f.path, profile.name));
+        }
+        if f.content.len() > MAX_FILE_BYTES {
+            return Err(format!("{} is too large.", f.path));
+        }
+    }
+    std::fs::create_dir_all(base_dir).map_err(|e| format!("Could not access export folder: {e}"))?;
+    let base_name = sanitize_export_name(export_name);
+    let mut dest = base_dir.join(&base_name);
+    let mut suffix = 2u32;
+    while dest.exists() {
+        if suffix > 999 {
+            return Err("Too many exported folders with that name.".into());
+        }
+        dest = base_dir.join(format!("{base_name}-{suffix}"));
+        suffix += 1;
+    }
+    std::fs::create_dir_all(&dest).map_err(|e| format!("Could not create export folder: {e}"))?;
+    let canon_dest = std::fs::canonicalize(&dest).map_err(|e| e.to_string())?;
+    let config: Vec<&languages::ScaffoldFile> = profile
+        .scaffold
+        .iter()
+        .filter(|s| !files.iter().any(|f| f.path == s.path))
+        .collect();
+    let all: Vec<(&str, &str)> = files
+        .iter()
+        .map(|f| (f.path.as_str(), f.content.as_str()))
+        .chain(config.iter().map(|s| (s.path.as_str(), s.content.as_str())))
+        .collect();
+    let mut count = 0usize;
+    for (path, content) in all {
+        let target = safe_target(&dest, path)?;
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            let canon_parent = std::fs::canonicalize(parent).map_err(|e| e.to_string())?;
+            if !canon_parent.starts_with(&canon_dest) {
+                return Err(format!("{path} resolves outside the export folder."));
+            }
+        }
+        if std::fs::symlink_metadata(&target).is_ok_and(|m| m.file_type().is_symlink()) {
+            return Err(format!("{path} is a link; refusing to write through it."));
+        }
+        std::fs::write(&target, content).map_err(|e| format!("Could not export {path}: {e}"))?;
+        count += 1;
+    }
+    Ok(ExportResult { path: dest.display().to_string(), file_count: count })
 }
 
 #[tauri::command]
@@ -385,11 +511,13 @@ pub async fn project_exec<R: Runtime>(
         let profile = profile(&app, &profile_id)?;
         let dir = project_dir(&app, &track_id)?;
         let cache = cache_dir(&app)?;
+        let mut tool_env: Option<BTreeMap<String, String>> = None;
         let commands = match action.as_str() {
             "run" => profile.run.clone(),
+            "test_batch" => profile.test_batch.clone(),
             "test" | "check" => {
                 let s = stage.as_ref().ok_or("A test run needs a step.")?;
-                if !profile.is_test(&s.test_file) || !dir.join(&s.test_file).is_file() || s.number == 0 || s.number > 99 {
+                if !profile.is_test(&s.test_file) || !dir.join(&s.test_file).is_file() || s.number == 0 || s.number > 999 {
                     return Err("That step's test file is not in the project.".to_string());
                 }
                 if action == "check" {
@@ -402,13 +530,25 @@ pub async fn project_exec<R: Runtime>(
                     profile.test.clone()
                 }
             }
-            "tool" => tool_commands(&profile, tool_id.as_deref())?,
+            "tool" => {
+                let tool = find_tool(&profile, tool_id.as_deref())?;
+                if !tool.env.is_empty() {
+                    tool_env = Some(tool.env.clone());
+                }
+                tool.commands.clone()
+            }
             _ => return Err("Unknown action.".into()),
         };
         if commands.is_empty() {
             return Err(format!("{} has no {action} command.", profile.name));
         }
-        execute(&Context { dir: &dir, cache: &cache, profile: &profile, stage: stage.as_ref() }, &commands, cancel)
+        execute_with_options(
+            &Context { dir: &dir, cache: &cache, profile: &profile, stage: stage.as_ref() },
+            &commands,
+            tool_env.as_ref(),
+            false,
+            cancel,
+        )
     })
     .await
     .map_err(|e| e.to_string());
@@ -416,6 +556,108 @@ pub async fn project_exec<R: Runtime>(
         map.remove(&request_id);
     }
     result?
+}
+
+/// Explicitly fetch declared project dependencies (e.g. `go mod tidy` + `go mod download`).
+/// Runs inside the macOS sandbox with home-read and write isolation preserved; only
+/// network access is enabled so module archives can be cached in the toolchain cache,
+/// while regular test/run commands remain strictly offline.
+#[tauri::command]
+pub async fn project_fetch_deps<R: Runtime>(
+    app: AppHandle<R>,
+    runs: State<'_, Runs>,
+    track_id: String,
+    profile_id: String,
+    request_id: String,
+) -> Result<FetchDepsResult, String> {
+    if !valid_id(&request_id) {
+        return Err("Invalid request id.".into());
+    }
+    let cancel = Arc::new(AtomicBool::new(false));
+    {
+        let mut active = runs.active.lock().map_err(|_| "busy")?;
+        if active.contains_key(&request_id) {
+            return Err("That run request is already active.".into());
+        }
+        active.insert(request_id.clone(), cancel.clone());
+    }
+    let lock = runs.lock_for(&track_id)?;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let _guard = lock.lock().map_err(|_| "busy".to_string())?;
+        let profile = profile(&app, &profile_id)?;
+        if profile.fetch_deps.is_empty() {
+            return Err(format!("{} does not support dependency fetching.", profile.name));
+        }
+        let dir = project_dir(&app, &track_id)?;
+        let cache = cache_dir(&app)?;
+        let exec = execute_with_options(
+            &Context { dir: &dir, cache: &cache, profile: &profile, stage: None },
+            &profile.fetch_deps,
+            None,
+            true,
+            cancel,
+        )?;
+        let mut updated_files = Vec::new();
+        for name in ["go.mod", "go.sum", "go.work"] {
+            if !profile.is_source(name) {
+                continue;
+            }
+            let path = dir.join(name);
+            if path.is_file() {
+                if let Ok(content) = std::fs::read_to_string(&path) {
+                    if content.len() <= MAX_FILE_BYTES {
+                        updated_files.push(ProjectFile { path: name.to_string(), content });
+                    }
+                }
+            }
+        }
+        Ok(FetchDepsResult { exec, updated_files })
+    })
+    .await
+    .map_err(|e| e.to_string());
+    if let Ok(mut map) = runs.active.lock() {
+        map.remove(&request_id);
+    }
+    result?
+}
+
+/// Export the project workspace as a clean standalone folder in Downloads.
+#[tauri::command]
+pub async fn project_export<R: Runtime>(
+    app: AppHandle<R>,
+    runs: State<'_, Runs>,
+    track_id: String,
+    profile_id: String,
+    export_name: String,
+    files: Vec<ProjectFile>,
+    reveal: Option<bool>,
+) -> Result<ExportResult, String> {
+    if !valid_id(&track_id) {
+        return Err("Invalid topic id.".into());
+    }
+    let lock = runs.lock_for(&track_id)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = lock.lock().map_err(|_| "busy".to_string())?;
+        let profile = profile(&app, &profile_id)?;
+        let base = app
+            .path()
+            .download_dir()
+            .or_else(|_| app.path().desktop_dir())
+            .or_else(|_| app.path().document_dir())
+            .map_err(|e| format!("Could not locate Downloads folder: {e}"))?;
+        let exported = export_files_to_dir(&base, &export_name, &profile, &files)?;
+        #[cfg(target_os = "macos")]
+        if reveal.unwrap_or(false) {
+            let _ = std::process::Command::new("/usr/bin/open")
+                .args(["-R", &exported.path])
+                .spawn();
+        }
+        #[cfg(not(target_os = "macos"))]
+        let _ = reveal;
+        Ok(exported)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -488,9 +730,11 @@ mod tests {
     fn tool_lookup_requires_known_profile_tool() {
         let go = get("go");
         assert!(tool_commands(&go, Some("test_all")).is_ok());
+        assert!(tool_commands(&go, Some("race")).is_ok());
         assert!(tool_commands(&go, Some("cover")).is_ok());
         assert!(tool_commands(&go, Some("bench")).is_ok());
         assert!(tool_commands(&go, Some("vet")).is_ok());
+        assert_eq!(find_tool(&go, Some("race")).unwrap().env.get("CGO_ENABLED").map(String::as_str), Some("1"));
         assert_eq!(tool_commands(&go, None), Err("Unknown tool action.".to_string()));
         assert_eq!(tool_commands(&go, Some("unknown")), Err("Unknown tool action.".to_string()));
     }
@@ -534,5 +778,55 @@ mod tests {
         let all = execute(&Context { dir: &dir, cache: &cache, profile: &go, stage: None }, &all_cmds, Arc::default()).unwrap();
         assert_eq!(all.exit_code, 0, "{all:?}");
         assert!(all.steps[0].stdout.contains("TestStage01Add"), "{all:?}");
+        let batch = execute(&Context { dir: &dir, cache: &cache, profile: &go, stage: None }, &go.test_batch, Arc::default()).unwrap();
+        assert_eq!(batch.exit_code, 0, "{batch:?}");
+        assert!(batch.steps[0].stdout.contains("\"Test\":\"TestStage01Add\""), "{batch:?}");
+        let race_tool = find_tool(&go, Some("race")).unwrap();
+        let race = execute_with_options(
+            &Context { dir: &dir, cache: &cache, profile: &go, stage: None },
+            &race_tool.commands,
+            Some(&race_tool.env),
+            false,
+            Arc::default(),
+        )
+        .unwrap();
+        assert_eq!(race.exit_code, 0, "{race:?}");
+        let _ = std::fs::remove_dir_all(dir.parent().unwrap());
+    }
+
+    #[test]
+    fn export_writes_clean_deduplicated_folder_and_rejects_bad_paths() {
+        let (dir, _) = fixture("export");
+        let go = get("go");
+        let files = vec![
+            file("main.go", "package main\nfunc main() {}\n"),
+            file("internal/broker/log.go", "package broker\n"),
+            file("schemas/event.proto", "syntax = \"proto3\";\n"),
+        ];
+        let first = export_files_to_dir(&dir, "Event Broker (Go)!", &go, &files).unwrap();
+        assert!(first.path.ends_with("event-broker-go"), "{first:?}");
+        assert_eq!(first.file_count, 4); // 3 files + scaffold go.mod
+        assert!(Path::new(&first.path).join("go.mod").is_file());
+        assert!(Path::new(&first.path).join("internal/broker/log.go").is_file());
+        assert!(Path::new(&first.path).join("schemas/event.proto").is_file());
+
+        let second = export_files_to_dir(&dir, "Event Broker (Go)!", &go, &files).unwrap();
+        assert!(second.path.ends_with("event-broker-go-2"), "{second:?}");
+        assert!(export_files_to_dir(&dir, "bad", &go, &[file("../escape.go", "")]).is_err());
+        let _ = std::fs::remove_dir_all(dir.parent().unwrap());
+    }
+
+    #[test]
+    fn sync_supports_more_than_64_files_and_three_digit_stages() {
+        let (dir, _) = fixture("many");
+        let go = get("go");
+        let mut files: Vec<ProjectFile> = (1..=80)
+            .map(|i| file(&format!("pkg/file_{i}.go"), "package pkg\n"))
+            .collect();
+        files.push(file("stage105_stream_join_test.go", "package main\n"));
+        sync_files(&dir, &go, &files).unwrap();
+        assert!(dir.join("pkg/file_80.go").is_file());
+        assert!(dir.join("stage105_stream_join_test.go").is_file());
+        let _ = std::fs::remove_dir_all(dir.parent().unwrap());
     }
 }

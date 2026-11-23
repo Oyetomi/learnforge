@@ -109,9 +109,9 @@ export interface ProjectWorkspace {
   updatedAt: number;
 }
 
-export const MAX_PROJECT_FILES = 24;
+export const MAX_PROJECT_FILES = 80;
 export const MAX_FILE_CHARS = 60_000;
-export const PROMPT_CONTEXT_CHARS = 24_000;
+export const PROMPT_CONTEXT_CHARS = 80_000;
 
 const profile = (language: string): LanguageProfile => {
   const found = profileFor(language);
@@ -381,9 +381,9 @@ export function goPlaygroundBody(ws: ProjectWorkspace): string {
   ].join("");
 }
 
-/** Which stage a Go test belongs to, from its required TestStageNN prefix. */
+/** Which stage a Go test belongs to, from its required TestStageNN(N) prefix. */
 export function stageOfTest(name: string): number | null {
-  const m = /^TestStage(\d{2})/.exec(name);
+  const m = /^TestStage(\d{2,3})/.exec(name);
   return m ? Number(m[1]) : null;
 }
 
@@ -423,7 +423,158 @@ export function summarizeSuite(
   };
 }
 
-/** Path-labelled files for the tutor, bounded so large projects stay within context. */
+const CONFIG_FILE_RE = /(^|\/)(go\.(mod|work)|Cargo\.toml|package\.json|tsconfig\.json)$/;
+
+/**
+ * Extract a compact exported/structural API skeleton from a source file so
+ * large multi-chapter codebases stay visible to the tutor and step generator
+ * even when full file bodies exceed the prompt character budget.
+ */
+export function extractFileSkeleton(path: string, content: string, language: string): string {
+  const lines = content.split(/\r?\n/);
+  const out: string[] = [];
+  if (language === "go" && path.endsWith(".go")) {
+    let inBlock: "type" | "const" | "var" | null = null;
+    let blockLines = 0;
+    let braceDepth = 0;
+    for (const raw of lines) {
+      const trimmed = raw.trim();
+      if (inBlock) {
+        if (inBlock === "type") {
+          for (const ch of raw) {
+            if (ch === "{") braceDepth++;
+            else if (ch === "}") braceDepth = Math.max(0, braceDepth - 1);
+          }
+          if (blockLines < 18 || braceDepth === 0) out.push(raw);
+          else if (blockLines === 18) out.push("\t// ...");
+          blockLines++;
+          if (braceDepth === 0) inBlock = null;
+        } else {
+          if (blockLines < 12 || trimmed === ")") out.push(raw);
+          else if (blockLines === 12) out.push("\t// ...");
+          blockLines++;
+          if (trimmed === ")") inBlock = null;
+        }
+        continue;
+      }
+      if (/^package\s+\w+/.test(trimmed)) {
+        out.push(trimmed);
+      } else if (/^type\s+\w+.*\b(?:struct|interface)\s*\{/.test(trimmed)) {
+        out.push(raw);
+        let depth = 0;
+        for (const ch of raw) {
+          if (ch === "{") depth++;
+          else if (ch === "}") depth = Math.max(0, depth - 1);
+        }
+        if (depth > 0) {
+          inBlock = "type";
+          blockLines = 1;
+          braceDepth = depth;
+        }
+      } else if (/^type\s+\w+/.test(trimmed)) {
+        out.push(trimmed);
+      } else if (/^(?:const|var)\s+\($/.test(trimmed)) {
+        out.push(trimmed);
+        inBlock = trimmed.startsWith("const") ? "const" : "var";
+        blockLines = 1;
+      } else if (/^(?:const|var)\s+[A-Z]\w*/.test(trimmed)) {
+        out.push(trimmed);
+      } else if (/^func\s+/.test(trimmed)) {
+        const sig = raw.replace(/\s*\{.*$/, " { ... }");
+        out.push(sig);
+      }
+    }
+  } else if (language === "rust" && path.endsWith(".rs")) {
+    for (const raw of lines) {
+      const trimmed = raw.trim();
+      if (/^(?:pub(?:\([^)]*\))?\s+)?(?:mod|struct|enum|trait|type|fn|async\s+fn)\s+\w+/.test(trimmed) || /^impl\b/.test(trimmed)) {
+        out.push(raw.replace(/\s*\{.*$/, " { ... }"));
+      }
+    }
+  } else if (language === "python" && path.endsWith(".py")) {
+    for (const raw of lines) {
+      if (/^(?:class|def|async\s+def)\s+\w+/.test(raw) || /^\s{2,4}(?:def|async\s+def)\s+\w+/.test(raw)) {
+        out.push(raw);
+      }
+    }
+  } else if ((language === "typescript" || language === "javascript") && /\.(?:ts|js)$/.test(path)) {
+    for (const raw of lines) {
+      const trimmed = raw.trim();
+      if (/^export\s+(?:default\s+)?(?:async\s+)?(?:function|class|interface|type|const|let)\s+\w+/.test(trimmed)) {
+        out.push(raw.replace(/\s*\{.*$/, " { ... }"));
+      }
+    }
+  } else if (language === "java" && path.endsWith(".java")) {
+    for (const raw of lines) {
+      const trimmed = raw.trim();
+      if (/^(?:package\s+|public\s+|protected\s+)/.test(trimmed) && /(?:class|interface|enum|record|\()/.test(trimmed)) {
+        out.push(raw.replace(/\s*\{.*$/, " { ... }"));
+      }
+    }
+  } else if ((language === "c" || language === "cpp") && /\.(?:c|h|cpp|hpp)$/.test(path)) {
+    for (const raw of lines) {
+      const trimmed = raw.trim();
+      if (/^(?:struct|class|enum|typedef|namespace)\s+\w+/.test(trimmed) || /^[a-zA-Z_][\w:*&<>\s]+\s+\w+\s*\([^;]*\)\s*(?:const\s*)?(?:\{|;)/.test(trimmed)) {
+        out.push(raw.replace(/\s*\{.*$/, " { ... }"));
+      }
+    }
+  } else if (language === "ruby" && path.endsWith(".rb")) {
+    for (const raw of lines) {
+      if (/^\s*(?:module|class|def)\s+/.test(raw)) out.push(raw);
+    }
+  }
+  const joined = out.join("\n").trim();
+  if (!joined || joined.length >= content.length * 0.85) return "";
+  return joined;
+}
+
+/**
+ * Order files so config manifests, active-unit files, and recently changed
+ * files receive full bodies before older unchanged files.
+ */
+export function prioritizedProjectFiles(ws: ProjectWorkspace, activeUnitId?: string): ProjectFile[] {
+  if (!ws.stages.length) return ws.files;
+  const activeStage = currentStageFor(ws, activeUnitId);
+  const activeUnitList = unitStages(ws, activeUnitId);
+  const activeTaskText = activeStage?.task ?? "";
+  const activePaths = new Set<string>();
+  for (const st of activeUnitList) {
+    for (const f of st.addedFiles) activePaths.add(f.path);
+    const startMap = new Map(st.startFiles.map((f) => [f.path, f.content]));
+    for (const f of ws.files) {
+      const prev = startMap.get(f.path);
+      if (prev === undefined || prev !== f.content) activePaths.add(f.path);
+    }
+  }
+  for (const f of ws.files) {
+    const base = f.path.slice(f.path.lastIndexOf("/") + 1);
+    if (activeTaskText && (activeTaskText.includes(f.path) || (base.length > 4 && activeTaskText.includes(base)))) {
+      activePaths.add(f.path);
+    }
+  }
+  const latestTouchedStage = new Map<string, number>();
+  for (const st of [...ws.stages].sort((a, b) => a.number - b.number)) {
+    for (const f of st.addedFiles) latestTouchedStage.set(f.path, st.number);
+    const startMap = new Map(st.startFiles.map((f) => [f.path, f.content]));
+    for (const f of ws.files) {
+      if (startMap.has(f.path) && startMap.get(f.path) !== f.content) {
+        latestTouchedStage.set(f.path, st.number);
+      }
+    }
+  }
+  const rank = (f: ProjectFile): number => {
+    if (CONFIG_FILE_RE.test(f.path)) return 0;
+    if (activePaths.has(f.path)) return 1;
+    if (latestTouchedStage.has(f.path)) return 2;
+    return 3;
+  };
+  return ws.files
+    .map((file, index) => ({ file, index, r: rank(file), stage: latestTouchedStage.get(file.path) ?? 0 }))
+    .sort((a, b) => a.r - b.r || b.stage - a.stage || a.index - b.index)
+    .map((x) => x.file);
+}
+
+/** Path-labelled files for the tutor, prioritized and skeleton-summarized when large. */
 export function projectPromptContext(ws: ProjectWorkspace, activeUnitId?: string, max = PROMPT_CONTEXT_CHARS): string {
   const stage = currentStageFor(ws, activeUnitId);
   const parts: string[] = [];
@@ -435,27 +586,164 @@ export function projectPromptContext(ws: ProjectWorkspace, activeUnitId?: string
   }
   let used = parts.join("").length;
   let omitted = 0;
-  for (const f of ws.files) {
+  for (const f of prioritizedProjectFiles(ws, activeUnitId)) {
     const block = `// ==== ${f.path} ====\n${f.content}`;
-    if (used + block.length > max) {
-      omitted++;
+    if (used + block.length <= max) {
+      parts.push(block);
+      used += block.length;
       continue;
     }
-    parts.push(block);
-    used += block.length;
+    const skeleton = extractFileSkeleton(f.path, f.content, ws.language);
+    if (skeleton) {
+      const summaryBlock = `// ==== ${f.path} (API summary) ====\n${skeleton}`;
+      if (used + summaryBlock.length <= max) {
+        parts.push(summaryBlock);
+        used += summaryBlock.length;
+        continue;
+      }
+    }
+    omitted++;
   }
   if (omitted) parts.push(`// ${omitted} more file(s) omitted for length.`);
   return parts.join("\n\n");
 }
 
-/** Bounded file listing for preparing the next step. */
-export function filesForPrompt(ws: ProjectWorkspace, max = PROMPT_CONTEXT_CHARS): { path: string; content: string; truncated?: boolean }[] {
+/** Bounded file listing for preparing the next step, preserving APIs across large repos. */
+export function filesForPrompt(
+  ws: ProjectWorkspace,
+  max = PROMPT_CONTEXT_CHARS,
+  activeUnitId?: string
+): { path: string; content: string; truncated?: boolean; summarized?: boolean }[] {
+  const totalChars = ws.files.reduce((sum, f) => sum + f.content.length, 0);
+  if (totalChars <= max) {
+    return ws.files.map((f) => ({ path: f.path, content: f.content }));
+  }
+  const ordered = prioritizedProjectFiles(ws, activeUnitId);
+  const summaryReserve = Math.min(Math.floor(max * 0.25), 16_000);
+  const fullBudget = Math.max(0, max - summaryReserve);
+  const result = new Map<string, { path: string; content: string; truncated?: boolean; summarized?: boolean }>();
+  const deferred: ProjectFile[] = [];
   let used = 0;
-  return ws.files.map((f) => {
-    const room = Math.max(0, max - used);
-    used += Math.min(room, f.content.length);
-    return f.content.length > room ? { path: f.path, content: f.content.slice(0, room), truncated: true } : f;
-  });
+  for (const f of ordered) {
+    if (used + f.content.length <= fullBudget) {
+      result.set(f.path, { path: f.path, content: f.content });
+      used += f.content.length;
+    } else {
+      deferred.push(f);
+    }
+  }
+  for (const f of deferred) {
+    const remaining = Math.max(0, max - used);
+    if (remaining >= f.content.length) {
+      result.set(f.path, { path: f.path, content: f.content });
+      used += f.content.length;
+      continue;
+    }
+    const skeleton = extractFileSkeleton(f.path, f.content, ws.language);
+    if (skeleton && skeleton.length <= remaining) {
+      result.set(f.path, { path: f.path, content: skeleton, summarized: true });
+      used += skeleton.length;
+      continue;
+    }
+    if (remaining >= 120) {
+      const text = skeleton ? skeleton.slice(0, remaining) : f.content.slice(0, remaining);
+      result.set(f.path, { path: f.path, content: text, truncated: true, ...(skeleton ? { summarized: true } : {}) });
+      used += text.length;
+    } else {
+      result.set(f.path, { path: f.path, content: "", truncated: true });
+    }
+  }
+  return ordered.map((f) => result.get(f.path)!);
+}
+
+/** List external module paths declared in `go.mod` so the learner can review them before fetching. */
+export function parseGoModRequires(ws: ProjectWorkspace): string[] {
+  const goMod = ws.files.find((f) => f.path === "go.mod")?.content;
+  if (!goMod) return [];
+  const modules: string[] = [];
+  let inBlock = false;
+  for (const raw of goMod.split(/\r?\n/)) {
+    const line = raw.replace(/\/\/.*$/, "").trim();
+    if (!line) continue;
+    if (/^require\s*\($/.test(line)) {
+      inBlock = true;
+      continue;
+    }
+    if (inBlock) {
+      if (line === ")") {
+        inBlock = false;
+        continue;
+      }
+      const m = /^(\S+)\s+(\S+)/.exec(line);
+      if (m) modules.push(`${m[1]} ${m[2]}`);
+      continue;
+    }
+    const single = /^require\s+(\S+)\s+(\S+)/.exec(line);
+    if (single) modules.push(`${single[1]} ${single[2]}`);
+  }
+  return modules;
+}
+
+/** Build a clean POSIX ustar `.tar` archive (zero dependencies, works in browser & desktop). */
+export function buildProjectTar(files: ProjectFile[], rootFolder: string): Uint8Array {
+  const encoder = new TextEncoder();
+  const safeRoot =
+    rootFolder
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || "learnforge-project";
+  const chunks: Uint8Array[] = [];
+  const writeStr = (buf: Uint8Array, offset: number, str: string, len: number) => {
+    const bytes = encoder.encode(str);
+    buf.set(bytes.subarray(0, len), offset);
+  };
+  const writeOctal = (buf: Uint8Array, offset: number, val: number, len: number) => {
+    const s = val.toString(8).padStart(len - 1, "0");
+    writeStr(buf, offset, s, len - 1);
+    buf[offset + len - 1] = 0;
+  };
+  const mtime = Math.floor(Date.now() / 1000);
+  for (const f of files) {
+    const data = encoder.encode(f.content);
+    const fullPath = `${safeRoot}/${f.path.replace(/^\/+/, "")}`;
+    const header = new Uint8Array(512);
+    if (fullPath.length <= 100) {
+      writeStr(header, 0, fullPath, 100);
+    } else {
+      const split = fullPath.lastIndexOf("/");
+      writeStr(header, 0, fullPath.slice(split + 1), 100);
+      writeStr(header, 345, fullPath.slice(0, split), 155);
+    }
+    writeOctal(header, 100, 0o644, 8);
+    writeOctal(header, 108, 0, 8);
+    writeOctal(header, 116, 0, 8);
+    writeOctal(header, 124, data.length, 12);
+    writeOctal(header, 136, mtime, 12);
+    header.fill(0x20, 148, 156);
+    header[156] = "0".charCodeAt(0);
+    writeStr(header, 257, "ustar", 6);
+    writeStr(header, 263, "00", 2);
+    let checksum = 0;
+    for (let i = 0; i < 512; i++) checksum += header[i];
+    const chk = checksum.toString(8).padStart(6, "0");
+    writeStr(header, 148, chk, 6);
+    header[154] = 0;
+    header[155] = 0x20;
+    chunks.push(header);
+    chunks.push(data);
+    const padLen = (512 - (data.length % 512)) % 512;
+    if (padLen) chunks.push(new Uint8Array(padLen));
+  }
+  chunks.push(new Uint8Array(1024));
+  const total = chunks.reduce((sum, c) => sum + c.length, 0);
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    out.set(c, offset);
+    offset += c.length;
+  }
+  return out;
 }
 
 export function validWorkspace(value: unknown): value is ProjectWorkspace {

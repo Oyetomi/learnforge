@@ -140,4 +140,20 @@ describe("project step panel", () => {
     expect(html).toContain("Distributed KV store");
     expect(html).not.toContain("Project 1 of 1");
   });
+
+  it("displays declared localhost services when local infrastructure mode is enabled", () => {
+    const html = renderToStaticMarkup(
+      <ProjectStepPanel
+        project={controller({
+          projectEnvironment: {
+            localServices: [{ name: "Kafka / Redpanda", endpoint: "localhost:9092" }],
+          },
+          stage,
+        })}
+      />
+    );
+    expect(html).toContain("Local services:");
+    expect(html).toContain("Kafka / Redpanda");
+    expect(html).toContain("localhost:9092");
+  });
 });

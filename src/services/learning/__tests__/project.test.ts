@@ -4,16 +4,22 @@ import {
   addFile,
   allTrackWorkspaceKeys,
   applyStage,
+  buildProjectTar,
   currentStageFor,
   emptyWorkspace,
+  extractFileSkeleton,
+  filesForPrompt,
   goPlaygroundBody,
   markStagePassed,
+  MAX_PROJECT_FILES,
   nextPart,
+  parseGoModRequires,
   parsePreparedStage,
   projectPromptContext,
   projectWorkspaceKey,
   removeFile,
   resetFileToStageStart,
+  stageOfTest,
   stageTestPath,
   stageTestProblem,
   summarizeSuite,
@@ -26,6 +32,7 @@ import {
 } from "../project";
 import {
   hasProjectMode,
+  isLocalhostEndpoint,
   planProjects,
   projectForUnit,
   unitsForProject,
@@ -33,7 +40,7 @@ import {
   type CurriculumPlan,
 } from "../curriculumPlan";
 import { deleteTrackProjects, loadProject, saveProject } from "../projectStore";
-import { prepareProjectStage, trackFromOutline } from "../../ai/curriculumOutline";
+import { generateCurriculumOutline, prepareProjectStage, trackFromOutline } from "../../ai/curriculumOutline";
 
 const stage1Tests = `package main
 
@@ -671,5 +678,142 @@ describe("multi-project curricula and book-grounded stage preparation", () => {
     expect(await loadProject("track-a--rss")).toBeNull();
     expect(await loadProject("track-a--orphan")).toBeNull();
     expect(await loadProject("track-b--rss")).not.toBeNull();
+  });
+});
+
+describe("large book & Go microservices scaling improvements", () => {
+  it("supports 3-digit stages and more than 24 source files per workspace", () => {
+    expect(MAX_PROJECT_FILES).toBeGreaterThanOrEqual(80);
+    expect(stageTestPath(105, "Stream Window Join")).toBe("stage105_stream_window_join_test.go");
+    expect(stageOfTest("TestStage105StreamWindow")).toBe(105);
+    const stage105 = `package main\nimport "testing"\nfunc TestStage105Window(t *testing.T) {}\n`;
+    expect(stageTestProblem(stage105, 105, "go")).toBeNull();
+
+    let ws = emptyWorkspace("large-go", "go");
+    for (let i = 1; i <= 35; i++) {
+      ws = addFile(ws, `internal/pkg${i}/mod.go`);
+    }
+    expect(ws.files.length).toBe(36); // go.mod + 35 files
+  });
+
+  it("prioritizes active files and summarizes older Go files into API skeletons when over budget", () => {
+    const oldBroker = `package broker
+
+type PartitionedLog struct {
+	topic string
+	records [][]byte
+}
+
+func NewPartitionedLog(topic string) *PartitionedLog {
+	// ${"lots of implementation details ".repeat(35)}
+	return &PartitionedLog{topic: topic}
+}
+
+func (l *PartitionedLog) Append(record []byte) (int64, error) {
+	// ${"append logic and persistence ".repeat(35)}
+	l.records = append(l.records, record)
+	return int64(len(l.records) - 1), nil
+}
+`;
+    const activeConsumer = `package consumer
+
+type Group struct { ID string }
+
+func NewGroup(id string) *Group { return &Group{ID: id} }
+`;
+    let ws = emptyWorkspace("edm", "go");
+    ws = applyStage(ws, "u1", "Broker", { task: "Build broker", tests: stage1Tests, files: [{ path: "internal/broker/log.go", content: oldBroker }] }, 1);
+    ws = applyStage(ws, "u2", "Consumer", { task: "Edit internal/consumer/group.go", tests: stage2Tests, files: [{ path: "internal/consumer/group.go", content: activeConsumer }] }, 2);
+
+    const skeleton = extractFileSkeleton("internal/broker/log.go", oldBroker, "go");
+    expect(skeleton).toContain("package broker");
+    expect(skeleton).toContain("type PartitionedLog struct");
+    expect(skeleton).toContain("func NewPartitionedLog(topic string) *PartitionedLog { ... }");
+    expect(skeleton).toContain("func (l *PartitionedLog) Append(record []byte) (int64, error) { ... }");
+    expect(skeleton.length).toBeLessThan(oldBroker.length * 0.5);
+
+    const promptFiles = filesForPrompt(ws, 900, "u2");
+    const consumerEntry = promptFiles.find((f) => f.path === "internal/consumer/group.go");
+    const brokerEntry = promptFiles.find((f) => f.path === "internal/broker/log.go");
+    expect(consumerEntry?.content).toBe(activeConsumer);
+    expect(consumerEntry?.summarized).toBeUndefined();
+    expect(brokerEntry?.summarized).toBe(true);
+    expect(brokerEntry?.content).toContain("func (l *PartitionedLog) Append");
+
+    const tutorCtx = projectPromptContext(ws, "u2", 1100);
+    expect(tutorCtx).toContain("==== internal/consumer/group.go ====");
+    expect(tutorCtx).toContain("==== internal/broker/log.go (API summary) ====");
+  });
+
+  it("parses go.mod requires and builds valid POSIX ustar archives for browser export", () => {
+    const ws = {
+      ...emptyWorkspace("tar-test", "go"),
+      files: [
+        {
+          path: "go.mod",
+          content:
+            "module learnforge\n\ngo 1.22\n\nrequire (\n\tgithub.com/twmb/franz-go v1.18.0\n\tgoogle.golang.org/protobuf v1.35.1 // indirect\n)\nrequire golang.org/x/sync v0.8.0\n",
+        },
+        { path: "main.go", content: "package main\nfunc main() {}\n" },
+      ],
+    };
+    expect(parseGoModRequires(ws)).toEqual([
+      "github.com/twmb/franz-go v1.18.0",
+      "google.golang.org/protobuf v1.35.1",
+      "golang.org/x/sync v0.8.0",
+    ]);
+
+    const tar = buildProjectTar(ws.files, "Event-Driven Microservices!");
+    expect(tar.length % 512).toBe(0);
+    const decoded = new TextDecoder().decode(tar);
+    expect(decoded).toContain("event-driven-microservices/go.mod");
+    expect(decoded).toContain("event-driven-microservices/main.go");
+    expect(decoded).toContain("ustar");
+  });
+
+  it("validates ProjectEnvironment and wires structure, subheadings, external Go modules, and localhost services into prompts", async () => {
+    expect(isLocalhostEndpoint("localhost:9092")).toBe(true);
+    expect(isLocalhostEndpoint("127.0.0.1:5432")).toBe(true);
+    expect(isLocalhostEndpoint("[::1]:6379")).toBe(true);
+    expect(isLocalhostEndpoint("kafka.prod.internal:9092")).toBe(false);
+    expect(isLocalhostEndpoint("http://localhost:9092")).toBe(false);
+    expect(isLocalhostEndpoint("localhost:70000")).toBe(false);
+
+    const fetchMock = vi.fn().mockResolvedValue(response(outline()));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {}, removeItem: () => {} });
+
+    const track = await generateCurriculumOutline({
+      topic: "Building Event-Driven Microservices in Go",
+      interest: "Building Event-Driven Microservices in Go",
+      startingPoint: "Know Go basics",
+      destination: "Build event-driven microservices in Go",
+      language: "go",
+      project: true,
+      sectionSubheadings: { ch1: ["1.1 Event Streams", "1.2 Brokers"] },
+      projectEnvironment: {
+        structure: "multi",
+        allowExternalPackages: true,
+        localServices: [{ name: "Redpanda", endpoint: "localhost:9092" }],
+      },
+    });
+    expect(validCurriculumPlan(track.curriculum)).toBe(true);
+    expect(track.curriculum?.projectEnvironment).toEqual({
+      structure: "multi",
+      allowExternalPackages: true,
+      localServices: [{ name: "Redpanda", endpoint: "localhost:9092" }],
+    });
+
+    const outlineBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(outlineBody.messages[0].content).toContain("MULTIPLE focused projects");
+    expect(outlineBody.messages[0].content).toContain("External packages are OPTED IN");
+    expect(outlineBody.messages[0].content).toContain("Redpanda at localhost:9092");
+    const outlineUser = JSON.parse(outlineBody.messages[1].content);
+    expect(outlineUser.sectionSubheadings).toEqual({ ch1: ["1.1 Event Streams", "1.2 Brokers"] });
+
+    // Reject invalid external host in saved plan validation.
+    const badPlan = structuredClone(track.curriculum!);
+    badPlan.projectEnvironment!.localServices = [{ name: "Remote", endpoint: "evil.com:9092" }];
+    expect(validCurriculumPlan(badPlan)).toBe(false);
   });
 });

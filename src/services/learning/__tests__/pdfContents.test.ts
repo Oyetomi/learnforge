@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildChapterDigest, mainPdfSections, readableFileTitle, sectionsFromContents, selectedPdfSource, togglePdfSection, withPageRanges, type PdfBook } from "../pdfContents";
+import { buildChapterDigest, mainPdfSections, readableFileTitle, sectionsFromContents, selectedPdfSource, selectedPdfSubheadings, togglePdfSection, withPageRanges, type PdfBook } from "../pdfContents";
 import { referenceContext } from "../grounding";
 
 describe("PDF table of contents", () => {
@@ -28,6 +28,15 @@ describe("PDF table of contents", () => {
       {id:"ix",title:"Index",level:0},
     ];
     expect(mainPdfSections(parts).map(s => s.id)).toEqual(["c1","c2","c3"]);
+    const bookWithSubs: PdfBook = {
+      name: "Stats.pdf",
+      pageCount: 10,
+      pages: Array(10).fill(""),
+      sections: parts,
+      contentsFrom: "bookmarks",
+      truncated: false,
+    };
+    expect(selectedPdfSubheadings(bookWithSubs, ["c1", "c2"])).toEqual({ c1: ["1.1 Example"] });
     const chapters = [{id:"c1",title:"Chapter 1: Averages",level:0}, {id:"s1",title:"1.1 Example",level:1},
       {id:"c2",title:"Chapter 2: Spread",level:0}, {id:"s2",title:"2.1 Example",level:1}];
     expect(mainPdfSections(chapters).map(s => s.id)).toEqual(["c1","c2"]);

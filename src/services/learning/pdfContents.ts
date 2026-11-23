@@ -288,6 +288,31 @@ export function selectedPdfSource(book: PdfBook, ids: string[]): { source: Curri
   return { source: { name: book.name, sections, pageCount: book.pageCount, fingerprint: book.fingerprint }, references };
 }
 
+/**
+ * Collect nested sub-headings under each selected PDF section from the book's
+ * full bookmark/TOC tree so curriculum planning sees every chapter's internal topics.
+ */
+export function selectedPdfSubheadings(
+  book: PdfBook,
+  ids: string[],
+  maxPerSection = 18
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (let i = 0; i < book.sections.length; i++) {
+    const section = book.sections[i];
+    if (!ids.includes(section.id)) continue;
+    const descendants = pdfSectionDescendants(book.sections, i);
+    if (!descendants.length) continue;
+    const direct = descendants.filter((d) => d.level === section.level + 1);
+    const chosen = (direct.length ? direct : descendants)
+      .map((d) => d.title.trim())
+      .filter(Boolean)
+      .slice(0, maxPerSection);
+    if (chosen.length) out[section.id] = chosen;
+  }
+  return out;
+}
+
 const FRONT_OR_BACK_MATTER = /^(?:cover|back\s*cover|copyright|table of contents|contents|preface|foreword|index|colophon|acknowledg(?:e)?ments|about the authors?)$/i;
 /** "Part II: Uncertainty", "Book 1", "Unit 3", "Volume I", "IV. Decisions" */
 const GROUPING_HEADING = /^(?:part|book|unit|volume|module)\b|^[IVXLC]+[.:]\s/i;

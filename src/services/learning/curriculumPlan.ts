@@ -4,6 +4,27 @@ import { approvedLessonIds } from "./adaptation";
 import { validPrerequisiteGraph } from "./roadmap";
 
 export type LearningScope = "curriculum" | "focused";
+export type ProjectStructure = "auto" | "single" | "multi";
+export interface LocalServiceSpec {
+  name: string;
+  endpoint: string;
+  notes?: string;
+}
+export interface ProjectEnvironment {
+  structure?: ProjectStructure;
+  allowExternalPackages?: boolean;
+  localServices?: LocalServiceSpec[];
+}
+
+const LOCALHOST_ENDPOINT_RE = /^(?:localhost|127\.0\.0\.1|\[::1\]):(\d{1,5})$/i;
+
+export function isLocalhostEndpoint(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const m = LOCALHOST_ENDPOINT_RE.exec(value.trim());
+  if (!m) return false;
+  const port = Number(m[1]);
+  return Number.isInteger(port) && port >= 1 && port <= 65535;
+}
 export interface CurriculumUnit {
   id: string;
   title: string;
@@ -36,6 +57,8 @@ export interface CurriculumPlan {
   project?: import("./project").ProjectPlan;
   /** Multi-project mode: one or more distinct projects built across units. */
   projects?: import("./project").ProjectPlan[];
+  /** Optional project architecture & sandbox environment settings (e.g. Go modules, localhost services). */
+  projectEnvironment?: ProjectEnvironment;
   approvedAt?: number;
   /** Legacy tracks are wrapped without rewriting their lessons or evidence. */
   legacy?: boolean;
@@ -208,6 +231,27 @@ export function validCurriculumPlan(value: unknown): value is CurriculumPlan {
     }
   } else if (units.some((u) => u.projectStep !== undefined || u.projectId !== undefined)) {
     return false;
+  }
+  if (p.projectEnvironment !== undefined) {
+    const env = p.projectEnvironment;
+    if (!env || typeof env !== "object") return false;
+    if (env.structure !== undefined && !["auto", "single", "multi"].includes(env.structure)) return false;
+    if (env.allowExternalPackages !== undefined && typeof env.allowExternalPackages !== "boolean") return false;
+    if (env.localServices !== undefined) {
+      if (
+        !Array.isArray(env.localServices) ||
+        env.localServices.length > 8 ||
+        env.localServices.some(
+          (s) =>
+            !s ||
+            !text(s.name) ||
+            s.name.length > 80 ||
+            !isLocalhostEndpoint(s.endpoint) ||
+            (s.notes !== undefined && (typeof s.notes !== "string" || s.notes.length > 200))
+        )
+      )
+        return false;
+    }
   }
   if (p.sourceDocument) {
     const source = p.sourceDocument;
