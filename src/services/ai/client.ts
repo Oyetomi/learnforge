@@ -24,6 +24,7 @@ import {
   formatConversationMessages,
 } from "./prompts";
 import {
+  describeProviderError,
   AIConnectionError,
   aiFetch,
   loadAIConnection,
@@ -96,7 +97,7 @@ async function streamSingleModelAttempt(
       // Ignore text read error
     }
     throw new AIClientError(
-      `AI request failed with HTTP ${response.status} (${response.statusText})${errorDetails}`,
+      describeProviderError(response.status, errorDetails.replace(/^: /, ""), model),
       model,
       response.status
     );

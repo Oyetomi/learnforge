@@ -13,7 +13,7 @@ import {
 import { MATH_INSTRUCTIONS, TABLE_INSTRUCTIONS } from "../learning/visualContract";
 import { loadLearningPreferences } from "../learning/preferences";
 import { CourseTrack } from "./types";
-import { aiJsonRequest, loadAIConnection, recordUsage } from "./connection";
+import { aiJsonRequest, describeProviderError, loadAIConnection, recordUsage } from "./connection";
 import { LearningReference, SupportedLanguage } from "../../types";
 import { validPrerequisiteGraph } from "../learning/roadmap";
 import { validateLearningCheck } from "../learning/checks";
@@ -171,11 +171,7 @@ Return valid JSON only, using this structure. The single milestone here is a sch
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
-    throw new Error(
-      `AI service returned HTTP ${response.status}: ${
-        errorText || response.statusText
-      }`
-    );
+    throw new Error(describeProviderError(response.status, errorText || response.statusText));
   }
 
   const data = await response.json();

@@ -476,6 +476,64 @@ export async function aiJsonRequest(
   return response;
 }
 
+/**
+ * Turn a provider's error response into one readable sentence. Providers and
+ * proxies nest JSON inside JSON (an OpenAI-style error whose message is a
+ * Google error); usage limits are named as such, with the reset time.
+ */
+export function describeProviderError(status: number, body: string, model?: string): string {
+  const messages: string[] = [];
+  let resetIn = "";
+  let quotaModel = "";
+  const visit = (value: unknown, depth = 0): void => {
+    if (depth > 6 || value == null) return;
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      const start = trimmed.indexOf("{");
+      if (start >= 0) {
+        try {
+          visit(JSON.parse(trimmed.slice(start)), depth + 1);
+          if (start > 0) messages.push(trimmed.slice(0, start).replace(/[:\s]+$/, ""));
+          return;
+        } catch {
+          /* Not JSON: keep the text. */
+        }
+      }
+      messages.push(trimmed);
+      return;
+    }
+    if (Array.isArray(value)) return value.forEach((v) => visit(v, depth + 1));
+    if (typeof value === "object") {
+      const o = value as Record<string, unknown>;
+      const meta = o.metadata as Record<string, unknown> | undefined;
+      if (typeof meta?.quotaResetDelay === "string" && !resetIn) resetIn = meta.quotaResetDelay;
+      if (typeof meta?.model === "string" && !quotaModel) quotaModel = meta.model;
+      if (o.error !== undefined) visit(o.error, depth + 1);
+      if (typeof o.message === "string") visit(o.message, depth + 1);
+      if (Array.isArray(o.details)) visit(o.details, depth + 1);
+    }
+  };
+  try {
+    visit(JSON.parse(body));
+  } catch {
+    visit(body);
+  }
+  const all = messages.join(" ");
+  const quota = status === 429 || /RESOURCE_EXHAUSTED|quota (?:reached|exceeded|exhausted)|rate limit/i.test(all + body);
+  if (quota) {
+    const said = /Resets in ((?:\d+(?:\.\d+)?[hms])+)/i.exec(all)?.[1] ?? resetIn;
+    const when = said ? said.replace(/\.\d+s$/, "s").replace(/(\d+)\.\d+s/, "$1s") : "";
+    const name = quotaModel || model;
+    return `Usage limit reached${name ? ` for ${name}` : ""}${when ? `. It resets in ${when}` : ""}. Choose another model in Settings, or try again later.`;
+  }
+  const readable = messages
+    .map((m) => m.replace(/\s+/g, " ").trim())
+    .filter((m) => m && !/^(?:CloudCode API error|AI request failed)/i.test(m))
+    .sort((a, b) => b.length - a.length)[0];
+  const text = (readable || body.replace(/\s+/g, " ").trim()).slice(0, 220);
+  return text ? `HTTP ${status}: ${text}` : `HTTP ${status}`;
+}
+
 /** Fired after every AI request so the session UI can show connection health. */
 export const AI_STATUS_EVENT = "learnforge:ai-status";
 export interface AIStatusDetail {
@@ -504,10 +562,7 @@ export async function testAIConnection(connection: AIConnection): Promise<string
     );
     if (!response.ok) {
       const text = await response.text().catch(() => "");
-      throw new AIConnectionError(
-        `HTTP ${response.status}${text ? `: ${text.slice(0, 200)}` : ""}`,
-        response.status
-      );
+      throw new AIConnectionError(describeProviderError(response.status, text, connection.model), response.status);
     }
     const data = await response.json();
     recordUsage(data?.usage);
