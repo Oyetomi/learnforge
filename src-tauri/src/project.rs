@@ -956,11 +956,19 @@ mod tests {
 
         // Java subpackage compilation inside sandbox
         let java = get("java");
-        // macOS ships /usr/bin/javac and /usr/bin/java as stubs that fail without a JDK
-        // (as on CI runners), so require both to actually run.
+        // macOS ships /usr/bin/javac and /usr/bin/java as stubs that find a JDK through
+        // /usr/libexec/java_home or JAVA_HOME. The sandbox clears the environment, so a JDK
+        // known only through JAVA_HOME (as on CI runners) can't run there: probe the same way.
         let runs = |name: &str| {
-            languages::resolve_binary(&java.binaries[name])
-                .is_some_and(|p| languages::responds(&p, &["-version".to_string()]))
+            languages::resolve_binary(&java.binaries[name]).is_some_and(|p| {
+                std::process::Command::new(p)
+                    .arg("-version")
+                    .env_clear()
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .status()
+                    .is_ok_and(|s| s.success())
+            })
         };
         if runs("javac") && runs("java") {
             let (dir, cache) = fixture("java-pkg");
