@@ -956,9 +956,13 @@ mod tests {
 
         // Java subpackage compilation inside sandbox
         let java = get("java");
-        if languages::resolve_binary(&java.binaries["javac"]).is_some()
-            && languages::resolve_binary(&java.binaries["java"]).is_some()
-        {
+        // macOS ships /usr/bin/javac and /usr/bin/java as stubs that fail without a JDK
+        // (as on CI runners), so require both to actually run.
+        let runs = |name: &str| {
+            languages::resolve_binary(&java.binaries[name])
+                .is_some_and(|p| languages::responds(&p, &["-version".to_string()]))
+        };
+        if runs("javac") && runs("java") {
             let (dir, cache) = fixture("java-pkg");
             let stage = StageRef { number: 1, test_file: "Stage01Test.java".into() };
             sync_files(
